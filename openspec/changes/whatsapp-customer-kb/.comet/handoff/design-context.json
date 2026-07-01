@@ -1,0 +1,18 @@
+{
+  "change": "whatsapp-customer-kb",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "e243c6d7275db9623eb5c02f91a867e10f384262f73e100ea1d6b236f78059de",
+  "files": [
+    { "path": "openspec/changes/whatsapp-customer-kb/proposal.md", "sha256": "6220aa76a7a757a72d88e20350588ca32fc1edde6e359d03c109e691f19946e5" },
+    { "path": "openspec/changes/whatsapp-customer-kb/design.md", "sha256": "b3635cf3e96892ac97b13f8ba1802bde8e08fbf5e5573430dcd5f43bd9a55b61" },
+    { "path": "openspec/changes/whatsapp-customer-kb/tasks.md", "sha256": "052d7b203b7ae25b167ad7dbde49f4df543bc7f821f944766e8ba71e162fbfad" },
+    { "path": "openspec/changes/whatsapp-customer-kb/specs/customer-profile/spec.md", "sha256": "b716acd0b7e1e061d43656e15bd5f0bca90d23db0059de8e59daa553f0927cd9" },
+    { "path": "openspec/changes/whatsapp-customer-kb/specs/knowledge-base/spec.md", "sha256": "7955f71d4efdcf44b31e638014e0d7913d1379707b15574ced6977f1ede447d3" },
+    { "path": "openspec/changes/whatsapp-customer-kb/specs/reply-assist/spec.md", "sha256": "29981f7f86e3588338458d9e605f56470cb3e73c0007293a511f63a17e4db2a8" },
+    { "path": "openspec/changes/whatsapp-customer-kb/specs/web-app/spec.md", "sha256": "7b7e0c6f5c20d9fb38e7eecc285015743150d63e9dd061b440cc0dec40b05ba9" },
+    { "path": "openspec/changes/whatsapp-customer-kb/specs/whatsapp-sync/spec.md", "sha256": "02c82e059e6759fa3bf14efc2558c170a7040f384b7e86467d215779cce345e8" }
+  ]
+}

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Node
+node_modules/
+
+# Project data (本地运行产物, 不入库)
+data/
+*.db
+*.sqlite
+*.sqlite3
+chroma/
+status.json
+
+# Playwright
+user-data-dir/
+
+# CodeGraph
+.codegraph/
+
+# IDE
+.vscode/
+.idea/

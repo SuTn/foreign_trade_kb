@@ -1,0 +1,17 @@
+workflow: full
+phase: build
+build_mode: null
+build_pause: null
+isolation: null
+verify_mode: null
+base_ref: null
+design_doc: docs/superpowers/specs/2026-07-01-whatsapp-customer-kb-design.md
+plan: null
+verify_result: pending
+verification_report: null
+branch_status: pending
+created_at: 2026-07-01
+verified_at: null
+archived: false
+handoff_context: openspec/changes/whatsapp-customer-kb/.comet/handoff/design-context.json
+handoff_hash: e243c6d7275db9623eb5c02f91a867e10f384262f73e100ea1d6b236f78059de
