@@ -1,9 +1,9 @@
 ## 1. 项目骨架与基础设施
 
-- [ ] 1.1 初始化 Python 项目结构（src/ 包结构、pyproject.toml、依赖锁定）
-- [ ] 1.2 添加核心依赖（fastapi/uvicorn/playwright/langchain/sqlite/chroma/embedding/llm sdk/文档解析库）
+- [x] 1.1 初始化 Python 项目结构（src/ 包结构、pyproject.toml、依赖锁定）
+- [x] 1.2 添加核心依赖（fastapi/uvicorn/playwright/langchain/sqlite/chroma/embedding/llm sdk/文档解析库）
 - [ ] 1.3 配置 Playwright 与独立 Chrome user-data-dir，验证可打开 WhatsApp Web
-- [ ] 1.4 建立配置层（DOM 选择器、IDB store 名、轮询间隔、LLM/embedding 配置集中管理）
+- [x] 1.4 建立配置层（DOM 选择器、IDB store 名、轮询间隔、LLM/embedding 配置集中管理）
 
 ## 2. 存储层
 

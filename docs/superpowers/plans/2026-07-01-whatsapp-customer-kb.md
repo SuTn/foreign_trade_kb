@@ -89,7 +89,7 @@ foreign_trade/
 **Interfaces:**
 - Produces: `app.config.Settings` (后续所有模块读取配置的入口)
 
-- [ ] **Step 1: 写 pyproject.toml**
+- [x] **Step 1: 写 pyproject.toml**
 
 ```toml
 [project]
@@ -124,7 +124,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 ```
 
-- [ ] **Step 2: 写 app/config.py**
+- [x] **Step 2: 写 app/config.py**
 
 ```python
 from pathlib import Path
@@ -174,7 +174,7 @@ class Settings(BaseSettings):
 settings = Settings()
 ```
 
-- [ ] **Step 3: 写 tests/conftest.py**
+- [x] **Step 3: 写 tests/conftest.py**
 
 ```python
 import pytest
@@ -192,12 +192,12 @@ def tmp_data(tmp_path, monkeypatch):
     return tmp_path
 ```
 
-- [ ] **Step 4: 安装依赖并验证可导入**
+- [x] **Step 4: 安装依赖并验证可导入**
 
 Run: `pip install -e ".[dev]" && python -c "from app.config import settings; print(settings.chunk_size)"`
 Expected: 输出 `512`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add pyproject.toml app/__init__.py app/config.py tests/
