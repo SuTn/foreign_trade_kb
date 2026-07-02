@@ -811,7 +811,7 @@ git commit -m "feat: ReadOnlyCDP 门面 (架构级只读约束)"
 - Consumes: `ReadOnlyCDP` (Task 6)
 - Produces: `walk_idb()`, `parse_dom_snapshot()`, `merge_messages()`
 
-- [ ] **Step 1: 写 idb_walk.py**
+- [x] **Step 1: 写 idb_walk.py**
 
 ```python
 # app/collector/idb_walk.py
@@ -855,7 +855,7 @@ def _ingest(store, value, result, account_id):
         if jid: result["contacts"][jid] = name
 ```
 
-- [ ] **Step 2: 写 dom_snapshot.py**
+- [x] **Step 2: 写 dom_snapshot.py**
 
 ```python
 # app/collector/dom_snapshot.py
@@ -875,7 +875,7 @@ def parse_dom_snapshot(snapshot: dict, active_chat_name: str | None = None) -> l
     return messages
 ```
 
-- [ ] **Step 3: 写 merger.py**
+- [x] **Step 3: 写 merger.py**
 
 ```python
 # app/collector/merger.py
@@ -896,7 +896,7 @@ def merge_messages(idb_messages: list[dict], dom_messages: list[dict]) -> list[d
     return merged
 ```
 
-- [ ] **Step 4: 写 merger 测试**
+- [x] **Step 4: 写 merger 测试**
 
 ```python
 # tests/collector/test_merger.py
@@ -916,12 +916,12 @@ def test_merge_missing_dom_body():
     assert merged[0]["body_present"] is False
 ```
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run: `pytest tests/collector/test_merger.py -v`
 Expected: 2 PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/collector/idb_walk.py app/collector/dom_snapshot.py app/collector/merger.py tests/collector/
