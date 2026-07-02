@@ -2047,7 +2047,7 @@ git commit -m "feat: 客户分析"
 - Consumes: `RagPipeline`
 - Produces: `generate_reply()` (仅生成不发送)
 
-- [ ] **Step 1: 写 generator.py**
+- [x] **Step 1: 写 generator.py**
 
 ```python
 # app/reply/generator.py
@@ -2071,7 +2071,7 @@ def regenerate_reply(pipeline: RagPipeline, customer_id: str, chat_id: str,
     return generate_reply(pipeline, customer_id, chat_id, incoming_message)
 ```
 
-- [ ] **Step 2: 写测试**
+- [x] **Step 2: 写测试**
 
 ```python
 # tests/reply/test_generator.py
@@ -2097,12 +2097,12 @@ def test_generate_reply_returns_reply_and_sources(tmp_data):
     assert isinstance(r["sources"], list)
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/reply/test_generator.py -v`
 Expected: 1 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/reply/generator.py tests/reply/test_generator.py
