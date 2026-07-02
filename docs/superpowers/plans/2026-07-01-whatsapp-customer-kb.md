@@ -509,7 +509,7 @@ git commit -m "feat: SQLite 结构化存储 (WAL+FTS5+画像单行覆盖)"
 - Consumes: `VectorStore` (Task 2), `app.llm.bge_embedding` (Task 5 — 此任务先用 fake embedding 解耦)
 - Produces: `ChromaStore`
 
-- [ ] **Step 1: 写 chroma_store.py (依赖注入 Embedding)**
+- [x] **Step 1: 写 chroma_store.py (依赖注入 Embedding)**
 
 ```python
 # app/storage/chroma_store.py
@@ -548,7 +548,7 @@ class ChromaStore(VectorStore):
                 for i, d, m, dist in zip(r["ids"][0], r["documents"][0], r["metadatas"][0], r["distances"][0])]
 ```
 
-- [ ] **Step 2: 写测试 (用 fake embedding)**
+- [x] **Step 2: 写测试 (用 fake embedding)**
 
 ```python
 # tests/storage/test_chroma_store.py
@@ -572,12 +572,12 @@ def test_message_vector_metadata(tmp_data):
     assert res[0]["metadata"]["chat_id"] == "c1"
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/storage/test_chroma_store.py -v`
 Expected: 2 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/storage/chroma_store.py tests/storage/test_chroma_store.py
