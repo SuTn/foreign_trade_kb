@@ -69,7 +69,15 @@ class SqliteStore(StructuredStore):
     def search_fts(self, table, query, limit=20):
         fts = f"{table}_fts"
         col = "body" if table == "messages" else "text"
-        rows = self.conn.execute(f"SELECT * FROM {fts} WHERE {col} MATCH ? LIMIT ?", (query, limit)).fetchall()
+        # FTS5 把 ? * ( ) 等当操作符会抛 syntax error; 将每个空白分隔 token 用双引号包成 phrase,
+        # 再 OR 连接, 既保留多词召回 (任一命中) 又避免特殊字符崩溃。空查询直接返回 []。
+        if not query or not query.strip():
+            return []
+        toks = [t for t in query.replace('"', '""').split() if t]
+        if not toks:
+            return []
+        expr = " OR ".join(f'"{t}"' for t in toks)
+        rows = self.conn.execute(f"SELECT * FROM {fts} WHERE {col} MATCH ? LIMIT ?", (expr, limit)).fetchall()
         return [dict(r) for r in rows]
 
     def upsert_wiki_page(self, page: WikiPage):
