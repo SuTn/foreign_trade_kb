@@ -1788,7 +1788,7 @@ git commit -m "feat: RAG 管线骨架 + 多路召回"
 **Interfaces:**
 - Produces: `Reranker` (ABC), `BgeReranker`
 
-- [ ] **Step 1: 写 reranker.py**
+- [x] **Step 1: 写 reranker.py**
 
 ```python
 # app/rag/reranker.py
@@ -1825,7 +1825,7 @@ class FakeReranker(Reranker):
         return ranked[:top_k]
 ```
 
-- [ ] **Step 2: 写测试**
+- [x] **Step 2: 写测试**
 
 ```python
 # tests/rag/test_reranker.py
@@ -1839,12 +1839,12 @@ def test_fake_reranker_orders_by_length():
     assert ranked[0]["text"] == "aaa"
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/rag/test_reranker.py -v`
 Expected: 1 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/rag/reranker.py tests/rag/test_reranker.py
