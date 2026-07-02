@@ -714,7 +714,7 @@ git commit -m "feat: 模型层 (LLM/Embedding 抽象 + bge-m3 + 云端 LLM)"
 **Interfaces:**
 - Produces: `ReadOnlyCDP` (只暴露 captureSnapshot/requestIndexedDB/evalReadOnly)
 
-- [ ] **Step 1: 写 readonly_cdp.py**
+- [x] **Step 1: 写 readonly_cdp.py**
 
 ```python
 # app/collector/readonly_cdp.py
@@ -758,7 +758,7 @@ ALLOWED_METHODS = frozenset({
 })
 ```
 
-- [ ] **Step 2: 写测试 (白名单约束)**
+- [x] **Step 2: 写测试 (白名单约束)**
 
 ```python
 # tests/collector/test_readonly_cdp.py
@@ -787,12 +787,12 @@ def test_no_send_method_exposed():
     assert not hasattr(cdp, "_session") or True  # _session 私有, 不应被采集器直接用
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/collector/test_readonly_cdp.py -v`
 Expected: 2 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/collector/readonly_cdp.py tests/collector/test_readonly_cdp.py
