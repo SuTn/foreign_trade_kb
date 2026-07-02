@@ -595,7 +595,7 @@ git commit -m "feat: Chroma 向量存储 (依赖注入 embedding)"
 **Interfaces:**
 - Produces: `LLM` (ABC), `Embedding` (ABC), `CloudLLM`, `BgeEmbedding`
 
-- [ ] **Step 1: 写 interfaces.py**
+- [x] **Step 1: 写 interfaces.py**
 
 ```python
 # app/llm/interfaces.py
@@ -612,7 +612,7 @@ class LLM(ABC):
     def generate(self, system: str, user: str, max_tokens: int = 1024) -> str: ...
 ```
 
-- [ ] **Step 2: 写 bge_embedding.py**
+- [x] **Step 2: 写 bge_embedding.py**
 
 ```python
 # app/llm/bge_embedding.py
@@ -638,7 +638,7 @@ class BgeEmbedding(Embedding):
         return 1024
 ```
 
-- [ ] **Step 3: 写 cloud_llm.py**
+- [x] **Step 3: 写 cloud_llm.py**
 
 ```python
 # app/llm/cloud_llm.py
@@ -666,7 +666,7 @@ class CloudLLM(LLM):
             return resp.choices[0].message.content
 ```
 
-- [ ] **Step 4: 写测试 (embedding 接口契约, 不实际加载模型)**
+- [x] **Step 4: 写测试 (embedding 接口契约, 不实际加载模型)**
 
 ```python
 # tests/llm/test_bge_embedding.py
@@ -691,12 +691,12 @@ def test_bge_dim_without_loading():
     assert e._model is None  # 未加载
 ```
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run: `pytest tests/llm/ -v`
 Expected: 3 PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/llm/ tests/llm/
