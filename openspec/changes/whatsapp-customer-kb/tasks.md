@@ -18,11 +18,11 @@
 - [ ] 3.2 实现 IDB walk（读 model-storage 的 message/chat/contact/group-metadata stores，分页拉元数据）
 - [ ] 3.3 实现 DOM 快照明文正文抓取（DOMSnapshot.captureSnapshot 抓 [data-id] 行）
 - [ ] 3.4 实现元数据与正文按消息 id 合并
-- [ ] 3.5 实现快 tick（~2s）DOM 增量同步（可见行 hash 变化才产出）
-- [ ] 3.6 实现慢 tick（~30s）IDB 全量校准
+- [x] 3.5 实现快 tick（~2s）DOM 增量同步（可见行 hash 变化才产出）
+- [x] 3.6 实现慢 tick（~30s）IDB 全量校准
 - [ ] 3.7 实现按需历史回溯（指定聊天手动触发滚动加载采集）
-- [ ] 3.8 实现幂等 upsert（按 account_id+chat_id+message_id 与 chatId+day）
-- [ ] 3.9 加入拟人化轮询抖动与只读约束（不发送消息）
+- [x] 3.8 实现幂等 upsert（按 account_id+chat_id+message_id 与 chatId+day）
+- [x] 3.9 加入拟人化轮询抖动与只读约束（不发送消息）
 
 ## 4. 知识库构建（复用 WeKnora docreader，RAG + Wiki 双索引）
 

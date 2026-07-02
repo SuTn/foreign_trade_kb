@@ -940,7 +940,7 @@ git commit -m "feat: IDB walk + DOM 快照解析 + 消息合并"
 - Consumes: `ReadOnlyCDP`, `walk_idb`, `parse_dom_snapshot`, `merge_messages`, `SqliteStore`, `ChromaStore`
 - Produces: `Scanner` (双 tick), `write_status()`, `read_status()`
 
-- [ ] **Step 1: 写 scanner.py**
+- [x] **Step 1: 写 scanner.py**
 
 ```python
 # app/collector/scanner.py
@@ -1021,7 +1021,7 @@ def parse_dom_snapshot_safe(snap):
         return []
 ```
 
-- [ ] **Step 2: 写测试 (status 心跳 + hash 去重)**
+- [x] **Step 2: 写测试 (status 心跳 + hash 去重)**
 
 ```python
 # tests/collector/test_scanner.py
@@ -1065,12 +1065,12 @@ def test_fast_tick_skips_unchanged(tmp_data, monkeypatch):
     asyncio.run(sc.fast_tick())  # 空 dom, hash 一致
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/collector/test_scanner.py -v`
 Expected: 3 PASS
 
-- [ ] **Step 4: 写 __main__.py**
+- [x] **Step 4: 写 __main__.py**
 
 ```python
 # app/collector/__main__.py
@@ -1088,7 +1088,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/collector/scanner.py app/collector/__main__.py tests/collector/test_scanner.py
