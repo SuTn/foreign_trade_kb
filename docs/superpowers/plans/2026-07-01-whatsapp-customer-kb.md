@@ -1661,7 +1661,7 @@ git commit -m "feat: Wiki Obsidian vault 导出"
 - Consumes: `SqliteStore`, `ChromaStore`, `Embedding`
 - Produces: `RagPipeline`, `retrieve_multi()`
 
-- [ ] **Step 1: 写 retrievers.py**
+- [x] **Step 1: 写 retrievers.py**
 
 ```python
 # app/rag/retrievers.py
@@ -1696,7 +1696,7 @@ def retrieve_multi(store, vector_store, query, customer_id=None, chat_id=None, t
     return results
 ```
 
-- [ ] **Step 2: 写 pipeline.py**
+- [x] **Step 2: 写 pipeline.py**
 
 ```python
 # app/rag/pipeline.py
@@ -1741,7 +1741,7 @@ class RagPipeline:
         return "\n---\n".join(parts)[:settings.context_token_limit*4]
 ```
 
-- [ ] **Step 3: 写测试**
+- [x] **Step 3: 写测试**
 
 ```python
 # tests/rag/test_retrievers.py
@@ -1765,12 +1765,12 @@ def test_retrieve_multi_4_paths(tmp_data):
     assert "bm25_msg" in sources
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `pytest tests/rag/test_retrievers.py -v`
 Expected: 1 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/rag/pipeline.py app/rag/retrievers.py tests/rag/test_retrievers.py
