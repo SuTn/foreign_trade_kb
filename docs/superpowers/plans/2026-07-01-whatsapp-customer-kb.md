@@ -1107,7 +1107,7 @@ git commit -m "feat: 采集器双 tick 循环 + status.json 心跳"
 **Interfaces:**
 - Produces: `launch_browser()` → (browser, page, cdp_session), `wait_for_login()`
 
-- [ ] **Step 1: 写 browser.py**
+- [x] **Step 1: 写 browser.py**
 
 ```python
 # app/collector/browser.py
@@ -1141,7 +1141,7 @@ async def wait_for_login(page) -> bool:
         return False
 ```
 
-- [ ] **Step 2: 写测试 (mock, 验证 user-data-dir 配置)**
+- [x] **Step 2: 写测试 (mock, 验证 user-data-dir 配置)**
 
 ```python
 # tests/collector/test_browser.py
@@ -1158,12 +1158,12 @@ def test_readonly_cdp_returned(launch_browser):
     assert hasattr(ReadOnlyCDP, "capture_snapshot")
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/collector/test_browser.py -v`
 Expected: 2 PASS
 
-- [ ] **Step 4: 更新 __main__.py 接入 browser**
+- [x] **Step 4: 更新 __main__.py 接入 browser**
 
 ```python
 # app/collector/__main__.py
@@ -1192,7 +1192,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/collector/browser.py app/collector/__main__.py tests/collector/test_browser.py
