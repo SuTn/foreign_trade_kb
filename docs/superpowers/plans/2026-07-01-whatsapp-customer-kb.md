@@ -1299,7 +1299,7 @@ git commit -m "feat: WeKnora docreader vendored + 解析适配层"
 - Consumes: `parse_document` (Task 10), `ChromaStore`, `SqliteStore`, `Embedding`
 - Produces: `chunk_text()`, `RagIndex` (索引策略)
 
-- [ ] **Step 1: 写 chunker.py**
+- [x] **Step 1: 写 chunker.py**
 
 ```python
 # app/knowledge/chunker.py
@@ -1323,7 +1323,7 @@ def chunk_text(text: str, chunk_size: int | None = None, overlap: int | None = N
     return chunks
 ```
 
-- [ ] **Step 2: 写 index_strategy.py**
+- [x] **Step 2: 写 index_strategy.py**
 
 ```python
 # app/knowledge/index_strategy.py
@@ -1335,7 +1335,7 @@ class IndexStrategy(ABC):
     def index(self, doc_id: str, text: str) -> None: ...
 ```
 
-- [ ] **Step 3: 写 rag_index.py**
+- [x] **Step 3: 写 rag_index.py**
 
 ```python
 # app/knowledge/rag_index.py
@@ -1366,7 +1366,7 @@ class RagIndex(IndexStrategy):
         self.vector_store.upsert_chunks(chunk_records)
 ```
 
-- [ ] **Step 4: 写测试**
+- [x] **Step 4: 写测试**
 
 ```python
 # tests/knowledge/test_chunker.py
@@ -1397,12 +1397,12 @@ def test_rag_index_inserts_chunks(tmp_data):
     assert len(rows) > 0
 ```
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run: `pytest tests/knowledge/test_chunker.py tests/knowledge/test_rag_index.py -v`
 Expected: 2 PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/knowledge/chunker.py app/knowledge/index_strategy.py app/knowledge/rag_index.py tests/knowledge/
