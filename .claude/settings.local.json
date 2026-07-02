@@ -193,7 +193,18 @@
       "Bash(curl -sL https://raw.githubusercontent.com/tinyhumansai/openhuman/main/app/src-tauri/src/cef_profile.rs -o oph_cef_profile.rs)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git -c user.name=Comet -c user.email=comet@local commit -m 'chore: init project with openspec change + design doc *)"
+      "Bash(git -c user.name=Comet -c user.email=comet@local commit -m 'chore: init project with openspec change + design doc *)",
+      "Bash(bash .claude/skills/subagent-driven-development/scripts/task-brief docs/superpowers/plans/2026-07-01-whatsapp-customer-kb.md 1)",
+      "Bash(python3 *)",
+      "Read(//usr/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(uv --version)",
+      "Bash(uv pip *)",
+      "Bash(git -c user.name=\"Comet\" -c user.email=\"comet@local\" add pyproject.toml app/__init__.py app/config.py tests/__init__.py tests/conftest.py)",
+      "Bash(git -c user.name=\"Comet\" -c user.email=\"comet@local\" commit -m \"feat: 项目骨架与集中配置\")",
+      "Bash(git *)",
+      "Read(//mnt/S6819489/.nvm/versions/node/**)",
+      "Read(//opt/**)"
     ]
   },
   "hooks": {
