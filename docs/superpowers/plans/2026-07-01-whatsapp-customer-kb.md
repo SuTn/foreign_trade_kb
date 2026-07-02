@@ -215,7 +215,7 @@ git commit -m "feat: 项目骨架与集中配置"
 **Interfaces:**
 - Produces: `StructuredStore` (ABC), `VectorStore` (ABC), 数据 dataclass
 
-- [ ] **Step 1: 写 app/storage/interfaces.py**
+- [x] **Step 1: 写 app/storage/interfaces.py**
 
 ```python
 from abc import ABC, abstractmethod
@@ -271,7 +271,7 @@ class VectorStore(ABC):
     def query_chunks(self, text: str, top_k: int = 5) -> list[dict]: ...
 ```
 
-- [ ] **Step 2: 写测试验证接口可实例化约束**
+- [x] **Step 2: 写测试验证接口可实例化约束**
 
 ```python
 # tests/storage/test_interfaces.py
@@ -287,12 +287,12 @@ def test_vector_store_is_abstract():
         VectorStore()
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/storage/test_interfaces.py -v`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/storage/interfaces.py tests/storage/
