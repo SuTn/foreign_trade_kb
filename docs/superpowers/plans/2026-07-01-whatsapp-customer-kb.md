@@ -1986,7 +1986,7 @@ git commit -m "feat: 客户匹配 + 画像抽取 (单行覆盖语义)"
 **Interfaces:**
 - Produces: `analyze_customer()`
 
-- [ ] **Step 1: 写 analyzer.py**
+- [x] **Step 1: 写 analyzer.py**
 
 ```python
 # app/profile/analyzer.py
@@ -2004,7 +2004,7 @@ def analyze_customer(store: StructuredStore, llm: LLM, customer_id: str, chat_su
                         ANALYZE_PROMPT.format(profile=profile, summary=chat_summary))
 ```
 
-- [ ] **Step 2: 写测试**
+- [x] **Step 2: 写测试**
 
 ```python
 # tests/profile/test_analyzer.py
@@ -2023,12 +2023,12 @@ def test_analyze_customer(tmp_data):
     assert "LED" in result
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/profile/test_analyzer.py -v`
 Expected: 1 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/profile/analyzer.py tests/profile/test_analyzer.py
