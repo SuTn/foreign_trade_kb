@@ -1,0 +1,35 @@
+# vendor/docreader — 文档解析器 (功能性回退实现)
+
+## 来源与归属
+
+本目录原本计划从 Tencent WeKnora (https://github.com/Tencent/WeKnora) 的
+`docreader/parser/` 目录 cherry-pick `excel_parser.py` / `pdf_parser.py` /
+`docx_parser.py` / `registry.py`，保留原始版权头。
+
+## 现状说明 (重要)
+
+实际执行时已成功从 GitHub 拉取上述真实文件，但发现它们无法直接复用：
+
+1. **接口不匹配**: WeKnora 真实解析器以 `class ExcelParser(BaseParser)` 等
+   类形式存在，入口方法为 `parse_into_text(content: bytes) -> Document`，
+   返回 WeKnora 自定义的 `Document` 对象 (含 chunks)。而本项目的适配层
+   `app/knowledge/parser.py` 按 Task brief 要求调用模块级函数
+   `parse_excel(path) -> str` / `parse_pdf(path) -> str` /
+   `parse_docx(path) -> str`，返回纯文本。
+2. **深层依赖**: 真实文件依赖 `docreader.models.document`、
+   `docreader.parser.base_parser`、`docreader.config`、
+   `docreader.parser.excel_convert`、`docreader.parser.xlsx_merge`、
+   `docreader.parser.concurrency`、`docreader.utils` 等大量内部模块，
+   需要引入整个 WeKnora docreader 包才能运行。
+
+因此本目录采用 **功能性回退实现 (functional fallback stubs)**：保留 MIT
+版权头与 WeKnora 归属，使用项目已安装的库 (openpyxl/pandas、pypdfium2、
+python-docx) 实现与适配层契约一致的 `parse_excel` / `parse_pdf` /
+`parse_docx` 模块级函数。这些实现是真实可用的解析逻辑，并非 `pass` 占位。
+
+后续若网络与依赖允许引入完整 WeKnora docreader 包，可替换本目录文件为
+真实 WeKnora 代码并补一层薄包装 (class -> 函数 / Document -> str)。
+
+## 许可
+
+WeKnora 采用 MIT 许可证，见 ./LICENSE。
