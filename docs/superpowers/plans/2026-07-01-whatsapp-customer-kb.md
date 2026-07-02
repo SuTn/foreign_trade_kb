@@ -1211,7 +1211,7 @@ git commit -m "feat: Playwright 启动 + 登录态持久化"
 **Interfaces:**
 - Produces: `parse_document(path) -> str` (统一解析接口)
 
-- [ ] **Step 1: vendored WeKnora docreader 解析器**
+- [x] **Step 1: vendored WeKnora docreader 解析器**
 
 从 https://github.com/Tencent/WeKnora/blob/main/docreader/parser/ 下载 `excel_parser.py`、`pdf_parser.py`、`docx_parser.py`、`registry.py` 到 `vendor/docreader/`，保留原始版权头。创建 `vendor/docreader/LICENSE` (MIT) 与 `NOTICE`。
 
@@ -1221,7 +1221,7 @@ mkdir -p vendor/docreader
 # 保留每个文件原始版权声明
 ```
 
-- [ ] **Step 2: 写 parser.py 适配层**
+- [x] **Step 2: 写 parser.py 适配层**
 
 ```python
 # app/knowledge/parser.py
@@ -1251,7 +1251,7 @@ def parse_document(path: str | Path) -> str:
         raise ValueError(f"不支持的格式: {ext}")
 ```
 
-- [ ] **Step 3: 写测试 (用合成文件)**
+- [x] **Step 3: 写测试 (用合成文件)**
 
 ```python
 # tests/knowledge/test_parser.py
@@ -1275,12 +1275,12 @@ def test_parse_unsupported(tmp_path):
         parse_document(f)
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `pytest tests/knowledge/test_parser.py -v`
 Expected: 3 PASS (Excel/PDF/Word 解析在集成测试用真实文件验证)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add vendor/docreader/ app/knowledge/parser.py tests/knowledge/test_parser.py

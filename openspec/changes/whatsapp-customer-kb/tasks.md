@@ -26,11 +26,11 @@
 
 ## 4. 知识库构建（复用 WeKnora docreader，RAG + Wiki 双索引）
 
-- [ ] 4.1 引入 WeKnora docreader 解析器（vendored 或子模块，保留版权声明）
-- [ ] 4.2 适配 Excel/CSV 解析（多 sheet、合并单元格填充、行级 KV 化）
-- [ ] 4.3 适配 PDF 解析（XY-cut 阅读顺序、标题识别、表格抽取）
-- [ ] 4.4 适配扫描页 OCR 路由（可替换 OCR 接口，默认 PaddleOCR/云端 vision）
-- [ ] 4.5 适配 Word/纯文本/网页解析
+- [x] 4.1 引入 WeKnora docreader 解析器（vendored 或子模块，保留版权声明）
+- [x] 4.2 适配 Excel/CSV 解析（多 sheet、合并单元格填充、行级 KV 化）
+- [x] 4.3 适配 PDF 解析（XY-cut 阅读顺序、标题识别、表格抽取）
+- [x] 4.4 适配扫描页 OCR 路由（可替换 OCR 接口，默认 PaddleOCR/云端 vision）
+- [x] 4.5 适配 Word/纯文本/网页解析
 - [ ] 4.6 实现切分（chunk_size/overlap 可配 + 父子分块）与向量化入库（RAG 索引）
 - [ ] 4.7 定义知识库索引策略抽象接口（可挂 RAG/Wiki 等多策略，可独立开关）
 - [ ] 4.8 实现 Wiki 索引：Agent 异步抽取实体/概念生成互联 Markdown 页面（SQLite wiki_pages/wiki_log_entries/wiki_config 表，页面含 wikilinks 与 frontmatter）
