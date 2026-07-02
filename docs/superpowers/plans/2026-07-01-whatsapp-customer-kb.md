@@ -312,7 +312,7 @@ git commit -m "feat: 存储层抽象接口"
 - Consumes: `StructuredStore` (Task 2), `app.config.settings`
 - Produces: `SqliteStore` (实现 StructuredStore)
 
-- [ ] **Step 1: 写 schema.sql**
+- [x] **Step 1: 写 schema.sql**
 
 ```sql
 -- app/storage/schema.sql
@@ -351,7 +351,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(body, content='messag
 CREATE VIRTUAL TABLE IF NOT EXISTS doc_chunks_fts USING fts5(text, content='doc_chunks', content_rowid='rowid');
 ```
 
-- [ ] **Step 2: 写 sqlite_store.py**
+- [x] **Step 2: 写 sqlite_store.py**
 
 ```python
 # app/storage/sqlite_store.py
@@ -448,7 +448,7 @@ class SqliteStore(StructuredStore):
                        r["ts"], r["type"], r["body"], bool(r["body_present"]), r["ingested_at"])
 ```
 
-- [ ] **Step 3: 写测试**
+- [x] **Step 3: 写测试**
 
 ```python
 # tests/storage/test_sqlite_store.py
@@ -485,12 +485,12 @@ def test_fts_search(tmp_data):
     assert len(res) == 1
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `pytest tests/storage/test_sqlite_store.py -v`
 Expected: 4 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/storage/schema.sql app/storage/sqlite_store.py tests/storage/test_sqlite_store.py

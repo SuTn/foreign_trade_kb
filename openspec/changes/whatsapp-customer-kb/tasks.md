@@ -8,7 +8,7 @@
 ## 2. 存储层
 
 - [x] 2.1 定义存储层抽象接口（结构化存储 + 向量存储 + LLM 接口）
-- [ ] 2.2 实现 SQLite 结构化存储（chats/messages/contacts/profiles 表与 upsert/查询）
+- [x] 2.2 实现 SQLite 结构化存储（chats/messages/contacts/profiles 表与 upsert/查询）
 - [ ] 2.3 接入 Chroma 向量库（消息按 chatId+day 分组、知识 chunk 向量，幂等 upsert）
 - [ ] 2.4 实现 LLM 抽象层（默认云端 Claude/OpenAI，可切本地）
 
