@@ -1863,7 +1863,7 @@ git commit -m "feat: bge-reranker 重排"
 - Consumes: `SqliteStore`, `LLM`
 - Produces: `match_customer()`, `extract_profile()`
 
-- [ ] **Step 1: 写 matcher.py**
+- [x] **Step 1: 写 matcher.py**
 
 ```python
 # app/profile/matcher.py
@@ -1901,7 +1901,7 @@ def match_customer(store: StructuredStore, account_id: str, chat_id: str,
     return {"customer_id": cid, "confidence": conf, "confirmed": False}
 ```
 
-- [ ] **Step 2: 写 extractor.py**
+- [x] **Step 2: 写 extractor.py**
 
 ```python
 # app/profile/extractor.py
@@ -1925,7 +1925,7 @@ def extract_profile(store: StructuredStore, llm: LLM, customer_id: str, chat_sum
     return fields
 ```
 
-- [ ] **Step 3: 写测试**
+- [x] **Step 3: 写测试**
 
 ```python
 # tests/profile/test_matcher.py
@@ -1963,12 +1963,12 @@ def test_extract_profile_skips_manual(tmp_data):
     assert p["product_interest"] == "LED灯"  # auto 新增
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `pytest tests/profile/ -v`
 Expected: 3 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/profile/matcher.py app/profile/extractor.py tests/profile/
