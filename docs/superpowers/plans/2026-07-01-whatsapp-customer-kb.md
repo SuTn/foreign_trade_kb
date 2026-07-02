@@ -1421,7 +1421,7 @@ git commit -m "feat: 切分 + RAG 索引策略"
 - Consumes: `LLM`, `Embedding`, `SqliteStore`, `IndexStrategy`
 - Produces: `WikiIndex` (两阶段去重 + 页面生成)
 
-- [ ] **Step 1: 写 wiki_index.py**
+- [x] **Step 1: 写 wiki_index.py**
 
 ```python
 # app/knowledge/wiki_index.py
@@ -1523,7 +1523,7 @@ class WikiIndex(IndexStrategy):
         return dot/(na*nb) if na and nb else 0.0
 ```
 
-- [ ] **Step 2: 写测试 (用 fake LLM/embedding)**
+- [x] **Step 2: 写测试 (用 fake LLM/embedding)**
 
 ```python
 # tests/knowledge/test_wiki_index.py
@@ -1566,12 +1566,12 @@ def test_wiki_dedup_merges_synonym(tmp_data):
     assert len(rows) == 1
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/knowledge/test_wiki_index.py -v`
 Expected: 2 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/knowledge/wiki_index.py tests/knowledge/test_wiki_index.py
