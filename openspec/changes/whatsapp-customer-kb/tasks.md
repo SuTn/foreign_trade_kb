@@ -34,7 +34,7 @@
 - [x] 4.6 实现切分（chunk_size/overlap 可配 + 父子分块）与向量化入库（RAG 索引）
 - [x] 4.7 定义知识库索引策略抽象接口（可挂 RAG/Wiki 等多策略，可独立开关）
 - [x] 4.8 实现 Wiki 索引：Agent 异步抽取实体/概念生成互联 Markdown 页面（SQLite wiki_pages/wiki_log_entries/wiki_config 表，页面含 wikilinks 与 frontmatter）
-- [ ] 4.9 实现 Wiki 页面 Obsidian vault 导出（每页一个 Markdown 文件 + YAML frontmatter + [[wikilinks]]，导出到文件夹）
+- [x] 4.9 实现 Wiki 页面 Obsidian vault 导出（每页一个 Markdown 文件 + YAML frontmatter + [[wikilinks]]，导出到文件夹）
 - [ ] 4.10 实现 Wiki 页面人工编辑/管理（持久化编辑、保留生成来源标记，编辑后可重新导出）
 - [ ] 4.11 验证 Wiki 生成失败不影响 RAG 索引（双索引互不阻塞）
 

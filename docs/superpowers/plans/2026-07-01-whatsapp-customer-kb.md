@@ -1590,7 +1590,7 @@ git commit -m "feat: Wiki 索引 (两阶段实体去重)"
 - Consumes: `SqliteStore`
 - Produces: `export_vault(store, out_dir)`
 
-- [ ] **Step 1: 写 wiki_export.py**
+- [x] **Step 1: 写 wiki_export.py**
 
 ```python
 # app/knowledge/wiki_export.py
@@ -1611,7 +1611,7 @@ def export_vault(store: StructuredStore, out_dir: Path) -> int:
     return len(rows)
 ```
 
-- [ ] **Step 2: 写测试**
+- [x] **Step 2: 写测试**
 
 ```python
 # tests/knowledge/test_wiki_export.py
@@ -1637,12 +1637,12 @@ def test_export_creates_md_files(tmp_data):
 from app.config import settings
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/knowledge/test_wiki_export.py -v`
 Expected: 1 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/knowledge/wiki_export.py tests/knowledge/test_wiki_export.py
