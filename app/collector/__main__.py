@@ -1,13 +1,24 @@
 # app/collector/__main__.py
 import asyncio
+from app.collector.browser import launch_browser, wait_for_login
 from app.collector.scanner import Scanner, write_status
+from app.storage.sqlite_store import SqliteStore
+from app.storage.chroma_store import ChromaStore
+from app.llm.bge_embedding import BgeEmbedding
 from app.config import settings
 
 async def main():
     write_status(settings.status_path, {"state": "starting"})
-    # Playwright 启动 Chrome + 登录 (实际实现见 Task 9)
-    # 此处为采集器入口骨架
-    print("collector started (see Task 9 for Playwright bootstrap)")
+    pw, context, page, cdp = await launch_browser()
+    logged_in = await wait_for_login(page)
+    write_status(settings.status_path, {"state": "logged_in" if logged_in else "awaiting_login"})
+    if not logged_in:
+        print("请在浏览器扫码登录 WhatsApp")
+        await wait_for_login(page)
+    store = SqliteStore()
+    vector = ChromaStore(embedding_fn=BgeEmbedding().embed)
+    scanner = Scanner(cdp, store, vector)
+    await scanner.run()
 
 if __name__ == "__main__":
     asyncio.run(main())
