@@ -1,5 +1,4 @@
 # app/web/routes.py
-import json, time
 from fastapi import APIRouter, Request
 from app.config import settings
 from app.collector.scanner import read_status, is_alive
