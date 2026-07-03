@@ -27,7 +27,11 @@ def _store() -> SqliteStore:
 
 @router.get("/")
 async def index(request: Request):
-    return request.app.state.templates.TemplateResponse(request, "base.html", {"page": "home"})
+    s = read_status(settings.status_path)
+    return request.app.state.templates.TemplateResponse(
+        request, "home.html",
+        {"status": s or {}, "alive": is_alive(settings.status_path)},
+    )
 
 
 @router.get("/api/collector/status")

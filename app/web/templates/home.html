@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>外贸客户知识库</title>
+<script src="https://unpkg.com/htmx.org"></script></head>
+<body>
+<nav><a href="/">首页</a> | <a href="/customers">客户</a> | <a href="/knowledge">知识库</a></nav>
+<main>
+<h1>外贸客户知识库</h1>
+<h2>采集器状态</h2>
+<div id="collector-status" hx-get="/api/collector/status" hx-trigger="load, every 5s" hx-swap="innerHTML">
+  {% if status %}
+    <p>连接: <strong>{{ '在线' if alive else '离线' }}</strong></p>
+    <p>登录: <strong>{{ status.state if status.state else '未知' }}</strong></p>
+    <p>最近同步: <strong>{{ status.last_sync if status.last_sync else '尚未同步' }}</strong></p>
+  {% else %}
+    <p>采集器未启动 (无 status.json)</p>
+  {% endif %}
+</div>
+<p><em>每 5 秒自动刷新</em></p>
+</main>
+</body></html>
