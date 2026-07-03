@@ -19,8 +19,9 @@
 - Python ≥ 3.11
 - 无需 Docker, 纯本地运行
 - 首次运行需可见的 Chrome (Playwright 拉起, 用于扫码登录 WhatsApp Web)
-- LLM API Key: Anthropic 或 OpenAI (二选一)
-- 首次启动嵌入/重排模型 (BAAI/bge-m3, bge-reranker-v2-m3) 会自动下载
+- LLM: Anthropic 或任意 OpenAI 兼容接口 (可配 `KB_LLM_API_BASE` 指向第三方/自建网关)
+- 嵌入: 默认本地 bge-m3 (首次自动下载, 无需 API); 亦可切 OpenAI 兼容接口 (`KB_EMBEDDING_PROVIDER=openai`)
+- 重排: 本地 bge-reranker-v2-m3 (首次自动下载)
 
 ## 安装
 
@@ -34,23 +35,47 @@ uv pip install -e ".[dev]"
 
 # 3. 安装 Playwright 浏览器
 playwright install chromium
+
+# 4. 复制配置示例并按需修改
+cp .env.example .env
+#   编辑 .env: 至少配置 KB_LLM_API_KEY (或 OPENAI_API_KEY/ANTHROPIC_API_KEY)
 ```
 
 ## 配置
 
-在项目根目录创建 `.env` 文件 (可从 `.env.example` 复制), 配置项使用 `KB_` 前缀 (参考 `app/config.py`)。最小配置:
+配置项使用 `KB_` 前缀 (见 `app/config.py`), 从项目根目录的 `.env` 读取。LLM 与嵌入**可分别配置 provider / api_base / api_key** —— 例如 LLM 走某网关、嵌入走另一网关或本地。
+
+### LLM (生成)
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `KB_LLM_PROVIDER` | `anthropic` | `anthropic` 或 `openai` (走 OpenAI 兼容接口) |
+| `KB_LLM_MODEL` | `claude-sonnet-4-6` | 模型名 |
+| `KB_LLM_API_BASE` | *(空=官方端点)* | OpenAI 兼容接口 base URL, 可指向第三方/自建网关 |
+| `KB_LLM_API_KEY` | *(空=回退环境变量)* | 留空时: openai 回退 `OPENAI_API_KEY`, anthropic 回退 `ANTHROPIC_API_KEY` |
+
+### Embedding (向量化, 可与 LLM 分开配置)
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `KB_EMBEDDING_PROVIDER` | `local` | `local` (本地 bge-m3, 无需 API) 或 `openai` (兼容接口) |
+| `KB_EMBEDDING_MODEL` | `BAAI/bge-m3` | 嵌入模型名 |
+| `KB_EMBEDDING_API_BASE` | *(空=官方端点)* | 嵌入接口 base URL, **可与 `KB_LLM_API_BASE` 不同** |
+| `KB_EMBEDDING_API_KEY` | *(空=回退环境变量)* | 留空回退 `OPENAI_API_KEY` |
+| `KB_EMBEDDING_DIM` | `1024` | 嵌入维度 (bge-m3=1024; openai text-embedding-3-small=1536 等) |
+
+> ⚠️ 切换嵌入 provider/模型后, 维度可能变化, 已入库的旧向量会失效 —— 建议清空 `data/chroma/` 重建索引。
+
+### 最小配置示例
 
 ```dotenv
-# LLM: openai 走 OpenAI 兼容接口 (可配 api_base 指向第三方/自建网关)
+# LLM 走 OpenAI 兼容接口
 KB_LLM_PROVIDER=openai
 KB_LLM_MODEL=gpt-4o
 KB_LLM_API_BASE=https://api.openai.com/v1
 KB_LLM_API_KEY=sk-...
 
-# Embedding: 可与 LLM 分开配置 (默认本地 bge-m3, 无需 API)
-KB_EMBEDDING_PROVIDER=local
-KB_EMBEDDING_MODEL=BAAI/bge-m3
-# 若嵌入走 OpenAI 兼容接口 (可与 LLM 不同 base/key):
+# Embedding: 默认本地 bge-m3 (无需 API); 若走兼容接口:
 # KB_EMBEDDING_PROVIDER=openai
 # KB_EMBEDDING_API_BASE=https://embed.example.com/v1
 # KB_EMBEDDING_API_KEY=sk-...
@@ -58,9 +83,7 @@ KB_EMBEDDING_MODEL=BAAI/bge-m3
 # KB_EMBEDDING_DIM=1536
 ```
 
-> `KB_LLM_API_KEY` / `KB_EMBEDDING_API_KEY` 留空时分别回退 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`。
-
-常用可调项 (均有默认值, 见 `app/config.py`):
+### 其他可调项
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
@@ -69,15 +92,6 @@ KB_EMBEDDING_MODEL=BAAI/bge-m3
 | `KB_CHROMA_DIR` | `data/chroma` | ChromaDB 目录 |
 | `KB_USER_DATA_DIR` | `data/user-data-dir` | Chrome 持久化登录目录 |
 | `KB_VAULT_EXPORT_DIR` | `data/vault` | Obsidian vault 导出目录 |
-| `KB_LLM_PROVIDER` | `anthropic` | `anthropic` 或 `openai` (兼容接口) |
-| `KB_LLM_MODEL` | `claude-sonnet-4-6` | LLM 模型名 |
-| `KB_LLM_API_BASE` | *(空=官方端点)* | OpenAI 兼容接口 base URL |
-| `KB_LLM_API_KEY` | *(空=回退环境变量)* | LLM API key |
-| `KB_EMBEDDING_PROVIDER` | `local` | `local` (bge-m3) 或 `openai` (兼容接口) |
-| `KB_EMBEDDING_MODEL` | `BAAI/bge-m3` | 嵌入模型 |
-| `KB_EMBEDDING_API_BASE` | *(空=官方端点)* | 嵌入接口 base URL (可与 LLM 分开) |
-| `KB_EMBEDDING_API_KEY` | *(空=回退环境变量)* | 嵌入 API key |
-| `KB_EMBEDDING_DIM` | `1024` | 嵌入维度 (bge-m3=1024) |
 | `KB_RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` | 重排模型 (本地) |
 | `KB_FAST_TICK_SEC` | `2.0` | DOM 增量轮询间隔 |
 | `KB_SLOW_TICK_SEC` | `30.0` | IDB 全量校准间隔 |
@@ -125,7 +139,7 @@ app/
 │   ├── idb_walk.py      # IndexedDB 遍历
 │   └── merger.py        # DOM/IDB 消息合并
 ├── storage/             # SQLite (WAL+FTS5) + ChromaDB
-├── llm/                 # CloudLLM (anthropic/openai) + BGE 嵌入
+├── llm/                 # CloudLLM (anthropic/openai 兼容接口) + BGE/OpenAI 嵌入
 ├── rag/                 # RAG 管线: 多路召回 + 重排 + 父子块展开
 ├── knowledge/           # 文档解析 / RAG 索引 / Wiki 索引 / Vault 导出
 ├── profile/             # 客户匹配 / 字段抽取 / 分析
@@ -145,8 +159,8 @@ data/                    # 本地数据 (gitignored): kb.db, chroma/, user-data-
 ## 第三方
 
 - `vendor/docreader/` —— 文档解析器, 源自 [Tencent WeKnora](https://github.com/Tencent/WeKnora) (MIT 许可, 归属保留)。本项目采用功能性回退实现, 详见 `vendor/docreader/NOTICE`。
-- 嵌入/重排模型: BAAI/bge-m3, BAAI/bge-reranker-v2-m3。
-- LLM: Anthropic Claude / OpenAI GPT。
+- 嵌入/重排模型: BAAI/bge-m3, BAAI/bge-reranker-v2-m3 (本地); 亦支持 OpenAI 兼容嵌入接口。
+- LLM: Anthropic Claude / 任意 OpenAI 兼容接口 (GPT 及第三方/自建网关)。
 
 ## ⚠️ 风险提示
 
