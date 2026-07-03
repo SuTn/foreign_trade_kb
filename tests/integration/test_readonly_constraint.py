@@ -1,5 +1,4 @@
 """验证采集器所有 CDP 访问经 ReadOnlyCDP 门面, 无发送/输入类操作。"""
-import ast
 from pathlib import Path
 
 def test_no_raw_cdp_send_in_collector():
