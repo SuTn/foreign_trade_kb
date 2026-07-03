@@ -20,7 +20,7 @@
 - [x] 3.4 实现元数据与正文按消息 id 合并
 - [x] 3.5 实现快 tick（~2s）DOM 增量同步（可见行 hash 变化才产出）
 - [x] 3.6 实现慢 tick（~30s）IDB 全量校准
-- [ ] 3.7 实现按需历史回溯（指定聊天手动触发滚动加载采集）
+- [x] 3.7 实现按需历史回溯（指定聊天手动触发滚动加载采集）
 - [x] 3.8 实现幂等 upsert（按 account_id+chat_id+message_id 与 chatId+day）
 - [x] 3.9 加入拟人化轮询抖动与只读约束（不发送消息）
 
@@ -35,8 +35,8 @@
 - [x] 4.7 定义知识库索引策略抽象接口（可挂 RAG/Wiki 等多策略，可独立开关）
 - [x] 4.8 实现 Wiki 索引：Agent 异步抽取实体/概念生成互联 Markdown 页面（SQLite wiki_pages/wiki_log_entries/wiki_config 表，页面含 wikilinks 与 frontmatter）
 - [x] 4.9 实现 Wiki 页面 Obsidian vault 导出（每页一个 Markdown 文件 + YAML frontmatter + [[wikilinks]]，导出到文件夹）
-- [ ] 4.10 实现 Wiki 页面人工编辑/管理（持久化编辑、保留生成来源标记，编辑后可重新导出）
-- [ ] 4.11 验证 Wiki 生成失败不影响 RAG 索引（双索引互不阻塞）
+- [x] 4.10 实现 Wiki 页面人工编辑/管理（持久化编辑、保留生成来源标记，编辑后可重新导出）
+- [x] 4.11 验证 Wiki 生成失败不影响 RAG 索引（双索引互不阻塞）
 
 ## 5. RAG 管线（借鉴 WeKnora chat_pipeline，Python 自研）
 
@@ -66,7 +66,7 @@
 - [x] 8.2 实现客户列表页与客户画像页（可编辑）
 - [x] 8.3 实现聊天浏览页（分页展示消息 + 触发回复生成）
 - [x] 8.4 实现本地知识管理页（上传/列表/删除/检索测试 + Wiki 页面浏览编辑 + Obsidian vault 导出）
-- [ ] 8.5 实现采集器状态展示（连接/登录/最近同步时间）
+- [x] 8.5 实现采集器状态展示（连接/登录/最近同步时间）
 - [x] 8.6 采集器作为后台 asyncio 任务与 FastAPI 同进程运行
 
 ## 9. 集成与验证
