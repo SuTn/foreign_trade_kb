@@ -38,17 +38,27 @@ playwright install chromium
 
 ## 配置
 
-在项目根目录创建 `.env` 文件, 配置项使用 `KB_` 前缀 (参考 `app/config.py`)。最小配置:
+在项目根目录创建 `.env` 文件 (可从 `.env.example` 复制), 配置项使用 `KB_` 前缀 (参考 `app/config.py`)。最小配置:
 
 ```dotenv
-# LLM (二选一, 默认 anthropic)
-ANTHROPIC_API_KEY=sk-ant-...
-# OPENAI_API_KEY=sk-...
+# LLM: openai 走 OpenAI 兼容接口 (可配 api_base 指向第三方/自建网关)
+KB_LLM_PROVIDER=openai
+KB_LLM_MODEL=gpt-4o
+KB_LLM_API_BASE=https://api.openai.com/v1
+KB_LLM_API_KEY=sk-...
 
-# 可选: 切换 provider / 模型
-# KB_LLM_PROVIDER=openai
-# KB_LLM_MODEL=gpt-4o
+# Embedding: 可与 LLM 分开配置 (默认本地 bge-m3, 无需 API)
+KB_EMBEDDING_PROVIDER=local
+KB_EMBEDDING_MODEL=BAAI/bge-m3
+# 若嵌入走 OpenAI 兼容接口 (可与 LLM 不同 base/key):
+# KB_EMBEDDING_PROVIDER=openai
+# KB_EMBEDDING_API_BASE=https://embed.example.com/v1
+# KB_EMBEDDING_API_KEY=sk-...
+# KB_EMBEDDING_MODEL=text-embedding-3-small
+# KB_EMBEDDING_DIM=1536
 ```
+
+> `KB_LLM_API_KEY` / `KB_EMBEDDING_API_KEY` 留空时分别回退 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`。
 
 常用可调项 (均有默认值, 见 `app/config.py`):
 
@@ -59,10 +69,16 @@ ANTHROPIC_API_KEY=sk-ant-...
 | `KB_CHROMA_DIR` | `data/chroma` | ChromaDB 目录 |
 | `KB_USER_DATA_DIR` | `data/user-data-dir` | Chrome 持久化登录目录 |
 | `KB_VAULT_EXPORT_DIR` | `data/vault` | Obsidian vault 导出目录 |
-| `KB_LLM_PROVIDER` | `anthropic` | `anthropic` 或 `openai` |
+| `KB_LLM_PROVIDER` | `anthropic` | `anthropic` 或 `openai` (兼容接口) |
 | `KB_LLM_MODEL` | `claude-sonnet-4-6` | LLM 模型名 |
+| `KB_LLM_API_BASE` | *(空=官方端点)* | OpenAI 兼容接口 base URL |
+| `KB_LLM_API_KEY` | *(空=回退环境变量)* | LLM API key |
+| `KB_EMBEDDING_PROVIDER` | `local` | `local` (bge-m3) 或 `openai` (兼容接口) |
 | `KB_EMBEDDING_MODEL` | `BAAI/bge-m3` | 嵌入模型 |
-| `KB_RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` | 重排模型 |
+| `KB_EMBEDDING_API_BASE` | *(空=官方端点)* | 嵌入接口 base URL (可与 LLM 分开) |
+| `KB_EMBEDDING_API_KEY` | *(空=回退环境变量)* | 嵌入 API key |
+| `KB_EMBEDDING_DIM` | `1024` | 嵌入维度 (bge-m3=1024) |
+| `KB_RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` | 重排模型 (本地) |
 | `KB_FAST_TICK_SEC` | `2.0` | DOM 增量轮询间隔 |
 | `KB_SLOW_TICK_SEC` | `30.0` | IDB 全量校准间隔 |
 

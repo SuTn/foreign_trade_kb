@@ -11,7 +11,7 @@ from app.storage.chroma_store import ChromaStore
 from app.rag.pipeline import RagPipeline
 from app.rag.reranker import BgeReranker
 from app.llm.cloud_llm import CloudLLM
-from app.llm.bge_embedding import BgeEmbedding
+from app.llm.bge_embedding import get_embedding
 from app.knowledge.parser import parse_document
 from app.knowledge.rag_index import RagIndex
 from app.knowledge.wiki_index import WikiIndex
@@ -64,7 +64,7 @@ async def knowledge(request: Request):
 @router.post("/api/reply")
 async def reply(body: dict):
     store = _store()
-    vs = ChromaStore(embedding_fn=BgeEmbedding().embed)
+    vs = ChromaStore(embedding_fn=get_embedding().embed)
     pipe = RagPipeline(store, vs, BgeReranker(), CloudLLM())
     return generate_reply(pipe, body["customer_id"], body["chat_id"], body["message"])
 
@@ -85,10 +85,10 @@ async def upload(file: bytes = File(...), filename: str = Form(...)):
         text = parse_document(tmp.name)
     finally:
         Path(tmp.name).unlink(missing_ok=True)
-    RagIndex(store, ChromaStore(embedding_fn=BgeEmbedding().embed)).index(doc_id, text)
+    RagIndex(store, ChromaStore(embedding_fn=get_embedding().embed)).index(doc_id, text)
     # Wiki 索引失败不影响 RAG 索引 (双索引互不阻塞)
     try:
-        WikiIndex(store, CloudLLM(), BgeEmbedding()).index(doc_id, text)
+        WikiIndex(store, CloudLLM(), get_embedding()).index(doc_id, text)
     except Exception:
         pass  # Wiki 失败不阻塞上传; RAG 索引已成功
     return {"doc_id": doc_id}

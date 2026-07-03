@@ -26,9 +26,15 @@ class Settings(BaseSettings):
     dom_conversation_header_selector: str = 'header[data-testid="conversation-header"]'
 
     # LLM / Embedding
-    llm_provider: str = "anthropic"  # anthropic | openai
+    llm_provider: str = "anthropic"  # anthropic | openai (openai 走 OpenAI 兼容接口)
     llm_model: str = "claude-sonnet-4-6"
+    llm_api_base: str | None = None  # OpenAI 兼容接口 base URL; None=官方端点
+    llm_api_key: str | None = None   # None 时回退 OPENAI_API_KEY / ANTHROPIC_API_KEY
+    embedding_provider: str = "local"  # local (bge-m3 本地) | openai (OpenAI 兼容接口)
     embedding_model: str = "BAAI/bge-m3"
+    embedding_api_base: str | None = None  # 嵌入接口 base URL, 可与 LLM 分开配置
+    embedding_api_key: str | None = None   # None 时回退 OPENAI_API_KEY
+    embedding_dim: int = 1024  # 嵌入维度 (bge-m3=1024; openai text-embedding-3-small=1536 等)
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
 
     # RAG

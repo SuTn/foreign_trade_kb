@@ -4,7 +4,7 @@ from app.collector.browser import launch_browser, wait_for_login
 from app.collector.scanner import Scanner, write_status
 from app.storage.sqlite_store import SqliteStore
 from app.storage.chroma_store import ChromaStore
-from app.llm.bge_embedding import BgeEmbedding
+from app.llm.bge_embedding import get_embedding
 from app.config import settings
 
 async def main():
@@ -16,7 +16,7 @@ async def main():
         print("请在浏览器扫码登录 WhatsApp")
         await wait_for_login(page)
     store = SqliteStore()
-    vector = ChromaStore(embedding_fn=BgeEmbedding().embed)
+    vector = ChromaStore(embedding_fn=get_embedding().embed)
     scanner = Scanner(cdp, store, vector)
     await scanner.run()
 

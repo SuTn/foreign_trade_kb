@@ -41,7 +41,7 @@ def test_upload_succeeds_when_wiki_fails(tmp_data, monkeypatch):
         def generate(self, system, user, max_tokens=1024):
             raise RuntimeError("Wiki LLM 不可用")
 
-    monkeypatch.setattr(routes, "BgeEmbedding", FakeEmbed)
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
     monkeypatch.setattr(routes, "CloudLLM", FailingLLM)
     monkeypatch.setattr(routes, "parse_document", lambda path: "LED 灯产品规格说明 " * 50)
 
