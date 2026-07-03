@@ -50,6 +50,32 @@ class Scanner:
             self._upsert_one(m)
         write_status(settings.status_path, {"state": "running", "last_sync": time.time()})
 
+    async def backfill_history(self, chat_id: str | None = None, max_scrolls: int = 10) -> int:
+        """按需历史回溯: 滚动当前会话面板加载更早消息, 每次滚动后抓 DOM 增量入库。
+        chat_id 为 None 时作用于当前打开的会话。返回新入库消息数。
+        全程只读 (滚动是读取已接收历史, 非发送/输入)。"""
+        ingested = 0
+        prev_ids: set[str] = set()
+        for _ in range(max_scrolls):
+            scrolled = self.cdp.scroll_conversation_up()
+            if not scrolled:
+                break  # 找不到会话面板, 无法回溯
+            await asyncio.sleep(1.5)  # 等待 WhatsApp 加载历史
+            dom_msgs = parse_dom_snapshot_safe(self.cdp.capture_snapshot())
+            new = [m for m in dom_msgs if (m.get("message_id") or m.get("id"))
+                   and (m.get("message_id") or m.get("id")) not in prev_ids]
+            if not new and prev_ids:
+                break  # 滚动后无新消息, 已到顶
+            prev_ids.update((m.get("message_id") or m.get("id")) for m in new)
+            for m in new:
+                if chat_id and m.get("chat_id") and m["chat_id"] != chat_id:
+                    continue
+                self._upsert_one(m)
+                ingested += 1
+        if ingested:
+            write_status(settings.status_path, {"state": "running", "last_sync": time.time()})
+        return ingested
+
     def _upsert_one(self, m):
         from app.storage.interfaces import Message
         msg = Message(m["id"], self.account_id, m["chatId"], m.get("fromMe", False),
@@ -66,7 +92,28 @@ class Scanner:
     async def run(self):
         while True:
             await self.fast_tick()
+            await self._drain_backfill_requests()
             await asyncio.sleep(settings.fast_tick_sec + random.uniform(0, settings.fast_tick_jitter))
+
+    async def _drain_backfill_requests(self):
+        """处理 Web 提交的按需历史回溯请求 (backfill_requests 表)。"""
+        try:
+            rows = self.store.conn.execute(
+                "SELECT id, chat_id, max_scrolls FROM backfill_requests WHERE done=0"
+            ).fetchall()
+        except Exception:
+            return  # 表不存在 (旧库) 则跳过
+        for r in rows:
+            try:
+                await self.backfill_history(
+                    chat_id=r["chat_id"], max_scrolls=r["max_scrolls"] or 10
+                )
+            except Exception:
+                pass
+            self.store.conn.execute(
+                "UPDATE backfill_requests SET done=1 WHERE id=?", (r["id"],)
+            )
+            self.store.conn.commit()
 
 def parse_dom_snapshot_safe(snap):
     from app.collector.dom_snapshot import parse_dom_snapshot

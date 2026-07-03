@@ -29,6 +29,21 @@ class ReadOnlyCDP:
         禁止用于注入有副作用的脚本。"""
         return self._session.send("Runtime.evaluate", {"expression": expression, "returnByValue": True})
 
+    def scroll_conversation_up(self) -> bool:
+        """滚动当前会话面板至顶部, 触发 WhatsApp 加载更早消息 (历史回溯用)。
+        这是读取已接收历史消息的辅助操作, 非发送/输入; 经 Runtime.evaluate (白名单内)。"""
+        expr = (
+            "(function(){"
+            "var p=document.querySelector('[data-testid=\"conversation-panel-messages\"]')"
+            "||document.querySelector('[data-testid=\"conversation-panel-wrapper\"]');"
+            "if(!p)return false;p.scrollTop=0;return true;})()"
+        )
+        r = self._session.send("Runtime.evaluate", {"expression": expr, "returnByValue": True})
+        try:
+            return bool(r.get("result", {}).get("value"))
+        except Exception:
+            return False
+
 # 白名单: 采集器允许调用的 CDP 方法 (测试断言用)
 ALLOWED_METHODS = frozenset({
     "DOMSnapshot.captureSnapshot",

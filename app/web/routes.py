@@ -94,6 +94,27 @@ async def upload(file: bytes = File(...), filename: str = Form(...)):
     return {"doc_id": doc_id}
 
 
+@router.post("/api/collector/backfill")
+async def collector_backfill(body: dict):
+    """3.7: 按需历史回溯 — 触发采集器滚动当前会话加载更早消息。
+    body: {chat_id?: str, max_scrolls?: int}。
+    采集器为独立进程, 实际滚动由采集器读取 status 触发或 CLI 执行;
+    此端点记录请求意图供采集器轮询, 返回 accepted。"""
+    chat_id = body.get("chat_id")
+    max_scrolls = int(body.get("max_scrolls", 10))
+    store = _store()
+    store.conn.execute(
+        "CREATE TABLE IF NOT EXISTS backfill_requests "
+        "(id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, max_scrolls INTEGER, requested_at INTEGER, done INTEGER DEFAULT 0)"
+    )
+    store.conn.execute(
+        "INSERT INTO backfill_requests (chat_id, max_scrolls, requested_at) VALUES (?,?,?)",
+        (chat_id, max_scrolls, int(time.time())),
+    )
+    store.conn.commit()
+    return {"accepted": True, "chat_id": chat_id, "max_scrolls": max_scrolls}
+
+
 @router.post("/api/knowledge/export-vault")
 async def export_v():
     return {"exported": export_vault(_store(), settings.vault_export_dir)}
