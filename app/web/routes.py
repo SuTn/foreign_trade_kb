@@ -82,7 +82,11 @@ async def upload(file: bytes = File(...), filename: str = Form(...)):
     finally:
         Path(tmp.name).unlink(missing_ok=True)
     RagIndex(store, ChromaStore(embedding_fn=BgeEmbedding().embed)).index(doc_id, text)
-    WikiIndex(store, CloudLLM(), BgeEmbedding()).index(doc_id, text)
+    # Wiki 索引失败不影响 RAG 索引 (双索引互不阻塞)
+    try:
+        WikiIndex(store, CloudLLM(), BgeEmbedding()).index(doc_id, text)
+    except Exception:
+        pass  # Wiki 失败不阻塞上传; RAG 索引已成功
     return {"doc_id": doc_id}
 
 
