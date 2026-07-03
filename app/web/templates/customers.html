@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>客户列表 - 外贸客户知识库</title>
+<script src="https://unpkg.com/htmx.org"></script></head>
+<body>
+<nav><a href="/">首页</a> | <a href="/customers">客户</a> | <a href="/knowledge">知识库</a></nav>
+<main>
+<h1>客户列表</h1>
+<table border="1">
+  <tr><th>ID</th><th>名称</th><th>电话</th><th>公司</th><th>国家</th></tr>
+  {% for c in customers %}
+  <tr>
+    <td><a href="/customers/{{ c['id'] }}">{{ c['id'] }}</a></td>
+    <td>{{ c['display_name'] }}</td>
+    <td>{{ c['phone'] }}</td>
+    <td>{{ c['company'] }}</td>
+    <td>{{ c['country'] }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5">暂无客户</td></tr>
+  {% endfor %}
+</table>
+</main>
+</body>
+</html>

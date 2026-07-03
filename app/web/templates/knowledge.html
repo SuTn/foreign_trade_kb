@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>知识库 - 外贸客户知识库</title>
+<script src="https://unpkg.com/htmx.org"></script></head>
+<body>
+<nav><a href="/">首页</a> | <a href="/customers">客户</a> | <a href="/knowledge">知识库</a></nav>
+<main>
+<h1>知识库</h1>
+<form hx-post="/api/knowledge/upload" hx-encoding="multipart/form-data" method="post" enctype="multipart/form-data">
+  <input type="file" name="file" required>
+  <input type="text" name="filename" placeholder="文件名(含扩展名)" required>
+  <button type="submit">上传</button>
+</form>
+<button hx-post="/api/knowledge/export-vault">导出 Vault</button>
+</main>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>客户 {{ customer_id }} - 外贸客户知识库</title>
+<script src="https://unpkg.com/htmx.org"></script></head>
+<body>
+<nav><a href="/">首页</a> | <a href="/customers">客户</a> | <a href="/knowledge">知识库</a></nav>
+<main>
+<h1>客户 {{ customer_id }}</h1>
+<h2>画像</h2>
+<ul>
+  {% for p in profile %}
+  <li>{{ p.field }}: {{ p.value }} ({{ p.source }})</li>
+  {% else %}
+  <li>暂无画像</li>
+  {% endfor %}
+</ul>
+</main>
+</body>
+</html>
