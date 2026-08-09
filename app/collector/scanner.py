@@ -166,6 +166,8 @@ class Scanner:
         ingested = 0
         row_sel = "[data-testid='chat-list'] div[role='row']"
         for i in range(min(total, max_chats)):
+            if i % 5 == 0:
+                write_status(settings.status_path, {"state": "running"})  # 长扫描期间保持心跳
             try:
                 await self.page.locator(row_sel).nth(i).click(timeout=8000)
             except Exception:
