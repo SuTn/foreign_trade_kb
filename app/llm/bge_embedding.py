@@ -1,10 +1,13 @@
 # app/llm/bge_embedding.py
+from typing import Any
 from app.llm.interfaces import Embedding
 from app.config import settings
 
 
 class BgeEmbedding(Embedding):
-    """本地 bge-m3 嵌入 (默认)。"""
+    """本地 bge-m3 嵌入 (默认)。模型按 model 名全局复用, 避免每次实例化重载。"""
+
+    _model_cache: dict[str, Any] = {}
 
     def __init__(self, model=None):
         self._model = None
@@ -12,8 +15,11 @@ class BgeEmbedding(Embedding):
 
     def _ensure(self):
         if self._model is None:
-            from FlagEmbedding import BGEM3FlagModel
-            self._model = BGEM3FlagModel(self._model_name, use_fp16=True)
+            key = self._model_name
+            if key not in BgeEmbedding._model_cache:
+                from FlagEmbedding import BGEM3FlagModel
+                BgeEmbedding._model_cache[key] = BGEM3FlagModel(key, use_fp16=True)
+            self._model = BgeEmbedding._model_cache[key]
 
     def embed(self, text: str) -> list[float]:
         self._ensure()

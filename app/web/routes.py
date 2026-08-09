@@ -9,7 +9,7 @@ from app.collector.scanner import read_status, is_alive
 from app.storage.sqlite_store import SqliteStore
 from app.storage.chroma_store import ChromaStore
 from app.rag.pipeline import RagPipeline
-from app.rag.reranker import BgeReranker
+from app.rag.reranker import get_reranker
 from app.llm.cloud_llm import CloudLLM
 from app.llm.bge_embedding import get_embedding
 from app.knowledge.parser import parse_document
@@ -65,7 +65,7 @@ async def knowledge(request: Request):
 async def reply(body: dict):
     store = _store()
     vs = ChromaStore(embedding_fn=get_embedding().embed)
-    pipe = RagPipeline(store, vs, BgeReranker(), CloudLLM())
+    pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
     return generate_reply(pipe, body["customer_id"], body["chat_id"], body["message"])
 
 

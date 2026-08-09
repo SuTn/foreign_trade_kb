@@ -18,8 +18,14 @@ class CloudLLM(LLM):
         if self.api_key:
             return self.api_key
         if self.provider == "anthropic":
-            return os.environ["ANTHROPIC_API_KEY"]
-        return os.environ["OPENAI_API_KEY"]
+            key = os.environ.get("ANTHROPIC_API_KEY")
+        else:
+            key = os.environ.get("OPENAI_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "未配置 LLM API key: 请设置 KB_LLM_API_KEY"
+                f" (或 {self.provider} 对应的环境变量)")
+        return key
 
     def generate(self, system, user, max_tokens=1024):
         if self.provider == "anthropic":

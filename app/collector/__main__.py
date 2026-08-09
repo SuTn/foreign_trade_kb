@@ -17,7 +17,7 @@ async def main():
         await wait_for_login(page)
     store = SqliteStore()
     vector = ChromaStore(embedding_fn=get_embedding().embed)
-    scanner = Scanner(cdp, store, vector)
+    scanner = Scanner(cdp, store, vector, page=page)
     await scanner.run()
 
 if __name__ == "__main__":

@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     fast_tick_jitter: float = 0.5
     slow_tick_sec: float = 30.0
     slow_tick_jitter: float = 5.0
+    # 自动扫描全部会话 (逐会话打开读取正文; 注意会把未读消息标记为已读)
+    auto_scan_chats: bool = True
+    auto_scan_interval_sec: float = 600.0
+    auto_scan_max_chats: int = 100
+    auto_scan_settle_sec: float = 1.5
     idb_database: str = "model-storage"
     idb_stores: list[str] = ["message", "chat", "contact", "group-metadata"]
     max_records_per_store: int = 20000
@@ -35,6 +40,8 @@ class Settings(BaseSettings):
     embedding_api_base: str | None = None  # 嵌入接口 base URL, 可与 LLM 分开配置
     embedding_api_key: str | None = None   # None 时回退 OPENAI_API_KEY
     embedding_dim: int = 1024  # 嵌入维度 (bge-m3=1024; openai text-embedding-3-small=1536 等)
+    reranker_provider: str = "local"  # local (FlagEmbedding 本地) | ollama (OpenAI 兼容接口)
+    reranker_api_base: str | None = None  # ollama provider 生效, 如 http://localhost:11434/v1
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
 
     # RAG
@@ -47,5 +54,6 @@ class Settings(BaseSettings):
     class Config:
         env_prefix = "KB_"
         env_file = ".env"
+        extra = "ignore"  # 容忍 .env 中非 KB_ 前缀的兼容变量 (如 OPENAI_API_KEY)
 
 settings = Settings()

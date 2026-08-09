@@ -21,6 +21,8 @@ class RagIndex(IndexStrategy):
             self.store.conn.execute(
                 "INSERT OR REPLACE INTO doc_chunks_fts(rowid, text) VALUES((SELECT rowid FROM doc_chunks WHERE id=?), ?)",
                 (cid, c["text"]))
-            chunk_records.append({"id": cid, "text": c["text"], "metadata": {"doc_id": doc_id, "chunk_idx": c["chunk_idx"]}})
+            chunk_records.append({"id": cid, "text": c["text"],
+                                  "metadata": {"doc_id": doc_id, "chunk_idx": c["chunk_idx"],
+                                               "parent_chunk_id": c["parent_chunk_id"]}})
         self.store.conn.commit()
         self.vector_store.upsert_chunks(chunk_records)

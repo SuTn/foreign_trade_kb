@@ -19,8 +19,8 @@
 - Python ≥ 3.11
 - 无需 Docker, 纯本地运行
 - 首次运行需可见的 Chrome (Playwright 拉起, 用于扫码登录 WhatsApp Web)
-- LLM: Anthropic 或任意 OpenAI 兼容接口 (可配 `KB_LLM_API_BASE` 指向第三方/自建网关)
-- 嵌入: 默认本地 bge-m3 (首次自动下载, 无需 API); 亦可切 OpenAI 兼容接口 (`KB_EMBEDDING_PROVIDER=openai`)
+- LLM: Anthropic 或任意 OpenAI 兼容接口 (可配 `KB_LLM_API_BASE` 指向第三方/自建网关; DeepSeek 用 `KB_LLM_MODEL=deepseek-chat` + `KB_LLM_API_BASE=https://api.deepseek.com/v1`)
+- 嵌入: 默认本地 bge-m3 (首次自动下载, 无需 API); 亦可走 OpenAI 兼容接口 / 本地 Ollama (`KB_EMBEDDING_PROVIDER=openai`)
 - 重排: 本地 bge-reranker-v2-m3 (首次自动下载)
 
 ## 安装
@@ -65,6 +65,17 @@ cp .env.example .env
 | `KB_EMBEDDING_DIM` | `1024` | 嵌入维度 (bge-m3=1024; openai text-embedding-3-small=1536 等) |
 
 > ⚠️ 切换嵌入 provider/模型后, 维度可能变化, 已入库的旧向量会失效 —— 建议清空 `data/chroma/` 重建索引。
+> 💡 走本地 Ollama 的嵌入示例: `KB_EMBEDDING_PROVIDER=openai` + `KB_EMBEDDING_MODEL=bge-m3` + `KB_EMBEDDING_API_BASE=http://localhost:11434/v1` (+ 任意非空 `KB_EMBEDDING_API_KEY`)。
+
+### Reranker (重排, 可与 LLM/嵌入分开配置)
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `KB_RERANKER_PROVIDER` | `local` | `local` (FlagEmbedding 本地, 首次自动下载) 或 `ollama` (OpenAI 兼容接口) |
+| `KB_RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` | 重排模型名 |
+| `KB_RERANKER_API_BASE` | *(空=Ollama 默认)* | 仅 `ollama` provider 生效, 如 `http://localhost:11434/v1` |
+
+> ⚠️ 注意: Ollama 目前**不提供** `/v1/rerank` 接口 (实测 404), `ollama` provider 需自建网关或改用 `local`。
 
 ### 最小配置示例
 
@@ -92,9 +103,12 @@ KB_LLM_API_KEY=sk-...
 | `KB_CHROMA_DIR` | `data/chroma` | ChromaDB 目录 |
 | `KB_USER_DATA_DIR` | `data/user-data-dir` | Chrome 持久化登录目录 |
 | `KB_VAULT_EXPORT_DIR` | `data/vault` | Obsidian vault 导出目录 |
-| `KB_RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` | 重排模型 (本地) |
 | `KB_FAST_TICK_SEC` | `2.0` | DOM 增量轮询间隔 |
 | `KB_SLOW_TICK_SEC` | `30.0` | IDB 全量校准间隔 |
+| `KB_AUTO_SCAN_CHATS` | `true` | 自动逐会话打开扫描全部聊天正文（会把未读消息标记为已读） |
+| `KB_AUTO_SCAN_INTERVAL_SEC` | `600.0` | 全量扫描周期 |
+| `KB_AUTO_SCAN_MAX_CHATS` | `100` | 单次最多扫描的会话数 |
+| `KB_AUTO_SCAN_SETTLE_SEC` | `1.5` | 打开每个会话后的等待秒数 |
 
 ## 启动
 

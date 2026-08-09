@@ -1,5 +1,5 @@
 # tests/collector/test_scanner.py
-import time
+import asyncio, time
 from app.collector.scanner import write_status, read_status, is_alive, Scanner
 from app.config import settings
 
@@ -28,12 +28,12 @@ class FakeVector:
 
 class FakeCDP:
     def __init__(self, snaps): self.snaps = snaps; self.i = 0
-    def capture_snapshot(self):
+    async def capture_snapshot(self):
         s = self.snaps[min(self.i, len(self.snaps)-1)]; self.i += 1; return s
 
 def test_fast_tick_skips_unchanged(tmp_data, monkeypatch):
     # 两次相同 snapshot → 第二次不产出
-    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s: [])
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s, chat_id=None: [])
     sc = Scanner(FakeCDP([{}]), FakeStore(), FakeVector())
     import asyncio
     asyncio.run(sc.fast_tick())  # 空 dom, hash 一致
@@ -52,9 +52,9 @@ class BackfillCDP:
              {"id": "m2", "body": "old2", "chatId": "c1", "fromMe": False, "from": "x", "timestamp": 2, "type": "chat"}],
         ]
         self.i = 0
-    def capture_snapshot(self):
+    async def capture_snapshot(self):
         s = self._waves[min(self.i, len(self._waves) - 1)]; self.i += 1; return s
-    def scroll_conversation_up(self):
+    async def scroll_conversation_up(self):
         self.scroll_count += 1
         return True
 
@@ -62,7 +62,7 @@ def test_backfill_history_ingests_new_messages(tmp_data, monkeypatch):
     """3.7: 按需历史回溯 — 滚动加载更早消息并入库, 到顶后停止。"""
     import asyncio
     # BackfillCDP 的 capture_snapshot 直接返回消息列表, 让解析函数原样透传
-    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s: s)
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s, chat_id=None: s)
     cdp = BackfillCDP()
     store = FakeStore()
     sc = Scanner(cdp, store, FakeVector())
@@ -73,10 +73,123 @@ def test_backfill_history_ingests_new_messages(tmp_data, monkeypatch):
 def test_backfill_history_stops_when_no_panel(tmp_data, monkeypatch):
     """会话面板不存在时滚动返回 False, 立即停止, 入库 0。"""
     import asyncio
-    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s: s)
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s, chat_id=None: s)
     class NoPanelCDP(BackfillCDP):
-        def scroll_conversation_up(self): return False
+        async def scroll_conversation_up(self): return False
     cdp = NoPanelCDP()
     sc = Scanner(cdp, FakeStore(), FakeVector())
     n = asyncio.run(sc.backfill_history(max_scrolls=5))
     assert n == 0
+
+
+def test_fast_tick_writes_heartbeat_when_idle(tmp_data, monkeypatch):
+    """空闲 (DOM 不变) 时也应写心跳, 避免 alive 误判死。"""
+    import asyncio
+    writes = []
+    monkeypatch.setattr("app.collector.scanner.write_status", lambda path, st: writes.append(dict(st)))
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s, chat_id=None: [])
+    sc = Scanner(FakeCDP([{}]), FakeStore(), FakeVector())
+    asyncio.run(sc.fast_tick())   # 首次: hash 变化
+    asyncio.run(sc.fast_tick())   # 空闲: 应仍写心跳
+    assert len(writes) == 2
+
+
+def test_upsert_matches_customer_once_per_chat(tmp_data, monkeypatch):
+    """同一会话只匹配一次客户, 不重复建。"""
+    calls = []
+    monkeypatch.setattr(
+        "app.profile.matcher.match_customer",
+        lambda *a, **k: calls.append((a[3], a[4])) or {},
+    )
+    sc = Scanner(FakeCDP([{}]), FakeStore(), FakeVector())
+    sc._upsert_one({"id": "m1", "chatId": "c1", "fromMe": False, "from": "x",
+                    "timestamp": 1, "type": "chat", "name": "Alice"})
+    sc._upsert_one({"id": "m2", "chatId": "c1", "fromMe": False, "from": "x",
+                    "timestamp": 2, "type": "chat", "name": "Alice"})
+    sc._upsert_one({"id": "m3", "chatId": "c2", "fromMe": False, "from": "y",
+                    "timestamp": 3, "type": "chat"})
+    assert len(calls) == 2  # c1 一次, c2 一次
+    assert calls[0] == ("Alice", "c1")
+    assert calls[1] == (None, "c2")
+
+
+async def test_slow_tick_ingests_idb_and_creates_customer(tmp_data, monkeypatch):
+    """slow_tick 挂接: DOM+IDB 按 hex id 合并 → 消息入库 + 自动建客户画像。"""
+    from app.storage.sqlite_store import SqliteStore
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe",
+                        lambda s, chat_id=None: [{
+                            "id": "3EB06C1E7DA73250B3B4", "fromMe": False, "from": None,
+                            "timestamp": 0, "body": "Price please", "body_present": True}])
+    async def fake_walk_idb(cdp, acct):
+        return {
+            "chats": {"8615976909619@c.us": "Sonya"},
+            "contacts": {},
+            "messages": [{"id": "false_8615976909619@c.us_3EB06C1E7DA73250B3B4",
+                          "t": 1710000000, "from": "8615976909619@c.us",
+                          "to": "8618963126542@c.us", "type": "chat", "fromMe": False}],
+        }
+    monkeypatch.setattr("app.collector.idb_walk.walk_idb", fake_walk_idb)
+    class FakeCdp:
+        async def capture_snapshot(self): return {}
+    store = SqliteStore()
+    sc = Scanner(FakeCdp(), store, FakeVector())
+    await sc.slow_tick()
+    assert len(store.conn.execute("SELECT id FROM customers").fetchall()) == 1
+    msg = store.conn.execute("SELECT chat_id, body FROM messages").fetchone()
+    assert msg["chat_id"] == "8615976909619@c.us"
+    assert msg["body"] == "Price please"
+
+
+class _FakeRow:
+    def __init__(self, page, i): self.page = page; self.i = i
+    async def click(self, timeout=None): self.page.clicks.append(self.i)
+
+class _FakeLocator:
+    def __init__(self, page): self.page = page
+    def nth(self, i): return _FakeRow(self.page, i)
+
+class FakePage:
+    def __init__(self, n_rows): self.n_rows = n_rows; self.clicks = []
+    async def eval_on_selector_all(self, sel, expr): return self.n_rows
+    def locator(self, sel): return _FakeLocator(self)
+
+
+async def test_scan_all_chats_opens_each_chat(tmp_data, monkeypatch):
+    """自动扫描: 逐会话打开读取, 全部入库。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    counter = [0]
+    def fake_parse(s, chat_id=None):
+        counter[0] += 1
+        i = counter[0]
+        return [{"id": f"HEX{i}", "fromMe": False, "from": None,
+                 "timestamp": 0, "body": f"hello{i}", "body_present": True}]
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", fake_parse)
+    async def fake_walk_idb(cdp, acct):
+        return {
+            "chats": {}, "contacts": {},
+            "messages": [
+                {"id": "false_8615976909619@c.us_HEX1", "t": 1001,
+                 "from": "8615976909619@c.us", "to": "8618963126542@c.us", "type": "chat", "fromMe": False},
+                {"id": "false_8616111222333@c.us_HEX2", "t": 1002,
+                 "from": "8616111222333@c.us", "to": "8618963126542@c.us", "type": "chat", "fromMe": False},
+                {"id": "false_8617333444555@c.us_HEX3", "t": 1003,
+                 "from": "8617333444555@c.us", "to": "8618963126542@c.us", "type": "chat", "fromMe": False},
+            ],
+        }
+    monkeypatch.setattr("app.collector.idb_walk.walk_idb", fake_walk_idb)
+    class FakeCdp:
+        async def capture_snapshot(self): return {}
+    page = FakePage(n_rows=3)
+    sc = Scanner(FakeCdp(), store, FakeVector(), page=page)
+    n = await sc.scan_all_chats(max_chats=3, settle=0)
+    assert page.clicks == [0, 1, 2]  # 每个会话都被打开
+    assert n == 3
+    rows = store.conn.execute("SELECT chat_id FROM messages ORDER BY ts").fetchall()
+    assert len(rows) == 3
+    assert {r["chat_id"] for r in rows} == {"8615976909619@c.us", "8616111222333@c.us", "8617333444555@c.us"}
+
+
+def test_scan_all_chats_no_page_returns_zero(tmp_data):
+    sc = Scanner(FakeCDP([{}]), FakeStore(), FakeVector())
+    assert asyncio.run(sc.scan_all_chats()) == 0
