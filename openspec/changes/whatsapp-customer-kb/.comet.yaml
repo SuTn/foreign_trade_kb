@@ -15,3 +15,6 @@ verified_at: null
 archived: false
 handoff_context: openspec/changes/whatsapp-customer-kb/.comet/handoff/design-context.json
 handoff_hash: e243c6d7275db9623eb5c02f91a867e10f384262f73e100ea1d6b236f78059de
+subagent_dispatch: confirmed
+tdd_mode: direct
+review_mode: off
