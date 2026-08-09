@@ -1,2 +1,2 @@
-build_command: python -m compileall -q app
-verify_command: python -m pytest -q
+build_command: .venv/Scripts/python.exe -m compileall -q app
+verify_command: .venv/Scripts/python.exe -m pytest -q
