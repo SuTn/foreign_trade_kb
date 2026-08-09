@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     reranker_api_base: str | None = None  # ollama provider 生效, 如 http://localhost:11434/v1
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
 
+    # 客户画像/分析
+    profile_summary_messages: int = 30  # 画像抽取/客户分析所用的近期消息数
+
     # RAG
     chunk_size: int = 512
     chunk_overlap: int = 64

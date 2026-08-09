@@ -1,0 +1,7 @@
+<ul>
+  {% for p in profile %}
+  <li>{{ p.field }}: {{ p.value }} ({{ p.source }}, {{ p.updated_at }})</li>
+  {% else %}
+  <li>暂无画像</li>
+  {% endfor %}
+</ul>

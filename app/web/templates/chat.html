@@ -5,15 +5,28 @@
 <body>
 <nav><a href="/">首页</a> | <a href="/customers">客户</a> | <a href="/knowledge">知识库</a></nav>
 <main>
-<h1>客户 {{ customer_id }}</h1>
-<h2>画像</h2>
+<h1>客户 {{ customer['display_name'] or customer_id }}</h1>
+{% if customer %}
+<p>电话: {{ customer['phone'] or '-' }} | 公司: {{ customer['company'] or '-' }} | 国家: {{ customer['country'] or '-' }}</p>
+{% endif %}
+<h2>关联会话</h2>
 <ul>
-  {% for p in profile %}
-  <li>{{ p.field }}: {{ p.value }} ({{ p.source }})</li>
+  {% for c in chats %}
+  <li>{{ c['chat_id'] }} (置信度 {{ c['match_confidence'] }})</li>
   {% else %}
-  <li>暂无画像</li>
+  <li>暂无关联会话</li>
   {% endfor %}
 </ul>
+<h2>画像</h2>
+<div id="profile">
+  {% include "profile_list.html" %}
+</div>
+<button hx-post="/customers/{{ customer_id }}/refresh-profile" hx-target="#profile" hx-swap="innerHTML">重新抽取画像</button>
+<h2>客户分析</h2>
+<div id="analysis" hx-post="/customers/{{ customer_id }}/analyze" hx-trigger="click from:#analyze-btn" hx-swap="innerHTML">
+  <p>点击下方按钮生成分析</p>
+</div>
+<button id="analyze-btn">生成客户分析</button>
 </main>
 </body>
 </html>

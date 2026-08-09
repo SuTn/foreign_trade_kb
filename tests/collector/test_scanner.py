@@ -193,3 +193,61 @@ async def test_scan_all_chats_opens_each_chat(tmp_data, monkeypatch):
 def test_scan_all_chats_no_page_returns_zero(tmp_data):
     sc = Scanner(FakeCDP([{}]), FakeStore(), FakeVector())
     assert asyncio.run(sc.scan_all_chats()) == 0
+
+
+class FakeLLM:
+    def generate(self, s, u, max_tokens=1024):
+        return '{"country": "USA"}'
+
+
+def test_upsert_schedules_profile_extraction(tmp_data):
+    """匹配成功后把 (customer_id, chat_id) 加入画像抽取待处理队列。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    sc = Scanner(FakeCDP([{}]), store, FakeVector(), llm=FakeLLM())
+    sc._upsert_one({"id": "m1", "chatId": "c1", "fromMe": False, "from": "x",
+                    "timestamp": 1, "type": "chat", "name": "Alice"})
+    assert len(sc._profile_pending) == 1
+    cid, chat_id = next(iter(sc._profile_pending))
+    assert chat_id == "c1"
+    assert store.conn.execute("SELECT customer_id FROM customer_chat_map").fetchone()[0] == cid
+
+
+def test_drain_profile_updates_runs_extractor(tmp_data, monkeypatch):
+    """画像抽取在 executor 中执行并写入 profile 表。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0))
+    store.conn.execute(
+        "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+        ("me", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    from app.storage.interfaces import Message
+    store.upsert_message(Message("m1", "me", "c1", False, None, 1, "chat", "client from USA", True, 0))
+    sc = Scanner(FakeCDP([{}]), store, FakeVector(), llm=FakeLLM())
+    sc._profile_pending.add(("cust1", "c1"))
+    asyncio.run(sc._drain_profile_updates())
+    prof = {p.field: p.value for p in store.get_profile("cust1")}
+    assert prof["country"] == "USA"
+
+
+def test_drain_profile_updates_failure_does_not_block(tmp_data, monkeypatch):
+    """LLM 失败时静默跳过, 不抛异常阻塞采集。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0))
+    store.conn.execute(
+        "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+        ("me", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    class BoomLLM:
+        def generate(self, s, u, max_tokens=1024):
+            raise RuntimeError("LLM 挂了")
+    sc = Scanner(FakeCDP([{}]), store, FakeVector(), llm=BoomLLM())
+    sc._profile_pending.add(("cust1", "c1"))
+    asyncio.run(sc._drain_profile_updates())  # 不应抛异常
+    assert sc._profile_pending == set()  # 失败项已消费, 不无限重试

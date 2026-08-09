@@ -19,14 +19,16 @@ def is_alive(path: Path, timeout: float | None = None) -> bool:
     return (time.time() - s.get("last_heartbeat", 0)) < timeout
 
 class Scanner:
-    def __init__(self, cdp, store, vector_store, account_id="me", page=None):
+    def __init__(self, cdp, store, vector_store, account_id="me", page=None, llm=None):
         self.cdp = cdp
         self.store = store
         self.vector_store = vector_store
         self.account_id = account_id
         self.page = page  # 可选 Playwright page (自动扫描全部会话时用于打开会话)
+        self.llm = llm  # 可选 LLM: 自动画像抽取 (None=跳过, 供测试/无 key 环境)
         self._last_dom_hash = None
         self._matched_chats: set[str] = set()
+        self._profile_pending: set[tuple[str, str]] = set()  # (customer_id, chat_id) 待抽取画像
         self._current_chat_id: str | None = None  # 由 slow_tick 推导的当前会话 JID
 
     async def fast_tick(self):
@@ -126,11 +128,18 @@ class Scanner:
                       m.get("from"), m.get("timestamp", 0), m.get("type"),
                       m.get("body"), m.get("body_present", False), int(time.time()))
         self.store.upsert_message(msg)
-        # 客户匹配 (每会话一次, 建画像/建立 chat→customer 映射)
+        # 客户匹配 (每会话一次, 建画像/建立 chat→customer 映射) + 画像抽取调度
         if chat_id not in self._matched_chats:
             try:
                 from app.profile.matcher import match_customer
                 match_customer(self.store, self.account_id, chat_id, m.get("name"), chat_id)
+                # 自动画像抽取 (每客户一次; LLM 在 run 循环 executor 中跑, 不阻塞本 tick)
+                if self.llm is not None:
+                    row = self.store.conn.execute(
+                        "SELECT customer_id FROM customer_chat_map WHERE account_id=? AND chat_id=?",
+                        (self.account_id, chat_id)).fetchone()
+                    if row:
+                        self._profile_pending.add((row["customer_id"], chat_id))
             except Exception:
                 pass  # 匹配失败不阻塞入库, 下次进程重启会重试
             self._matched_chats.add(chat_id)
@@ -141,12 +150,6 @@ class Scanner:
         except Exception:
             pass  # 下次 tick 重试
         return True
-        # 异步向量化 (chatId, day 分组) — 失败不阻塞
-        try:
-            day = time.strftime("%Y-%m-%d", time.gmtime(msg.ts)) if msg.ts else "unknown"
-            self.vector_store.upsert_message_vector(f"{msg.chat_id}:{day}", msg.body or "", {"chat_id": msg.chat_id, "day": day})
-        except Exception:
-            pass  # 下次 tick 重试
 
     async def scan_all_chats(self, max_chats: int | None = None, settle: float | None = None) -> int:
         """自动扫描全部会话: 逐个打开会话读取可见正文入库 (供首次知识构建/周期校准)。
@@ -199,7 +202,31 @@ class Scanner:
                     pass  # 扫描失败不阻塞主循环
                 last_scan = time.time()
             await self._drain_backfill_requests()
+            await self._drain_profile_updates()
             await asyncio.sleep(settings.fast_tick_sec + random.uniform(0, settings.fast_tick_jitter))
+
+    async def _drain_profile_updates(self):
+        """执行待抽取画像任务 (每客户一次): LLM 在 executor 中跑, 不阻塞事件循环。"""
+        if not self._profile_pending:
+            return
+        loop = asyncio.get_running_loop()
+        while self._profile_pending:
+            customer_id, chat_id = self._profile_pending.pop()
+            try:
+                await loop.run_in_executor(
+                    None, self._extract_profile_sync, customer_id, chat_id)
+            except Exception:
+                pass  # LLM 失败不阻塞采集, 下次新消息仍会尝试
+
+    def _extract_profile_sync(self, customer_id: str, chat_id: str):
+        """同步执行画像抽取 (供 executor 调用)。SQLite 连接不能跨线程, 故开新连接。"""
+        from app.profile.service import refresh_customer_profile
+        from app.storage.sqlite_store import SqliteStore
+        worker = SqliteStore()
+        try:
+            refresh_customer_profile(worker, self.llm, customer_id, chat_id)
+        finally:
+            worker.conn.close()
 
     async def _drain_backfill_requests(self):
         """处理 Web 提交的按需历史回溯请求 (backfill_requests 表)。"""

@@ -60,3 +60,55 @@ def test_upload_succeeds_when_wiki_fails(tmp_data, monkeypatch):
     wiki = store.conn.execute("SELECT * FROM wiki_pages").fetchall()
     assert len(wiki) == 0  # Wiki 失败, 未产生页面
 
+
+def test_customer_analyze_endpoint(tmp_data, monkeypatch):
+    """6.4: /customers/{id}/analyze 生成客户分析并展示。"""
+    from app.web import routes
+    from app.storage.sqlite_store import SqliteStore
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            return "兴趣:LED; 活跃:高; 建议:报价"
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0))
+    store.conn.execute(
+        "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+        ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    from app.storage.interfaces import Message
+    store.upsert_message(Message("m1", "a1", "c1", False, None, 1, "chat", "want LED", True, 0))
+    client = TestClient(create_app())
+    r = client.post("/customers/cust1/analyze")
+    assert r.status_code == 200
+    assert "LED" in r.text
+
+
+def test_customer_refresh_profile_endpoint(tmp_data, monkeypatch):
+    """6.2: /customers/{id}/refresh-profile 手动重抽画像。"""
+    from app.web import routes
+    from app.storage.sqlite_store import SqliteStore
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            return '{"country": "USA"}'
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0))
+    store.conn.execute(
+        "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+        ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    from app.storage.interfaces import Message
+    store.upsert_message(Message("m1", "a1", "c1", False, None, 1, "chat", "client from USA", True, 0))
+    client = TestClient(create_app())
+    r = client.post("/customers/cust1/refresh-profile")
+    assert r.status_code == 200
+    assert "USA" in r.text
+

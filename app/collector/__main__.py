@@ -5,6 +5,7 @@ from app.collector.scanner import Scanner, write_status
 from app.storage.sqlite_store import SqliteStore
 from app.storage.chroma_store import ChromaStore
 from app.llm.bge_embedding import get_embedding
+from app.llm.cloud_llm import CloudLLM
 from app.config import settings
 
 async def main():
@@ -17,7 +18,7 @@ async def main():
         await wait_for_login(page)
     store = SqliteStore()
     vector = ChromaStore(embedding_fn=get_embedding().embed)
-    scanner = Scanner(cdp, store, vector, page=page)
+    scanner = Scanner(cdp, store, vector, page=page, llm=CloudLLM())
     await scanner.run()
 
 if __name__ == "__main__":

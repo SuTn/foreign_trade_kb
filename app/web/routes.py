@@ -50,9 +50,45 @@ async def customers(request: Request):
 @router.get("/customers/{customer_id}")
 async def customer_detail(customer_id: str, request: Request):
     store = _store()
+    customer = store.conn.execute(
+        "SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
+    chats = store.conn.execute(
+        "SELECT chat_id, match_confidence FROM customer_chat_map WHERE customer_id=?",
+        (customer_id,)).fetchall()
     profile = store.get_profile(customer_id)
     return request.app.state.templates.TemplateResponse(
-        request, "chat.html", {"customer_id": customer_id, "profile": profile}
+        request, "chat.html",
+        {"customer_id": customer_id, "customer": dict(customer) if customer else None,
+         "chats": chats, "profile": profile},
+    )
+
+
+@router.post("/customers/{customer_id}/analyze")
+async def customer_analyze(customer_id: str, request: Request):
+    """6.4: 生成客户分析 (兴趣点/活跃度/跟进建议)。仅生成不写入画像。"""
+    store = _store()
+    from app.profile.service import analyze_customer_full
+    try:
+        analysis = analyze_customer_full(store, CloudLLM(), customer_id)
+    except Exception as e:
+        analysis = f"分析失败: {e}"
+    return request.app.state.templates.TemplateResponse(
+        request, "analysis.html", {"customer_id": customer_id, "analysis": analysis},
+    )
+
+
+@router.post("/customers/{customer_id}/refresh-profile")
+async def customer_refresh_profile(customer_id: str, request: Request):
+    """6.2: 手动重新抽取画像 (auto 来源, 不覆盖 manual)。"""
+    store = _store()
+    from app.profile.service import refresh_customer_profile
+    try:
+        refresh_customer_profile(store, CloudLLM(), customer_id)
+    except Exception:
+        pass  # 抽取失败展示旧画像
+    profile = store.get_profile(customer_id)
+    return request.app.state.templates.TemplateResponse(
+        request, "profile_list.html", {"profile": profile},
     )
 
 
