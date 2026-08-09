@@ -37,12 +37,22 @@ class BgeReranker(Reranker):
         if not candidates:
             return []
         self._ensure()
-        pairs = [[query, c.get("text", "")] for c in candidates]
-        scores = self._model.compute_score(pairs, normalize=True)
-        if isinstance(scores, float):
-            scores = [scores]
+        scores = self._score([[query, c.get("text", "")] for c in candidates])
         ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
         return [{**c, "score": s} for c, s in ranked[:top_k]]
+
+    def _score(self, pairs):
+        """用 tokenizer + model 手动打分, 绕过 FlagEmbedding compute_score
+        (其内部调 prepare_for_model, transformers>=5 已移除该方法)。"""
+        import torch
+        m = self._model
+        enc = m.tokenizer(
+            pairs, padding=True, truncation=True, max_length=m.max_length,
+            return_tensors="pt", return_token_type_ids=True)
+        enc = {k: v.to(m.target_devices[0]) for k, v in enc.items()}
+        with torch.no_grad():
+            logits = m.model(**enc).logits
+        return logits[:, 0].float().cpu().tolist()
 
 
 class OllamaReranker(Reranker):
