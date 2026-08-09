@@ -2120,7 +2120,7 @@ git commit -m "feat: 辅助回复生成 (仅生成不发送)"
 **Interfaces:**
 - Produces: `create_app()` → FastAPI
 
-- [ ] **Step 1: 写 app.py**
+- [x] **Step 1: 写 app.py**
 
 ```python
 # app/web/app.py
@@ -2140,7 +2140,7 @@ def create_app() -> FastAPI:
     return app
 ```
 
-- [ ] **Step 2: 写 routes.py (骨架 + 采集器状态)**
+- [x] **Step 2: 写 routes.py (骨架 + 采集器状态)**
 
 ```python
 # app/web/routes.py
@@ -2161,7 +2161,7 @@ async def collector_status():
     return {"status": s, "alive": is_alive(settings.status_path)}
 ```
 
-- [ ] **Step 3: 写 base.html**
+- [x] **Step 3: 写 base.html**
 
 ```html
 <!-- app/web/templates/base.html -->
@@ -2175,7 +2175,7 @@ async def collector_status():
 </body></html>
 ```
 
-- [ ] **Step 4: 写测试**
+- [x] **Step 4: 写测试**
 
 ```python
 # tests/web/test_app.py
@@ -2194,12 +2194,12 @@ def test_collector_status_endpoint():
     assert "alive" in r.json()
 ```
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run: `pytest tests/web/test_app.py -v`
 Expected: 2 PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/web/ tests/web/
@@ -2218,7 +2218,7 @@ git commit -m "feat: FastAPI Web 应用骨架 + 采集器状态 API"
 **Interfaces:**
 - Consumes: `SqliteStore`, `RagPipeline`, `RagIndex`, `WikiIndex`, `export_vault`
 
-- [ ] **Step 1: 扩展 routes.py**
+- [x] **Step 1: 扩展 routes.py**
 
 ```python
 # 追加到 app/web/routes.py
@@ -2275,9 +2275,9 @@ async def export_v():
     return {"exported": export_vault(_store(), settings.vault_export_dir)}
 ```
 
-- [ ] **Step 2: 写模板 (customers.html / chat.html / knowledge.html)** — 简洁 Jinja2+HTMX，列出客户/画像/上传表单/导出按钮。
+- [x] **Step 2: 写模板 (customers.html / chat.html / knowledge.html)** — 简洁 Jinja2+HTMX，列出客户/画像/上传表单/导出按钮。
 
-- [ ] **Step 3: 写测试 (mock LLM/embedding)**
+- [x] **Step 3: 写测试 (mock LLM/embedding)**
 
 ```python
 # tests/web/test_routes.py
@@ -2295,12 +2295,12 @@ def test_export_vault_endpoint(tmp_data):
     assert "exported" in r.json()
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `pytest tests/web/test_routes.py -v`
 Expected: 2 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/web/routes.py app/web/templates/ tests/web/test_routes.py
@@ -2318,7 +2318,7 @@ git commit -m "feat: Web 路由 (客户/聊天/回复/知识库/Wiki导出)"
 **Interfaces:**
 - Produces: `python -m app` 同时拉起 Web + 采集器
 
-- [ ] **Step 1: 写 __main__.py**
+- [x] **Step 1: 写 __main__.py**
 
 ```python
 # app/__main__.py
@@ -2340,7 +2340,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 2: 写测试 (验证启动脚本可导入)**
+- [x] **Step 2: 写测试 (验证启动脚本可导入)**
 
 ```python
 # tests/test_main.py
@@ -2349,12 +2349,12 @@ def test_main_importable():
     assert hasattr(app.__main__, "main")
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `pytest tests/test_main.py -v`
 Expected: 1 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/__main__.py tests/test_main.py
@@ -2372,7 +2372,7 @@ git commit -m "feat: 双进程启动脚本"
 **Interfaces:**
 - 验证: 全链路 + 幂等 + 只读约束
 
-- [ ] **Step 1: 写只读约束测试 (白名单)**
+- [x] **Step 1: 写只读约束测试 (白名单)**
 
 ```python
 # tests/integration/test_readonly_constraint.py
@@ -2399,7 +2399,7 @@ def test_collector_uses_readonly_cdp():
             assert f not in m
 ```
 
-- [ ] **Step 2: 写幂等测试**
+- [x] **Step 2: 写幂等测试**
 
 ```python
 # tests/integration/test_e2e.py
@@ -2415,12 +2415,12 @@ def test_duplicate_ingest_no_dup(tmp_data):
     assert len(store.list_messages("c1")) == 1
 ```
 
-- [ ] **Step 3: 运行全部测试**
+- [x] **Step 3: 运行全部测试**
 
 Run: `pytest -v`
 Expected: 全部 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/integration/
@@ -2434,9 +2434,9 @@ git commit -m "test: 集成测试 + 只读约束验证"
 **Files:**
 - Create: `README.md`, `docs/RISK.md`
 
-- [ ] **Step 1: 写 README.md** — 安装、启动 (`python -m app`)、配置 (.env)、使用流程。
+- [x] **Step 1: 写 README.md** — 安装、启动 (`python -m app`)、配置 (.env)、使用流程。
 
-- [ ] **Step 2: 写 docs/RISK.md**
+- [x] **Step 2: 写 docs/RISK.md**
 
 ```markdown
 # WhatsApp 封号风险提示
@@ -2457,7 +2457,7 @@ git commit -m "test: 集成测试 + 只读约束验证"
 - 定期导出知识库备份 (data/ 目录)
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md docs/RISK.md

@@ -1,9 +1,9 @@
 workflow: full
-phase: build
+phase: verify
 build_mode: subagent-driven-development
 build_pause: null
 isolation: branch
-verify_mode: null
+verify_mode: full
 base_ref: null
 design_doc: docs/superpowers/specs/2026-07-01-whatsapp-customer-kb-design.md
 plan: docs/superpowers/plans/2026-07-01-whatsapp-customer-kb.md

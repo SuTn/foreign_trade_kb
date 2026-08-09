@@ -1,2 +1,2 @@
-﻿build_command: python -m compileall -q app
+build_command: python -m compileall -q app
 verify_command: python -m pytest -q
