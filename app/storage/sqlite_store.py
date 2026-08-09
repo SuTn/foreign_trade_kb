@@ -95,6 +95,43 @@ class SqliteStore(StructuredStore):
         return WikiPage(r["id"], r["title"], r["slug"], r["body_md"], json.loads(r["frontmatter"]),
                         json.loads(r["source_doc_ids"]), r["entity_type"], r["updated_at"])
 
+    def list_documents(self):
+        """返回全部文档及其 chunk/wiki 状态。"""
+        rows = self.conn.execute("SELECT * FROM documents ORDER BY ingested_at DESC").fetchall()
+        out = []
+        for r in rows:
+            chunk_count = self.conn.execute(
+                "SELECT COUNT(*) FROM doc_chunks WHERE doc_id=?", (r["id"],)).fetchone()[0]
+            wiki_count = self.conn.execute(
+                "SELECT COUNT(*) FROM wiki_pages WHERE source_doc_ids LIKE ?",
+                (f'%"{r["id"]}"%',)).fetchone()[0]
+            d = dict(r)
+            d["chunk_count"] = chunk_count
+            d["wiki_count"] = wiki_count
+            out.append(d)
+        return out
+
+    def delete_document(self, doc_id):
+        """删除文档: 清空 documents/doc_chunks, 重建 doc_chunks_fts 索引,
+        并从 wiki_pages.source_doc_ids 移除该 doc。
+        返回是否删除了文档记录。"""
+        self.conn.execute("DELETE FROM doc_chunks WHERE doc_id=?", (doc_id,))
+        # FTS 外部内容表: 先删内容, 再 rebuild 索引 (直接 DELETE FTS 行在无索引条目时报 malformed)
+        self.conn.execute("INSERT INTO doc_chunks_fts(doc_chunks_fts) VALUES('rebuild')")
+        # 从 wiki 页面来源中移除该 doc
+        for r in self.conn.execute("SELECT id, source_doc_ids FROM wiki_pages").fetchall():
+            docs = json.loads(r["source_doc_ids"])
+            if doc_id in docs:
+                docs.remove(doc_id)
+                if docs:
+                    self.conn.execute("UPDATE wiki_pages SET source_doc_ids=? WHERE id=?",
+                                      (json.dumps(docs), r["id"]))
+                else:
+                    self.conn.execute("DELETE FROM wiki_pages WHERE id=?", (r["id"],))
+        cur = self.conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
     def _row_to_msg(self, r):
         return Message(r["id"], r["account_id"], r["chat_id"], bool(r["from_me"]), r["sender_jid"],
                        r["ts"], r["type"], r["body"], bool(r["body_present"]), r["ingested_at"])

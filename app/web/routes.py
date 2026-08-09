@@ -3,6 +3,7 @@ import time, uuid, tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Request, File, Form
+from fastapi.responses import HTMLResponse
 
 from app.config import settings
 from app.collector.scanner import read_status, is_alive
@@ -16,7 +17,7 @@ from app.knowledge.parser import parse_document
 from app.knowledge.rag_index import RagIndex
 from app.knowledge.wiki_index import WikiIndex
 from app.knowledge.wiki_export import export_vault
-from app.reply.generator import generate_reply
+from app.reply.generator import generate_reply, regenerate_reply
 
 router = APIRouter()
 
@@ -63,6 +64,24 @@ async def customer_detail(customer_id: str, request: Request):
     )
 
 
+@router.get("/customers/{customer_id}/chat/{chat_id}")
+async def customer_chat_messages(customer_id: str, chat_id: str, request: Request):
+    """web-app: 聊天浏览页 — 分页展示该会话历史消息 (含元数据与正文), 支持触发回复。"""
+    before_raw = request.query_params.get("before_ts")
+    before = int(before_raw) if before_raw and before_raw.isdigit() else None
+    store = _store()
+    msgs = store.list_messages(chat_id, limit=50, before_ts=before)
+    # 时间正序展示
+    msgs = sorted(msgs, key=lambda m: m.ts)
+    older_ts = msgs[0].ts if msgs else None
+    partial = request.query_params.get("partial") == "1"
+    return request.app.state.templates.TemplateResponse(
+        request, "chat_messages.html",
+        {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs,
+         "older_ts": older_ts, "partial": partial},
+    )
+
+
 @router.post("/customers/{customer_id}/analyze")
 async def customer_analyze(customer_id: str, request: Request):
     """6.4: 生成客户分析 (兴趣点/活跃度/跟进建议)。仅生成不写入画像。"""
@@ -88,21 +107,114 @@ async def customer_refresh_profile(customer_id: str, request: Request):
         pass  # 抽取失败展示旧画像
     profile = store.get_profile(customer_id)
     return request.app.state.templates.TemplateResponse(
-        request, "profile_list.html", {"profile": profile},
+        request, "profile_list.html", {"profile": profile, "customer_id": customer_id},
+    )
+
+
+@router.post("/customers/{customer_id}/profile")
+async def customer_profile_save(customer_id: str, request: Request):
+    """web-app: 画像页编辑某字段并保存 → 持久化并标记为人工来源 (source=manual)。"""
+    body = await request.form()
+    field = (body.get("field") or "").strip()
+    value = (body.get("value") or "").strip()
+    store = _store()
+    if field and value:
+        store.upsert_profile_field(customer_id, field, value, source="manual")
+    profile = store.get_profile(customer_id)
+    return request.app.state.templates.TemplateResponse(
+        request, "profile_list.html", {"profile": profile, "customer_id": customer_id},
     )
 
 
 @router.get("/knowledge")
 async def knowledge(request: Request):
-    return request.app.state.templates.TemplateResponse(request, "knowledge.html", {})
+    docs = _store().list_documents()
+    return request.app.state.templates.TemplateResponse(request, "knowledge.html", {"docs": docs})
+
+
+@router.get("/api/knowledge/list")
+async def knowledge_list():
+    """knowledge-base: 文档列表 (含 chunk/wiki 状态)。"""
+    return {"docs": _store().list_documents()}
+
+
+@router.delete("/api/knowledge/{doc_id}")
+async def knowledge_delete(doc_id: str):
+    """knowledge-base: 删除文档 (chunks + 向量 + wiki 引用一并清理)。"""
+    store = _store()
+    deleted = store.delete_document(doc_id)
+    ChromaStore(embedding_fn=get_embedding().embed).delete_chunks(doc_id)
+    return {"deleted": deleted, "doc_id": doc_id}
+
+
+@router.post("/api/knowledge/search")
+async def knowledge_search(request: Request):
+    """knowledge-base: 检索测试 — 返回含来源文档与片段的检索结果。"""
+    p = await _reply_params(request)
+    query = p.get("message") or ""
+    store = _store()
+    vs = ChromaStore(embedding_fn=get_embedding().embed)
+    # 向量召回 + BM25 关键词召回, 合并去重
+    vec = vs.query_chunks(query, top_k=5)
+    bm25 = store.search_fts("doc_chunks", query, limit=5)
+    # FTS 外部内容表不含 doc_id, 需 join 回 doc_chunks
+    doc_lookup = {}
+    for r in store.conn.execute("SELECT id, doc_id, text FROM doc_chunks").fetchall():
+        doc_lookup[r["text"]] = r["doc_id"]
+    seen = set(); merged = []
+    for c in vec:
+        if c["text"] in seen: continue
+        seen.add(c["text"])
+        merged.append({"source": "vector", "doc_id": c["metadata"].get("doc_id"),
+                       "text": c["text"]})
+    for r in bm25:
+        if r["text"] in seen: continue
+        seen.add(r["text"])
+        merged.append({"source": "bm25", "doc_id": doc_lookup.get(r["text"]), "text": r["text"]})
+    return request.app.state.templates.TemplateResponse(
+        request, "knowledge_search.html", {"query": query, "results": merged})
+
+
+async def _reply_params(request: Request) -> dict:
+    """从 JSON body 或表单解析 {customer_id, chat_id, message, style}。"""
+    if request.headers.get("content-type", "").startswith("application/json"):
+        body = await request.json()
+    else:
+        body = await request.form()
+    return {k: (body.get(k) or "") for k in ("customer_id", "chat_id", "message", "style")}
+
+
+def _render_reply_result(request: Request, customer_id: str, chat_id: str,
+                         message: str, result: dict):
+    return request.app.state.templates.TemplateResponse(
+        request, "reply_result.html",
+        {"customer_id": customer_id, "chat_id": chat_id, "message": message,
+         "reply": result["reply"],
+         "sources": result.get("sources", []), "style": result.get("style", "default")},
+    )
 
 
 @router.post("/api/reply")
-async def reply(body: dict):
+async def reply(request: Request):
+    p = await _reply_params(request)
     store = _store()
     vs = ChromaStore(embedding_fn=get_embedding().embed)
     pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
-    return generate_reply(pipe, body["customer_id"], body["chat_id"], body["message"])
+    result = generate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
+                            style=p.get("style") or "default")
+    return _render_reply_result(request, p["customer_id"], p["chat_id"], p["message"], result)
+
+
+@router.post("/api/reply/regenerate")
+async def reply_regenerate(request: Request):
+    """reply-assist: 为同一条消息重新生成获得不同候选回复。"""
+    p = await _reply_params(request)
+    store = _store()
+    vs = ChromaStore(embedding_fn=get_embedding().embed)
+    pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
+    result = regenerate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
+                              previous_style=p.get("style") or "default")
+    return _render_reply_result(request, p["customer_id"], p["chat_id"], p["message"], result)
 
 
 @router.post("/api/knowledge/upload")

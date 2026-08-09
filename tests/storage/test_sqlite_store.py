@@ -29,3 +29,43 @@ def test_fts_search(tmp_data):
     s.upsert_message(Message("m1", "a1", "c1", False, "x", 1, "chat", "invoice for order 123", True, 1))
     res = s.search_fts("messages", "invoice", 10)
     assert len(res) == 1
+
+
+def test_list_documents_counts(tmp_data):
+    s = SqliteStore()
+    s.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?)",
+                   ("d1", "a.md", "md", "docreader", "done", 1))
+    s.conn.execute("INSERT INTO doc_chunks VALUES(?,?,?,?,?,?)",
+                   ("c1", "d1", 0, "text-a", "0", "c1"))
+    s.conn.execute("INSERT INTO doc_chunks VALUES(?,?,?,?,?,?)",
+                   ("c2", "d1", 1, "text-b", "1", "c2"))
+    s.conn.execute("INSERT INTO wiki_pages VALUES(?,?,?,?,?,?,?,?)",
+                   ("w1", "LED", "led", "body", '{"source_docs": ["d1"]}', '["d1"]', "product", 1))
+    s.conn.commit()
+    docs = s.list_documents()
+    assert len(docs) == 1
+    assert docs[0]["chunk_count"] == 2
+    assert docs[0]["wiki_count"] == 1
+
+
+def test_delete_document_removes_chunks_and_wiki_ref(tmp_data):
+    s = SqliteStore()
+    s.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?)",
+                   ("d1", "a.md", "md", "docreader", "done", 1))
+    s.conn.execute("INSERT INTO doc_chunks VALUES(?,?,?,?,?,?)",
+                   ("c1", "d1", 0, "text-a", "0", "c1"))
+    s.conn.execute("INSERT INTO wiki_pages VALUES(?,?,?,?,?,?,?,?)",
+                   ("w1", "LED", "led", "body", '{"source_docs": ["d1"]}', '["d1"]', "product", 1))
+    s.conn.execute("INSERT INTO wiki_pages VALUES(?,?,?,?,?,?,?,?)",
+                   ("w2", "Lamp", "lamp", "body", '{"source_docs": ["d1", "d2"]}', '["d1", "d2"]', "product", 1))
+    s.conn.commit()
+    assert s.delete_document("d1") is True
+    assert s.conn.execute("SELECT COUNT(*) FROM documents WHERE id='d1'").fetchone()[0] == 0
+    assert s.conn.execute("SELECT COUNT(*) FROM doc_chunks WHERE doc_id='d1'").fetchone()[0] == 0
+    # w1 唯一来源被删 → 页面删除; w2 保留但移除 d1
+    assert s.conn.execute("SELECT COUNT(*) FROM wiki_pages WHERE id='w1'").fetchone()[0] == 0
+    w2 = s.conn.execute("SELECT source_doc_ids FROM wiki_pages WHERE id='w2'").fetchone()[0]
+    import json
+    assert json.loads(w2) == ["d2"]
+    # 再次删除不存在文档 → False
+    assert s.delete_document("nope") is False

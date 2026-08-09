@@ -1,7 +1,20 @@
+<h3>画像（人工编辑标记为 manual）</h3>
 <ul>
   {% for p in profile %}
-  <li>{{ p.field }}: {{ p.value }} ({{ p.source }}, {{ p.updated_at }})</li>
+  <li>
+    <form hx-post="/customers/{{ p.customer_id }}/profile" hx-target="closest li" hx-swap="outerHTML" style="display:inline">
+      <input type="hidden" name="field" value="{{ p.field }}">
+      <input type="text" name="value" value="{{ p.value }}" size="30">
+      <span>({{ p.source }}, {{ p.updated_at }})</span>
+      <button type="submit">保存</button>
+    </form>
+  </li>
   {% else %}
   <li>暂无画像</li>
   {% endfor %}
 </ul>
+<form hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
+  <input type="text" name="field" placeholder="新字段名" required>
+  <input type="text" name="value" placeholder="字段值" required>
+  <button type="submit">新增字段</button>
+</form>

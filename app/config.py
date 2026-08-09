@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # 路径
@@ -54,9 +54,10 @@ class Settings(BaseSettings):
     context_token_limit: int = 4000
     wiki_dedup_threshold: float = 0.85
 
-    class Config:
-        env_prefix = "KB_"
-        env_file = ".env"
-        extra = "ignore"  # 容忍 .env 中非 KB_ 前缀的兼容变量 (如 OPENAI_API_KEY)
+    model_config = SettingsConfigDict(
+        env_prefix="KB_",
+        env_file=".env",
+        extra="ignore",
+    )
 
 settings = Settings()

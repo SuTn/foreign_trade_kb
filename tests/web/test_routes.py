@@ -112,3 +112,127 @@ def test_customer_refresh_profile_endpoint(tmp_data, monkeypatch):
     assert r.status_code == 200
     assert "USA" in r.text
 
+
+def test_profile_manual_edit_saved(tmp_data):
+    """web-app: 画像页编辑某字段并保存 → 持久化并标记为 manual。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/customers/cust1/profile",
+                    data={"field": "company", "value": "Acme Trading"})
+    assert r.status_code == 200
+    assert "Acme Trading" in r.text
+    p = store.get_profile("cust1")
+    assert any(f.field == "company" and f.value == "Acme Trading" and f.source == "manual"
+               for f in p)
+
+
+def test_chat_messages_pagination(tmp_data):
+    """web-app: 聊天浏览页分页展示历史消息。"""
+    from app.storage.sqlite_store import SqliteStore
+    from app.storage.interfaces import Message
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0))
+    store.conn.execute(
+        "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+        ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    for i, ts in enumerate([1, 2, 3]):
+        store.upsert_message(Message(f"m{i}", "a1", "c1", False, None, ts, "chat",
+                                     f"msg {ts}", True, 0))
+    client = TestClient(create_app())
+    r = client.get("/customers/cust1/chat/c1")
+    assert r.status_code == 200
+    assert "msg 1" in r.text and "msg 3" in r.text
+    # 分页: 请求 before_ts=2 应只含更早消息
+    r2 = client.get("/customers/cust1/chat/c1?before_ts=2&partial=1")
+    assert r2.status_code == 200
+    assert "msg 1" in r2.text
+    assert "msg 2" not in r2.text
+    assert "msg 3" not in r2.text
+
+
+def test_knowledge_list_and_delete(tmp_data):
+    """knowledge-base: 文档列表 + 删除文档。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?)",
+                       ("d1", "a.md", "md", "docreader", "done", 1))
+    store.conn.execute("INSERT INTO doc_chunks VALUES(?,?,?,?,?,?)",
+                       ("c1", "d1", 0, "text-a", "0", "c1"))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/knowledge")
+    assert r.status_code == 200
+    assert "a.md" in r.text
+    r2 = client.delete("/api/knowledge/d1")
+    assert r2.status_code == 200
+    assert r2.json()["deleted"] is True
+    assert store.conn.execute("SELECT COUNT(*) FROM documents WHERE id='d1'").fetchone()[0] == 0
+
+
+def test_knowledge_search_returns_results(tmp_data, monkeypatch):
+    """knowledge-base: 检索测试返回来源片段。"""
+    from app.web import routes
+    from app.storage.sqlite_store import SqliteStore
+    from app.storage.chroma_store import ChromaStore
+
+    class FakeEmbed:
+        def embed(self, text):
+            return [float(len(text) % 7)] * 8
+
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?)",
+                       ("d1", "a.md", "md", "docreader", "done", 1))
+    store.conn.execute("INSERT INTO doc_chunks VALUES(?,?,?,?,?,?)",
+                       ("c1", "d1", 0, "LED 产品规格说明", "0", "c1"))
+    store.conn.execute("INSERT INTO doc_chunks_fts(rowid, text) VALUES((SELECT rowid FROM doc_chunks WHERE id='c1'), ?)",
+                       ("LED 产品规格说明",))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/api/knowledge/search", data={"message": "LED"})
+    assert r.status_code == 200
+    assert "LED" in r.text
+
+
+def test_reply_accepts_form_and_regenerate(tmp_data, monkeypatch):
+    """reply-assist: /api/reply 支持表单, /api/reply/regenerate 返回不同风格候选。"""
+    from app.web import routes
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            return "建议回复内容"
+
+    class FakeReranker:
+        def rerank(self, q, cands, top_k=8):
+            return cands[:top_k]
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    monkeypatch.setattr(routes, "get_reranker", lambda: FakeReranker())
+
+    class FakeEmbed:
+        def embed(self, text):
+            return [1.0] * 8
+
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
+    assert r.status_code == 200
+    assert "建议回复内容" in r.text
+    r2 = client.post("/api/reply/regenerate",
+                     data={"customer_id": "cust1", "chat_id": "c1", "message": "hi", "style": "default"})
+    assert r2.status_code == 200
+    assert "concise" in r2.text  # regenerate 切到下一风格
+

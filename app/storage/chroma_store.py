@@ -29,6 +29,10 @@ class ChromaStore(VectorStore):
         r = self.chunk_col.query(query_embeddings=[self.embedding_fn(text)], n_results=top_k)
         return self._fmt(r)
 
+    def delete_chunks(self, doc_id):
+        """删除某文档的全部向量 chunk。"""
+        self.chunk_col.delete(where={"doc_id": doc_id})
+
     def _fmt(self, r):
         return [{"id": i, "text": d, "metadata": m, "distance": dist}
                 for i, d, m, dist in zip(r["ids"][0], r["documents"][0], r["metadatas"][0], r["distances"][0])]

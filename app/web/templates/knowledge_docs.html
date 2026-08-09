@@ -1,0 +1,21 @@
+<div id="doc-list">
+  <table border="1">
+    <tr><th>文件名</th><th>格式</th><th>状态</th><th>chunks</th><th>wiki 页</th><th>操作</th></tr>
+    {% for d in docs %}
+    <tr>
+      <td>{{ d['filename'] }}</td>
+      <td>{{ d['format'] }}</td>
+      <td>{{ d['status'] }}</td>
+      <td>{{ d['chunk_count'] }}</td>
+      <td>{{ d['wiki_count'] }}</td>
+      <td>
+        <button hx-delete="/api/knowledge/{{ d['id'] }}"
+                hx-target="closest tr" hx-swap="outerHTML"
+                hx-confirm="确认删除文档 {{ d['filename'] }}?">删除</button>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6">暂无文档</td></tr>
+    {% endfor %}
+  </table>
+</div>

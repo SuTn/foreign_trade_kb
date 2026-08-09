@@ -16,3 +16,14 @@ def test_message_vector_metadata(tmp_data):
     s.upsert_message_vector("c1:2026-07-01", "hello customer", {"chat_id": "c1", "day": "2026-07-01"})
     res = s.query_messages("hello", chat_id="c1", top_k=1)
     assert res[0]["metadata"]["chat_id"] == "c1"
+
+
+def test_delete_chunks_by_doc(tmp_data):
+    s = ChromaStore(embedding_fn=fake_embed)
+    s.upsert_chunks([{"id": "c1", "text": "spec sheet", "metadata": {"doc_id": "d1"}},
+                     {"id": "c2", "text": "price list", "metadata": {"doc_id": "d1"}},
+                     {"id": "c3", "text": "other doc", "metadata": {"doc_id": "d2"}}])
+    s.delete_chunks("d1")
+    res = s.query_chunks("spec sheet", top_k=10)
+    assert all(c["metadata"]["doc_id"] != "d1" for c in res)
+    assert any(c["metadata"]["doc_id"] == "d2" for c in res)
