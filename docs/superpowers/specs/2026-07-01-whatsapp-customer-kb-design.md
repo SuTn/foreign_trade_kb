@@ -2,6 +2,8 @@
 comet_change: whatsapp-customer-kb
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-09-whatsapp-customer-kb
+status: final
 ---
 
 # 外贸客户知识库 — 技术设计
