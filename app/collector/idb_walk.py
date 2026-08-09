@@ -56,7 +56,14 @@ def _read_store_js(store: str) -> str:
             "function(c) {"
             " var idv = c.id;"
             " var jid = typeof idv === 'string' ? idv : (idv && (idv._serialized || idv.user));"
-            " return {id: jid, name: c.name || c.pushname || null}; }"
+            " var lidv = c.lid;"
+            " var lid = typeof lidv === 'string' ? lidv : (lidv && (lidv._serialized || lidv.user));"
+            " var ph = c.phoneNumber || c.phone;"
+            " var phone = typeof ph === 'string' ? ph : (ph && (ph._serialized || ph.user));"
+            " var jid2 = c.jid;"
+            " var alt_jid = typeof jid2 === 'string' ? jid2 : (jid2 && (jid2._serialized || jid2.user));"
+            " return {id: jid, lid: lid, phone: phone, alt_jid: alt_jid,"
+            "         name: c.name || c.pushname || null, form: c.formattedName || null}; }"
         )
     return (_STORE_JS_TEMPLATE
             .replace("__DB__", settings.idb_database)
@@ -66,8 +73,11 @@ def _read_store_js(store: str) -> str:
 
 async def walk_idb(cdp: ReadOnlyCDP, account_id: str) -> dict:
     """读 model-storage 的 message/chat/contact stores (页面 JS 只读)。
-    返回 {chats: {jid:name}, messages: [...], contacts: {...}}。"""
-    result = {"chats": {}, "messages": [], "contacts": {}}
+    返回 {chats: {jid:name}, messages: [...], contacts: {jid:name},
+          lids: {lid_jid: {phone_jid, name}}, lid_to_phone: {lid_jid: phone_jid}}。
+    contacts 同时按手机号 jid 与 lid jid 建索引, 供 LID↔手机号双向查找。"""
+    result = {"chats": {}, "messages": [], "contacts": {}, "lids": {}, "lid_to_phone": {},
+              "phone_by_lid": {}}
     for store in settings.idb_stores:
         if store == "group-metadata":
             continue  # 群元数据暂不读取 (无明文正文可用)
@@ -80,6 +90,18 @@ async def walk_idb(cdp: ReadOnlyCDP, account_id: str) -> dict:
                     result["chats"][r["id"]] = r.get("name")
         elif store == "contact":
             for r in rows:
-                if r.get("id"):
-                    result["contacts"][r["id"]] = r.get("name")
+                if not r.get("id"):
+                    continue
+                name = r.get("name")
+                phone = r.get("phone")
+                result["contacts"][r["id"]] = name
+                lid = r.get("lid")
+                if lid:
+                    result["contacts"][lid] = name  # LID→name 也可查
+                    result["lids"][lid] = {"phone_jid": r["id"], "name": name}
+                    result["lid_to_phone"][lid] = r["id"]
+                if phone:
+                    result["phone_by_lid"][r["id"]] = phone
+                    # 纯手机号也可反查名字
+                    result["contacts"][phone] = result["contacts"].get(phone) or name
     return result

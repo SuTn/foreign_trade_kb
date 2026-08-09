@@ -49,16 +49,42 @@ class Scanner:
         """IDB 全量校准: IDB 提供消息身份/chatId, DOM 提供正文, 按 hex id 合并。"""
         from app.collector.idb_walk import walk_idb
         data = await walk_idb(self.cdp, self.account_id)
+        self._persist_contacts(data)
         dom_msgs = parse_dom_snapshot_safe(await self.cdp.capture_snapshot(), self._current_chat_id)
         merged = self._merge_idb_dom(data, dom_msgs)
         for m in merged:
             self._upsert_one(m)
         write_status(settings.status_path, {"state": "running", "last_sync": time.time()})
 
+    def _persist_contacts(self, data: dict):
+        """把 IDB contact store 落库 contacts 表:
+        @lid 记录用 contact store 的真实 phone (若存在), 否则暂存 LID 数字;
+        同时落真实手机号 jid 与 lid jid 两条索引, 供 resolve_phone 双向解析。"""
+        from app.profile.matcher import phone_from_jid
+        now = int(time.time())
+        all_contacts = dict(data.get("contacts") or {})
+        for lid, info in (data.get("lids") or {}).items():
+            if lid not in all_contacts:
+                all_contacts[lid] = info.get("name")
+        n = 0
+        for jid, name in all_contacts.items():
+            phone = phone_from_jid(jid)
+            real = data.get("phone_by_lid", {}).get(jid)
+            if real:
+                phone = phone_from_jid(real) or (real if real.isdigit() else None)  # @lid → contact 真实手机号
+            self.store.conn.execute(
+                "INSERT INTO contacts VALUES(?,?,?,?,?) ON CONFLICT(jid,account_id) DO UPDATE SET "
+                "display_name=excluded.display_name, phone=excluded.phone, updated_at=excluded.updated_at",
+                (jid, self.account_id, name, phone, now))
+            n += 1
+        self.store.conn.commit()
+
     def _merge_idb_dom(self, data: dict, dom_msgs: list[dict]) -> list[dict]:
         """IDB 消息 (id 形如 false_<jid>_<hex>) 与 DOM 消息 (hex id) 合并:
         our_jid = IDB 消息恒定的 to (自身账号); chat 取"不是自己"的一方 (入站=from, 出站=to);
-        正文/发送人/时间优先取 DOM, 缺省回退 IDB。"""
+        正文/发送人/时间优先取 DOM, 缺省回退 IDB。
+        chat 名: 优先 chats[jid] → contacts[jid] (含 LID 索引) → DOM 发送人显示名。
+        返回的 chatId 为真实手机号 JID (LID 经 lid_to_phone 解析), 便于客户匹配。"""
         idb_by_hex = {}
         our_jid = None
         for m in data.get("messages", []):
@@ -67,6 +93,14 @@ class Scanner:
                 idb_by_hex[hex_part] = m
             if our_jid is None and m.get("to"):
                 our_jid = m["to"]
+        # DOM 发送人显示名 (入站消息, 供名字回退)
+        dom_sender_name = None
+        for dom in dom_msgs:
+            if not dom.get("fromMe") and dom.get("from"):
+                dom_sender_name = dom.get("from")
+                break
+        lids = data.get("lid_to_phone", {})
+        phone_by_lid = data.get("phone_by_lid", {})
         merged = []
         for dom in dom_msgs:
             rec = idb_by_hex.get(dom.get("id"))
@@ -77,11 +111,21 @@ class Scanner:
                 if chat == our_jid or not chat:
                     chat = rec.get("to")
             chat = chat or self._current_chat_id
+            phone_chat = chat
+            if chat and phone_by_lid.get(chat):
+                phone_chat = phone_by_lid[chat]  # @lid → contact store 的真实手机号 (无@)
+            elif chat and chat in lids:
+                phone_chat = lids[chat]  # 回退: lid→phone_jid 映射
+            # 名字: chats → contacts (含 LID 索引) → DOM 发送人显示名
             name = data["chats"].get(chat) if chat else None
+            if not name and chat:
+                name = data["contacts"].get(chat)
+            if not name and phone_chat != chat:
+                name = data["contacts"].get(phone_chat)
             if not name:
-                name = data["contacts"].get((rec or {}).get("from"))
+                name = dom_sender_name
             merged.append({
-                "id": dom.get("id"), "chatId": chat, "fromMe": from_me,
+                "id": dom.get("id"), "chatId": phone_chat, "fromMe": from_me,
                 "from": dom.get("from") or (rec or {}).get("from"),
                 "timestamp": dom.get("timestamp") or (rec or {}).get("t") or 0,
                 "type": "chat", "body": dom.get("body") or "",
@@ -161,6 +205,7 @@ class Scanner:
         settle = settle or settings.auto_scan_settle_sec
         from app.collector.idb_walk import walk_idb
         data = await walk_idb(self.cdp, self.account_id)
+        self._persist_contacts(data)
         try:
             total = await self.page.eval_on_selector_all(
                 "[data-testid='chat-list'] div[role='row']", "els => els.length")
@@ -246,7 +291,15 @@ class Scanner:
             self.store.conn.execute(
                 "UPDATE backfill_requests SET done=1 WHERE id=?", (r["id"],)
             )
-            self.store.conn.commit()
+        self.store.conn.commit()
+        try:
+            import json
+            (settings.data_dir / "debug_walk.json").write_text(
+                json.dumps(list((data.get("contacts") or {}).items())[:3] or [] +
+                           list(data.get("contact_keys") or [])[:3],
+                           ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
 
 def parse_dom_snapshot_safe(snap, chat_id=None):
     from app.collector.dom_snapshot import parse_dom_snapshot

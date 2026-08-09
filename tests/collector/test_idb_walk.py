@@ -25,12 +25,23 @@ async def test_walk_idb_builds_chats_contacts_messages(monkeypatch):
              "from": "8615976909619@c.us", "to": "8618963126542@c.us", "type": "chat", "fromMe": False},
         ],
         "chat": [{"id": "8615976909619@c.us", "name": "Sonya"}],
-        "contact": [{"id": "100245207838777@lid", "name": "Kakajan"}],
+        "contact": [
+            {"id": "100245207838777@lid", "name": "Kakajan", "phone": "123456789"},
+            {"id": "447974905044@c.us", "name": "Lucas", "lid": "106558658740375@lid"},
+        ],
     })
     data = await idb_walk.walk_idb(cdp, "me")
     assert data["messages"][0]["id"].endswith("3EB06C1E7DA73250B3B4")
     assert data["chats"] == {"8615976909619@c.us": "Sonya"}
-    assert data["contacts"] == {"100245207838777@lid": "Kakajan"}
+    assert data["contacts"] == {
+        "100245207838777@lid": "Kakajan",
+        "447974905044@c.us": "Lucas",
+        "106558658740375@lid": "Lucas",
+        "123456789": "Kakajan",
+    }
+    assert data["lid_to_phone"] == {"106558658740375@lid": "447974905044@c.us"}
+    assert data["lids"]["106558658740375@lid"]["name"] == "Lucas"
+    assert data["phone_by_lid"] == {"100245207838777@lid": "123456789"}
 
 
 def test_read_store_js_is_readonly():

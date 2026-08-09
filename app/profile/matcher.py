@@ -7,10 +7,30 @@ def phone_from_jid(jid: str) -> str | None:
     m = re.match(r"^(\d+)@", jid or "")
     return m.group(1) if m else None
 
+def is_lid_jid(jid: str) -> bool:
+    return bool(jid and jid.endswith("@lid"))
+
+def resolve_phone(store: StructuredStore, jid: str) -> str | None:
+    """解析 JID 的真实手机号: @c.us 直接取数字; @lid 查 contacts 表映射。
+    若传入已是纯数字 (如 _merge_idb_dom 已解析), 原样返回。"""
+    if not jid:
+        return None
+    if "@" not in jid:
+        return jid if jid.isdigit() else None
+    if not is_lid_jid(jid):
+        return phone_from_jid(jid)
+    row = store.conn.execute("SELECT phone FROM contacts WHERE jid=?", (jid,)).fetchone()
+    if row and row["phone"]:
+        # contacts.phone 可能是裸数字或完整 jid, 统一取数字部分
+        return phone_from_jid(row["phone"]) or (row["phone"] if row["phone"].isdigit() else None)
+    return None
+
 def match_customer(store: StructuredStore, account_id: str, chat_id: str,
                    display_name: str | None, jid: str) -> dict:
-    """启发式匹配: 手机号优先, 显示名次之。返回 {customer_id, confidence, confirmed}。"""
-    phone = phone_from_jid(jid)
+    """启发式匹配: 手机号优先, 显示名次之。返回 {customer_id, confidence, confirmed}。
+    LID 会话经 contacts 表解析为真实手机号, 避免把 LID 当手机号建重复客户。
+    若真实手机号已有客户, 新会话映射到该客户 (不再以 LID 另建)。"""
+    phone = resolve_phone(store, jid) or phone_from_jid(jid)
     # 查现有 customer
     row = None
     if phone:
@@ -19,6 +39,12 @@ def match_customer(store: StructuredStore, account_id: str, chat_id: str,
         row = store.conn.execute("SELECT id FROM customers WHERE display_name=?", (display_name,)).fetchone()
     if row:
         cid = row["id"]; conf = 0.9 if phone else 0.6
+        # 补全缺失的显示名 (不覆盖已有名字)
+        if display_name:
+            store.conn.execute(
+                "UPDATE customers SET display_name=COALESCE(NULLIF(display_name,''), NULLIF(?, '')) WHERE id=?",
+                (display_name, cid))
+            store.conn.commit()
     else:
         cid = str(uuid.uuid4())
         store.conn.execute("INSERT INTO customers VALUES(?,?,?,NULL,NULL,?)",
