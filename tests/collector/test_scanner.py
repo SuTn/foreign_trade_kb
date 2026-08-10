@@ -234,6 +234,61 @@ def test_scan_all_chats_no_page_returns_zero(tmp_data):
     assert asyncio.run(sc.scan_all_chats()) == 0
 
 
+async def test_scan_all_chats_skips_avatar_when_no_messages(tmp_data, monkeypatch):
+    """空 DOM 波次 (点击的会话无消息) 不得用上一会话 id 重复抓头像覆盖错误客户。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, "/avatars/cust1.png"))
+    store.conn.execute(
+        "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+        ("me", "8615976909619@c.us", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+
+    waves = [
+        [{"id": "HEX1", "fromMe": False, "from": None, "timestamp": 0,
+          "body": "hello", "body_present": True}],  # 会话 1 有消息 → 应抓头像
+        [],                                          # 会话 2 无 DOM 消息 → 不应再抓
+    ]
+    class WaveCdp:
+        def __init__(self): self.i = 0
+        async def capture_snapshot(self):
+            s = waves[min(self.i, len(waves) - 1)]; self.i += 1; return s
+
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe",
+                        lambda s, chat_id=None: s)
+    async def fake_walk_idb(cdp, acct):
+        return {
+            "chats": {"8615976909619@c.us": "Alice"},
+            "contacts": {},
+            "messages": [{"id": "false_8615976909619@c.us_HEX1", "t": 1001,
+                          "from": "8615976909619@c.us", "to": "8618963126542@c.us",
+                          "type": "chat", "fromMe": False}],
+        }
+    monkeypatch.setattr("app.collector.idb_walk.walk_idb", fake_walk_idb)
+
+    class AvatarPage:
+        def __init__(self, n_rows):
+            self.n_rows = n_rows; self.clicks = []; self.calls = 0
+        async def eval_on_selector_all(self, sel, expr): return self.n_rows
+        def locator(self, sel): return _FakeLocator(self)
+        async def evaluate(self, expr):
+            self.calls += 1
+            if self.calls == 1:
+                return {"src": "blob:https://web.whatsapp.com/x"}
+            png = b"\x89PNG\r\n\x1a\navatar2"
+            return "data:image/png;base64," + __import__("base64").b64encode(png).decode()
+
+    page = AvatarPage(n_rows=2)
+    sc = Scanner(WaveCdp(), store, FakeVector(), page=page)
+    n = await sc.scan_all_chats(max_chats=2, settle=0)
+    assert n == 1  # 仅会话 1 的消息入库
+    assert page.calls == 2  # 头像只抓一次 (第 2 波空 → 不再抓), 否则会重复抓=4 次
+    row = store.conn.execute("SELECT avatar_path FROM customers WHERE id='cust1'").fetchone()
+    assert row["avatar_path"] == "/avatars/cust1.png"
+
+
 class FakeLLM:
     def generate(self, s, u, max_tokens=1024):
         return '{"country": "USA"}'

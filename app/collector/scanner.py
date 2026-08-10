@@ -267,10 +267,12 @@ class Scanner:
                 continue  # 行不可点 (虚拟列表抖动) 则跳过
             await asyncio.sleep(settle)
             dom_msgs = parse_dom_snapshot_safe(await self.cdp.capture_snapshot(), self._current_chat_id)
-            for m in self._merge_idb_dom(data, dom_msgs):
+            merged = self._merge_idb_dom(data, dom_msgs)
+            for m in merged:
                 if self._upsert_one(m):
                     ingested += 1
-            await self._capture_avatar(self._current_chat_id)
+            if merged:
+                await self._capture_avatar(self._current_chat_id)
         if ingested:
             write_status(settings.status_path, {"state": "running", "last_sync": time.time()})
         return ingested
