@@ -2,6 +2,8 @@
 comet_change: frontend-polish
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-10-frontend-polish
+status: final
 ---
 
 # frontend-polish 技术设计
