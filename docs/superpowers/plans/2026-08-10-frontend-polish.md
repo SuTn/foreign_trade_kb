@@ -132,10 +132,12 @@ def test_capture_avatar_writes_file_and_path(tmp_data, monkeypatch):
     png = b"\x89PNG\r\n\x1a\nfakedata"
     data_url = "data:image/png;base64," + __import__("base64").b64encode(png).decode()
     class FakePage:
+        def __init__(self): self.calls = 0
         async def evaluate(self, expr):
-            if "getAvatarSrc" in expr:
+            self.calls += 1
+            if self.calls == 1:   # 第一次调用: 读 header img src
                 return {"src": "blob:https://web.whatsapp.com/xyz"}
-            return data_url
+            return data_url       # 第二次: fetch → dataURL
     sc = Scanner(FakeCDP([{}]), store, FakeVector(), page=FakePage())
     import asyncio
     asyncio.run(sc._capture_avatar("c1"))
@@ -154,7 +156,8 @@ def test_capture_avatar_skips_when_no_customer(tmp_data):
     sc = Scanner(FakeCDP([{}]), SqliteStore(), FakeVector(), page=FakePage())
     import asyncio
     asyncio.run(sc._capture_avatar("no_map"))  # 不应抛异常
-    assert not list(settings.avatars_dir.glob("*")) if settings.avatars_dir.exists() else True
+    av = settings.avatars_dir
+    assert not av.exists() or not list(av.glob("*"))  # 未写任何头像文件
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -602,19 +605,23 @@ git commit -m "feat: 客户卡片网格 + 头像/占位 + 实时搜索筛选 (�
 {% endblock %}
 ```
 
-- [ ] **Step 2: chat_messages.html 气泡化（保持 partial swap）**
+- [ ] **Step 2: chat_messages.html 气泡化（保持 partial swap，独立模板不继承 base）**
 
-`chat_messages.html`：完整页部分继承 base，partial 部分保持 `#messages` 结构：
+`chat_messages.html`：Jinja2 不允许条件化 `extends`，故保持独立完整页结构（引用本地 static），partial 部分仍为 `#messages`：
 ```html
 {% if not partial %}
-{% extends "base.html" %}
-{% block title %}会话 {{ chat_id }}{% endblock %}
-{% block content %}
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>会话 {{ chat_id }}</title>
+<link rel="stylesheet" href="/static/css/app.css">
+<script src="/static/js/htmx.min.js"></script>
+<script src="/static/js/app.js"></script></head>
+<body>
+<nav class="nav"><span class="brand">外贸客户知识库</span><a href="/">首页</a><a href="/customers">客户</a><a href="/knowledge">知识库</a></nav>
+<main class="container">
 <p><a href="/customers/{{ customer_id }}">← 返回客户</a></p>
-<div id="messages">
-{% else %}
-<div id="messages">
 {% endif %}
+<div id="messages">
   {% for m in messages %}
   <div class="chat-row {{ 'mine' if m.from_me else 'theirs' }}">
     <div class="chat-bubble {{ 'mine' if m.from_me else 'theirs' }}">
@@ -636,7 +643,9 @@ git commit -m "feat: 客户卡片网格 + 头像/占位 + 实时搜索筛选 (�
   {% endif %}
 </div>
 {% if not partial %}
-{% endblock %}
+</main>
+</body>
+</html>
 {% endif %}
 ```
 
@@ -729,10 +738,13 @@ def test_home_shows_stats(tmp_data):
     from app.storage.sqlite_store import SqliteStore
     store = SqliteStore()
     store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",("c1","Alice","1",None,None,0,None))
+    store.conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?)",("m1","me","ch1",0,"x",1000,"chat","hi",1,0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",("ch1","me","ch1","Alice","single",0))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",("me","ch1","c1",0.9,0,0))
     store.conn.commit()
     client = TestClient(create_app())
     html = client.get("/").text
-    assert "客户总数" in html and "Alice" in html
+    assert "客户总数" in html and "近期活跃会话" in html and "Alice" in html
 ```
 
 - [ ] **Step 4: 运行测试**
