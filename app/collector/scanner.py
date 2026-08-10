@@ -163,14 +163,18 @@ class Scanner:
         return ingested
 
     def _upsert_one(self, m) -> bool:
-        """入库单条消息, 返回是否真正写入 (缺 chatId/消息 id 则跳过)。"""
-        from app.storage.interfaces import Message
+        """入库单条消息, 返回是否真正写入 (缺 chatId/消息 id 则跳过)。
+        消息入库时同步落会话元数据 (chats 表), 供会话枚举/显示名/同步状态查询。"""
+        from app.storage.interfaces import Message, Chat
         chat_id = m.get("chatId")
         if not chat_id or not m.get("id"):
             return False  # 缺 chatId/消息 id 无法入库 (如未打开会话时的 DOM 增量)
+        now = int(time.time())
+        # 当前采集流程仅同步单聊 (group-metadata 未读取), kind 固定 single
+        self.store.upsert_chat(Chat(chat_id, self.account_id, chat_id, m.get("name"), "single", now))
         msg = Message(m["id"], self.account_id, chat_id, m.get("fromMe", False),
                       m.get("from"), m.get("timestamp", 0), m.get("type"),
-                      m.get("body"), m.get("body_present", False), int(time.time()))
+                      m.get("body"), m.get("body_present", False), now)
         self.store.upsert_message(msg)
         # 客户匹配 (每会话一次, 建画像/建立 chat→customer 映射) + 画像抽取调度
         if chat_id not in self._matched_chats:

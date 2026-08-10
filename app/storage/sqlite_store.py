@@ -21,9 +21,11 @@ class SqliteStore(StructuredStore):
         self.conn.commit()
 
     def upsert_chat(self, chat: Chat):
+        # 显示名/类型缺省 (如纯 DOM 增量) 时保留已有值, 仅刷新同步时间
         self.conn.execute(
             "INSERT INTO chats VALUES(?,?,?,?,?,?) ON CONFLICT(id,account_id) DO UPDATE SET "
-            "display_name=excluded.display_name, kind=excluded.kind, last_synced_at=excluded.last_synced_at",
+            "display_name=COALESCE(excluded.display_name, chats.display_name), "
+            "kind=COALESCE(excluded.kind, chats.kind), last_synced_at=excluded.last_synced_at",
             (chat.id, chat.account_id, chat.jid, chat.display_name, chat.kind, chat.last_synced_at))
         self.conn.commit()
 

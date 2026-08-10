@@ -20,8 +20,9 @@ def test_status_dead_after_timeout(tmp_data):
     assert is_alive(settings.status_path, timeout=1) is False
 
 class FakeStore:
-    def __init__(self): self.msgs = []
+    def __init__(self): self.msgs = []; self.chats = []
     def upsert_message(self, m): self.msgs.append(m)
+    def upsert_chat(self, c): self.chats.append(c)
 
 class FakeVector:
     def upsert_message_vector(self, *a, **k): pass
@@ -111,6 +112,44 @@ def test_upsert_matches_customer_once_per_chat(tmp_data, monkeypatch):
     assert len(calls) == 2  # c1 一次, c2 一次
     assert calls[0] == ("Alice", "c1")
     assert calls[1] == (None, "c2")
+
+
+def test_upsert_writes_chat_record(tmp_data):
+    """消息入库时应同步写入会话元数据 (chats 表)。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    sc._upsert_one({"id": "m1", "chatId": "c1", "fromMe": False, "from": "x",
+                    "timestamp": 1, "type": "chat", "name": "Alice"})
+    row = store.conn.execute("SELECT * FROM chats WHERE id='c1'").fetchone()
+    assert row is not None
+    assert row["account_id"] == "me"
+    assert row["jid"] == "c1"
+    assert row["display_name"] == "Alice"
+    assert row["kind"] == "single"
+    assert row["last_synced_at"] > 0
+
+
+def test_upsert_chat_keeps_existing_name_when_unknown(tmp_data):
+    """显示名缺失 (纯 DOM 增量) 时不得覆盖已有人工/已知名字。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    sc._upsert_one({"id": "m1", "chatId": "c1", "fromMe": False, "from": "x",
+                    "timestamp": 1, "type": "chat", "name": "Alice"})
+    sc._upsert_one({"id": "m2", "chatId": "c1", "fromMe": False, "from": "x",
+                    "timestamp": 2, "type": "chat", "name": None})
+    row = store.conn.execute("SELECT display_name FROM chats WHERE id='c1'").fetchone()
+    assert row["display_name"] == "Alice"
+
+
+def test_upsert_writes_chat_via_fake_store():
+    """FakeStore 路径也应收到会话元数据。"""
+    sc = Scanner(FakeCDP([{}]), FakeStore(), FakeVector())
+    sc._upsert_one({"id": "m1", "chatId": "c1", "fromMe": False, "from": "x",
+                    "timestamp": 1, "type": "chat", "name": "Alice"})
+    assert len(sc.store.chats) == 1
+    assert sc.store.chats[0].id == "c1"
 
 
 async def test_slow_tick_ingests_idb_and_creates_customer(tmp_data, monkeypatch):
