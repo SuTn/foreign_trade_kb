@@ -219,8 +219,8 @@ class Scanner:
             if not src:
                 return
             data_url = await self.page.evaluate(
-                "fetch(%r).then(function(r){return r.blob()}).then(function(b){return new Promise(function(res){"
-                "var f=new FileReader();f.onloadend=function(){res(f.result)};f.readAsDataURL(b);})})" % src)
+                "fetch(%s).then(function(r){return r.blob()}).then(function(b){return new Promise(function(res){"
+                "var f=new FileReader();f.onloadend=function(){res(f.result)};f.readAsDataURL(b);})})" % json.dumps(src))
             if not data_url or not isinstance(data_url, str) or not data_url.startswith("data:"):
                 return
             mime = data_url.split(";", 1)[0].split(":", 1)[1]

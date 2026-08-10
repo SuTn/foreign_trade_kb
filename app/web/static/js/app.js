@@ -5,9 +5,9 @@ function avatarColor(name) {
   var palette = ["#2563eb","#0ea5e9","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6"];
   return palette[Math.abs(hash) % palette.length];
 }
-function placeholderAvatar(name) {
+function placeholderAvatar(name, cls) {
   var el = document.createElement("span");
-  el.className = "avatar fallback";
+  el.className = "avatar fallback" + (cls ? " " + cls : "");
   el.style.background = avatarColor(name);
   el.textContent = (String(name || "?")[0] || "?").toUpperCase();
   return el;
@@ -36,6 +36,6 @@ function initCustomerFilter() {
 document.addEventListener("DOMContentLoaded", function () {
   initCustomerFilter();
   document.querySelectorAll(".avatar-holder[data-name]").forEach(function (h) {
-    if (!h.querySelector("img")) { h.appendChild(placeholderAvatar(h.getAttribute("data-name"))); }
+    if (!h.querySelector("img")) { h.appendChild(placeholderAvatar(h.getAttribute("data-name"), h.getAttribute("data-avatar-class"))); }
   });
 });

@@ -2,7 +2,7 @@
 {% block title %}客户 {{ customer['display_name'] or customer_id }}{% endblock %}
 {% block content %}
 <h1>
-  <span class="avatar-holder avatar-lg" data-name="{{ customer['display_name'] or customer_id }}">
+  <span class="avatar-holder avatar-lg" data-name="{{ customer['display_name'] or customer_id }}" data-avatar-class="avatar-lg">
     {% if customer and customer['avatar_path'] %}<img class="avatar avatar-lg" src="{{ customer['avatar_path'] }}" alt="头像">{% endif %}
   </span>
   {{ customer['display_name'] or customer_id if customer else customer_id }}

@@ -144,7 +144,6 @@ a:hover {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  object-fit: cover;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -192,14 +191,12 @@ a:hover {
   word-break: break-word;
 }
 
-.chat-bubble .mine,
 .chat-row.mine .chat-bubble {
   background: var(--primary);
   color: #fff;
   border-bottom-right-radius: 4px;
 }
 
-.chat-bubble .theirs,
 .chat-row.theirs .chat-bubble {
   background: var(--card);
   color: var(--text);
@@ -341,14 +338,6 @@ textarea:focus {
 }
 
 /* ---- Table ---- */
-.data-table-wrap {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  overflow-x: auto;
-}
-
 table.data-table {
   width: 100%;
   border-collapse: collapse;
@@ -437,18 +426,9 @@ table.data-table {
   align-items: start;
 }
 
-.two-col .side {
-  position: sticky;
-  top: 80px;
-}
-
 @media (max-width: 768px) {
   .two-col {
     grid-template-columns: 1fr;
-  }
-
-  .two-col .side {
-    position: static;
   }
 
   .nav {

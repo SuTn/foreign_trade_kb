@@ -22,7 +22,13 @@ def test_stats_endpoint(tmp_data):
     assert r.status_code == 200
     j = r.json()
     assert j["customers"]["total"] == 2
+    assert j["customers"]["with_profile"] == 0
+    assert j["customers"]["linked_chats"] == 1
     assert j["knowledge"]["documents"] == 1
+    assert j["knowledge"]["chunks"] == 0
+    assert j["knowledge"]["wiki_pages"] == 0
+    assert j["collector"]["alive"] is False
+    assert j["collector"]["status"] == {}
     assert j["recent_chats"][0]["chat_id"] == "ch1"   # last_ts=2000 最新
     assert j["recent_chats"][0]["display_name"] == "Alice"
 
