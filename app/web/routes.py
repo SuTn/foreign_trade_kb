@@ -41,6 +41,34 @@ async def collector_status():
     return {"status": s, "alive": is_alive(settings.status_path)}
 
 
+@router.get("/api/stats")
+async def stats():
+    store = _store()
+    customers = {
+        "total": store.conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0],
+        "with_profile": store.conn.execute("SELECT COUNT(DISTINCT customer_id) FROM profiles").fetchone()[0],
+        "linked_chats": store.conn.execute("SELECT COUNT(*) FROM customer_chat_map").fetchone()[0],
+    }
+    knowledge = {
+        "documents": store.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
+        "chunks": store.conn.execute("SELECT COUNT(*) FROM doc_chunks").fetchone()[0],
+        "wiki_pages": store.conn.execute("SELECT COUNT(*) FROM wiki_pages").fetchone()[0],
+    }
+    recent = store.conn.execute(
+        "SELECT chat_id, MAX(ts) AS last_ts FROM messages GROUP BY chat_id ORDER BY last_ts DESC LIMIT 10"
+    ).fetchall()
+    chat_names = {r["id"]: r["display_name"] for r in
+                  store.conn.execute("SELECT id, display_name FROM chats").fetchall()}
+    cust_map = {r["chat_id"]: r["customer_id"] for r in
+                store.conn.execute("SELECT chat_id, customer_id FROM customer_chat_map").fetchall()}
+    recent_chats = [{"chat_id": r["chat_id"], "display_name": chat_names.get(r["chat_id"]),
+                     "last_ts": r["last_ts"], "customer_id": cust_map.get(r["chat_id"])} for r in recent]
+    s = read_status(settings.status_path)
+    return {"customers": customers, "knowledge": knowledge,
+            "collector": {"alive": is_alive(settings.status_path), "status": s or {}},
+            "recent_chats": recent_chats}
+
+
 @router.get("/customers")
 async def customers(request: Request):
     store = _store()

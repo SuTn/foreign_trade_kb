@@ -2,6 +2,31 @@ from fastapi.testclient import TestClient
 from app.web.app import create_app
 
 
+def test_stats_endpoint(tmp_data):
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.executemany(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        [("c1","A","1",None,None,0,None),("c2","B","2",None,None,0,None)])
+    store.conn.executemany(
+        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?)",
+        [("m1","me","ch1",0,"x",1000,"chat","hi",1,0),
+         ("m2","me","ch1",0,"x",2000,"chat","yo",1,0),
+         ("m3","me","ch2",0,"y",1500,"chat","a",1,0)])
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",("ch1","me","ch1","Alice","single",0))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",("me","ch1","c1",0.9,0,0))
+    store.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?)",("d1","a.pdf","pdf","docreader","done",0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/api/stats")
+    assert r.status_code == 200
+    j = r.json()
+    assert j["customers"]["total"] == 2
+    assert j["knowledge"]["documents"] == 1
+    assert j["recent_chats"][0]["chat_id"] == "ch1"   # last_ts=2000 最新
+    assert j["recent_chats"][0]["display_name"] == "Alice"
+
+
 def test_customers_page():
     client = TestClient(create_app())
     assert client.get("/customers").status_code == 200
