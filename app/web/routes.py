@@ -73,7 +73,13 @@ async def stats():
 async def customers(request: Request):
     store = _store()
     rows = store.conn.execute("SELECT * FROM customers").fetchall()
-    return request.app.state.templates.TemplateResponse(request, "customers.html", {"customers": rows})
+    profiles_by_customer: dict[str, str] = {}
+    for r in store.conn.execute("SELECT customer_id, field, value FROM profiles").fetchall():
+        s = profiles_by_customer.setdefault(r["customer_id"], "")
+        profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
+    return request.app.state.templates.TemplateResponse(
+        request, "customers.html",
+        {"customers": rows, "profiles_by_customer": profiles_by_customer})
 
 
 @router.get("/customers/{customer_id}")

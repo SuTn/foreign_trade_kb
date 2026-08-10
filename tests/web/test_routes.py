@@ -32,6 +32,18 @@ def test_customers_page():
     assert client.get("/customers").status_code == 200
 
 
+def test_customers_page_has_search_data(tmp_data):
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",("c1","Alice","10086","ACME","USA",0,"/avatars/c1.png"))
+    store.conn.execute("INSERT INTO profiles VALUES(?,?,?,?,?)",("c1","country","USA","auto",0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    html = client.get("/customers").text
+    assert "data-search" in html and "ACME" in html
+    assert 'src="/avatars/c1.png"' in html
+
+
 def test_export_vault_endpoint(tmp_data):
     client = TestClient(create_app())
     r = client.post("/api/knowledge/export-vault")

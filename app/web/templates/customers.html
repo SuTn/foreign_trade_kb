@@ -1,25 +1,38 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head><meta charset="utf-8"><title>客户列表 - 外贸客户知识库</title>
-<script src="https://unpkg.com/htmx.org"></script></head>
-<body>
-<nav><a href="/">首页</a> | <a href="/customers">客户</a> | <a href="/knowledge">知识库</a></nav>
-<main>
+{% extends "base.html" %}
+{% block content %}
 <h1>客户列表</h1>
-<table border="1">
-  <tr><th>ID</th><th>名称</th><th>电话</th><th>公司</th><th>国家</th></tr>
+<div class="filter-bar">
+  <input id="search-input" class="input" type="text" placeholder="搜索名称/电话/公司/国家/画像字段...">
+  <select id="filter-country" class="input">
+    <option value="">全部国家</option>
+    {% for c in customers|selectattr('country')|map(attribute='country')|unique if c %}
+      <option value="{{ c }}">{{ c }}</option>
+    {% endfor %}
+  </select>
+  <select id="filter-company" class="input">
+    <option value="">全部公司</option>
+    {% for c in customers|selectattr('company')|map(attribute='company')|unique if c %}
+      <option value="{{ c }}">{{ c }}</option>
+    {% endfor %}
+  </select>
+</div>
+<div class="card-grid">
   {% for c in customers %}
-  <tr>
-    <td><a href="/customers/{{ c['id'] }}">{{ c['id'] }}</a></td>
-    <td>{{ c['display_name'] }}</td>
-    <td>{{ c['phone'] }}</td>
-    <td>{{ c['company'] }}</td>
-    <td>{{ c['country'] }}</td>
-  </tr>
+  <div class="customer-card" data-search="{{ c['display_name'] or '' }} {{ c['phone'] or '' }} {{ c['company'] or '' }} {{ c['country'] or '' }} {{ profiles_by_customer.get(c['id'], '') }}">
+    <a href="/customers/{{ c['id'] }}" class="card-link">
+      <div class="avatar-holder" data-name="{{ c['display_name'] or c['id'] }}">
+        {% if c['avatar_path'] %}<img class="avatar" src="{{ c['avatar_path'] }}" alt="头像">{% endif %}
+      </div>
+      <div class="card-body">
+        <strong>{{ c['display_name'] or c['id'] }}</strong>
+        <div class="muted">{{ c['phone'] or '-' }}</div>
+        <div class="muted">{{ c['company'] or '-' }}</div>
+        <div class="muted">{{ c['country'] or '-' }}</div>
+      </div>
+    </a>
+  </div>
   {% else %}
-  <tr><td colspan="5">暂无客户</td></tr>
+  <p class="empty">暂无客户</p>
   {% endfor %}
-</table>
-</main>
-</body>
-</html>
+</div>
+{% endblock %}
