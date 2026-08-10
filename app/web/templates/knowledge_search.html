@@ -1,13 +1,11 @@
 <div>
   <p><strong>查询:</strong> {{ query }} — 命中 {{ results|length }} 条</p>
-  <ul>
-    {% for r in results %}
-    <li>
-      <small>[{{ r['source'] }}] doc={{ r['doc_id'] or '-' }}</small>
-      <p>{{ r['text'][:200] }}</p>
-    </li>
-    {% else %}
-    <li>无匹配结果</li>
-    {% endfor %}
-  </ul>
+  {% for r in results %}
+  <div class="result-card">
+    <div class="muted">[{{ r['source'] }}] doc={{ r['doc_id'] or '-' }}</div>
+    <p>{{ r['text'][:200] }}</p>
+  </div>
+  {% else %}
+  <p class="empty">无匹配结果</p>
+  {% endfor %}
 </div>

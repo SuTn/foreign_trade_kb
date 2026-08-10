@@ -1,28 +1,20 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head><meta charset="utf-8"><title>知识库 - 外贸客户知识库</title>
-<script src="https://unpkg.com/htmx.org"></script></head>
-<body>
-<nav><a href="/">首页</a> | <a href="/customers">客户</a> | <a href="/knowledge">知识库</a></nav>
-<main>
+{% extends "base.html" %}
+{% block title %}知识库{% endblock %}
+{% block content %}
 <h1>知识库</h1>
-<form hx-post="/api/knowledge/upload" hx-encoding="multipart/form-data" method="post" enctype="multipart/form-data"
+<form class="toolbar" hx-post="/api/knowledge/upload" hx-encoding="multipart/form-data" method="post" enctype="multipart/form-data"
       hx-target="#doc-list" hx-swap="outerHTML" hx-on::after-request="this.reset()">
-  <input type="file" name="file" required>
-  <input type="text" name="filename" placeholder="文件名(含扩展名)" required>
-  <button type="submit">上传</button>
+  <input class="input" type="file" name="file" required>
+  <input class="input" type="text" name="filename" placeholder="文件名(含扩展名)" required>
+  <button class="btn" type="submit">上传</button>
+  <button class="btn" type="button" hx-post="/api/knowledge/export-vault">导出 Vault</button>
 </form>
-<button hx-post="/api/knowledge/export-vault">导出 Vault</button>
-
 <h2>文档列表</h2>
 {% include "knowledge_docs.html" %}
-
 <h2>检索测试</h2>
-<form hx-post="/api/knowledge/search" hx-target="#search-results" hx-swap="innerHTML">
-  <input type="text" name="message" placeholder="输入查询语句" required>
-  <button type="submit">检索</button>
+<form class="toolbar" hx-post="/api/knowledge/search" hx-target="#search-results" hx-swap="innerHTML">
+  <input class="input" type="text" name="message" placeholder="输入查询语句" required>
+  <button class="btn" type="submit">检索</button>
 </form>
 <div id="search-results"></div>
-</main>
-</body>
-</html>
+{% endblock %}

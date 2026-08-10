@@ -1,10 +1,10 @@
-<div>
-  <p><strong>建议回复</strong> (风格: {{ style }})</p>
-  <textarea rows="4" style="width:100%">{{ reply }}</textarea>
-  <button hx-post="/api/reply/regenerate"
+<div class="result-card">
+  <p><strong>建议回复</strong> <span class="tag">风格: {{ style }}</span></p>
+  <textarea class="input" rows="4" style="width:100%">{{ reply }}</textarea>
+  <button class="btn" hx-post="/api/reply/regenerate"
           hx-vals='{"customer_id": "{{ customer_id }}", "chat_id": "{{ chat_id }}", "message": "{{ message|default('', true) }}", "style": "{{ style }}" }'
           hx-target="closest div" hx-swap="innerHTML">重新生成</button>
-  <details>
+  <details class="sources">
     <summary>检索来源 ({{ sources|length }})</summary>
     <ul>
       {% for s in sources %}
