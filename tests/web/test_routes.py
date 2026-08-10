@@ -273,3 +273,19 @@ def test_reply_accepts_form_and_regenerate(tmp_data, monkeypatch):
     assert r2.status_code == 200
     assert "concise" in r2.text  # regenerate 切到下一风格
 
+
+def test_home_shows_stats(tmp_data):
+    """首页仪表盘渲染统计卡 + 近期活跃会话。"""
+    from fastapi.testclient import TestClient
+    from app.web.app import create_app
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",("c1","Alice","1",None,None,0,None))
+    store.conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?)",("m1","me","ch1",0,"x",1000,"chat","hi",1,0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",("ch1","me","ch1","Alice","single",0))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",("me","ch1","c1",0.9,0,0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    html = client.get("/").text
+    assert "客户总数" in html and "近期活跃会话" in html and "Alice" in html
+
