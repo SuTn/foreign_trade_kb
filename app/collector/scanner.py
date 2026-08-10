@@ -199,6 +199,47 @@ class Scanner:
             pass  # 下次 tick 重试
         return True
 
+    async def _capture_avatar(self, chat_id: str) -> None:
+        """打开会话后抓取头像 (只读 GET → base64 → 落盘 → 更新 avatar_path); 失败静默。"""
+        if self.page is None or not chat_id:
+            return
+        try:
+            row = self.store.conn.execute(
+                "SELECT customer_id FROM customer_chat_map WHERE account_id=? AND chat_id=?",
+                (self.account_id, chat_id)).fetchone()
+            if not row:
+                return  # 未匹配客户, 跳过
+            customer_id = row["customer_id"]
+            r = await self.page.evaluate(
+                "(function(){var h=document.querySelector('header[data-testid=\"conversation-header\"]');"
+                "var imgs=h?h.querySelectorAll('img'):[];"
+                "for(var i=0;i<imgs.length;i++){var s=imgs[i].src;if(s&&s.indexOf('data:')!==0)return {src:s};}"
+                "return {src:''};})()")
+            src = (r or {}).get("src")
+            if not src:
+                return
+            data_url = await self.page.evaluate(
+                "fetch(%r).then(function(r){return r.blob()}).then(function(b){return new Promise(function(res){"
+                "var f=new FileReader();f.onloadend=function(){res(f.result)};f.readAsDataURL(b);})})" % src)
+            if not data_url or not isinstance(data_url, str) or not data_url.startswith("data:"):
+                return
+            mime = data_url.split(";", 1)[0].split(":", 1)[1]
+            ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}.get(mime)
+            if not ext:
+                return
+            raw = __import__("base64").b64decode(data_url.split(",", 1)[1])
+            if len(raw) > 2 * 1024 * 1024:
+                return  # 超 2MB 丢弃
+            path = settings.avatars_dir / f"{customer_id}.{ext}"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(raw)
+            self.store.conn.execute(
+                "UPDATE customers SET avatar_path=? WHERE id=?",
+                (f"/avatars/{customer_id}.{ext}", customer_id))
+            self.store.conn.commit()
+        except Exception:
+            pass  # 静默跳过, 下次扫描重试
+
     async def scan_all_chats(self, max_chats: int | None = None, settle: float | None = None) -> int:
         """自动扫描全部会话: 逐个打开会话读取可见正文入库 (供首次知识构建/周期校准)。
         依赖 Playwright page 原生可信 click; 注意会把未读消息标记为已读。
@@ -226,6 +267,7 @@ class Scanner:
                 continue  # 行不可点 (虚拟列表抖动) 则跳过
             await asyncio.sleep(settle)
             dom_msgs = parse_dom_snapshot_safe(await self.cdp.capture_snapshot(), self._current_chat_id)
+            await self._capture_avatar(self._current_chat_id)
             for m in self._merge_idb_dom(data, dom_msgs):
                 if self._upsert_one(m):
                     ingested += 1

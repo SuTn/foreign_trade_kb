@@ -272,6 +272,47 @@ def test_drain_profile_updates_runs_extractor(tmp_data, monkeypatch):
     assert prof["country"] == "USA"
 
 
+def test_capture_avatar_writes_file_and_path(tmp_data, monkeypatch):
+    """打开会话后抓取头像: 文件落盘 + customers.avatar_path 更新。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute(
+        "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+        ("me", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    png = b"\x89PNG\r\n\x1a\nfakedata"
+    data_url = "data:image/png;base64," + __import__("base64").b64encode(png).decode()
+    class FakePage:
+        def __init__(self): self.calls = 0
+        async def evaluate(self, expr):
+            self.calls += 1
+            if self.calls == 1:   # 第一次调用: 读 header img src
+                return {"src": "blob:https://web.whatsapp.com/xyz"}
+            return data_url       # 第二次: fetch → dataURL
+    sc = Scanner(FakeCDP([{}]), store, FakeVector(), page=FakePage())
+    import asyncio
+    asyncio.run(sc._capture_avatar("c1"))
+    path = settings.avatars_dir / "cust1.png"
+    assert path.read_bytes() == png
+    row = store.conn.execute("SELECT avatar_path FROM customers WHERE id='cust1'").fetchone()
+    assert row["avatar_path"] == "/avatars/cust1.png"
+
+
+def test_capture_avatar_skips_when_no_customer(tmp_data):
+    """无客户映射的会话不抓取, 不报错。"""
+    from app.storage.sqlite_store import SqliteStore
+    class FakePage:
+        async def evaluate(self, expr): return {"src": "blob:x"}
+    sc = Scanner(FakeCDP([{}]), SqliteStore(), FakeVector(), page=FakePage())
+    import asyncio
+    asyncio.run(sc._capture_avatar("no_map"))  # 不应抛异常
+    av = settings.avatars_dir
+    assert not av.exists() or not list(av.glob("*"))  # 未写任何头像文件
+
+
 def test_drain_profile_updates_failure_does_not_block(tmp_data, monkeypatch):
     """LLM 失败时静默跳过, 不抛异常阻塞采集。"""
     from app.storage.sqlite_store import SqliteStore
