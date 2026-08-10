@@ -1,4 +1,4 @@
-# frontend-polish Implementation Plan
+﻿# frontend-polish Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -38,7 +38,7 @@ base-ref: 9c429ad35cd8049f04400b43950784f6a886cba6
 **Interfaces:**
 - Produces: `settings.avatars_dir: Path`（默认 `Path("data/avatars")`）；`customers.avatar_path` 列（`SqliteStore` 连接后自动迁移）
 
-- [ ] **Step 1: 写失败测试**（旧库迁移幂等 + 新库含列）
+- [x] **Step 1: 写失败测试**（旧库迁移幂等 + 新库含列）
 
 ```python
 def test_old_schema_gets_avatar_path_column(tmp_data):
@@ -58,12 +58,12 @@ def test_old_schema_gets_avatar_path_column(tmp_data):
     store2.conn.close()
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_sqlite_store.py -q`
 Expected: 新测试 FAIL（迁移未实现，列不存在）
 
-- [ ] **Step 3: 实现迁移**
+- [x] **Step 3: 实现迁移**
 
 `app/config.py` 加：
 ```python
@@ -84,19 +84,19 @@ except sqlite3.OperationalError:
     pass  # 列已存在 (新库 schema.sql 已含) — 幂等
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_sqlite_store.py -q`
 Expected: PASS
 
-- [ ] **Step 5: conftest 补 avatars_dir 隔离**
+- [x] **Step 5: conftest 补 avatars_dir 隔离**
 
 `tests/conftest.py` `tmp_data` 追加：
 ```python
 monkeypatch.setattr(config.settings, "avatars_dir", tmp_path / "avatars")
 ```
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add app/config.py app/storage/schema.sql app/storage/sqlite_store.py tests/conftest.py tests/storage/test_sqlite_store.py
@@ -115,7 +115,7 @@ git commit -m "feat: avatars_dir 配置 + customers.avatar_path 迁移 (旧库�
 - Consumes: `settings.avatars_dir: Path`、`SqliteStore`（`conn`）、`self.page.evaluate(expr)` → 返回 `{"src": str}` 或 dataURL
 - Produces: `Scanner._capture_avatar(chat_id: str) -> None`（内部读 header img src → fetch dataURL → 落盘 → UPDATE customers.avatar_path；失败静默）
 
-- [ ] **Step 1: 写失败测试**（mock `page.evaluate` 返回 dataURL）
+- [x] **Step 1: 写失败测试**（mock `page.evaluate` 返回 dataURL）
 
 ```python
 def test_capture_avatar_writes_file_and_path(tmp_data, monkeypatch):
@@ -160,12 +160,12 @@ def test_capture_avatar_skips_when_no_customer(tmp_data):
     assert not av.exists() or not list(av.glob("*"))  # 未写任何头像文件
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -k "avatar" -q`
 Expected: FAIL（`_capture_avatar` 不存在）
 
-- [ ] **Step 3: 实现 `_capture_avatar` + 在 `scan_all_chats` 接线**
+- [x] **Step 3: 实现 `_capture_avatar` + 在 `scan_all_chats` 接线**
 
 `app/collector/scanner.py` 新增方法（放在 `_upsert_one` 之后）：
 ```python
@@ -216,12 +216,12 @@ await self._capture_avatar(self._current_chat_id)
 ```
 （注意 `_current_chat_id` 在 merge 后可能更新；若为 None 则 `_capture_avatar` 内部直接返回。）
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -q`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/collector/scanner.py tests/collector/test_scanner.py
@@ -239,7 +239,7 @@ git commit -m "feat: scan_all 顺带抓取 WhatsApp 头像 (只读 fetch→落�
 **Interfaces:**
 - Produces: `GET /api/stats` → `{"customers": {...}, "knowledge": {...}, "collector": {...}, "recent_chats": [{chat_id, display_name, last_ts, customer_id}]}`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 def test_stats_endpoint(tmp_data):
@@ -269,12 +269,12 @@ def test_stats_endpoint(tmp_data):
     assert j["recent_chats"][0]["display_name"] == "Alice"
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_routes.py -k stats -q`
 Expected: FAIL（404）
 
-- [ ] **Step 3: 实现端点**
+- [x] **Step 3: 实现端点**
 
 `app/web/routes.py` 新增（放在 `collector_status` 之后）：
 ```python
@@ -306,12 +306,12 @@ async def stats():
             "recent_chats": recent_chats}
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_routes.py -q`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/routes.py tests/web/test_routes.py
@@ -329,7 +329,7 @@ git commit -m "feat: 新增 GET /api/stats 仪表盘聚合端点"
 **Interfaces:**
 - Produces: `/avatars/*` 静态目录；`/static/js/htmx.min.js` 本地引用
 
-- [ ] **Step 1: 实现挂载**
+- [x] **Step 1: 实现挂载**
 
 `app/web/app.py`：
 ```python
@@ -341,7 +341,7 @@ app.mount("/avatars", StaticFiles(directory=str(settings.avatars_dir.resolve()))
 ```
 （放在 `app.mount("/static", ...)` 之后。）
 
-- [ ] **Step 2: 下载 htmx 2.x 到本地**
+- [x] **Step 2: 下载 htmx 2.x 到本地**
 
 Run（PowerShell）:
 ```powershell
@@ -349,7 +349,7 @@ Invoke-WebRequest -Uri "https://unpkg.com/htmx.org@2/dist/htmx.min.js" -OutFile 
 ```
 Verify: 文件非空且 >50KB；`(Get-Content app/web/static/js/htmx.min.js -Raw).Length` 输出 > 50000。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/web/app.py app/web/static/js/htmx.min.js
@@ -367,7 +367,7 @@ git commit -m "feat: 挂载 /avatars 静态目录 + htmx 2.x 本地化"
 **Interfaces:**
 - Produces: `.avatar`（圆形 40px img / 占位 span）、`.card-grid`、`.chat-bubble`（`.mine`/`.theirs`）、`.stat-card`、`.filter-bar`；`initCustomerFilter()`、`avatarColor(name)`、`placeholderAvatar(name)` 函数
 
-- [ ] **Step 1: 写 CSS**（浅色简洁、蓝系、圆角+轻阴影、卡片网格、头像、气泡、仪表盘、表单/按钮）
+- [x] **Step 1: 写 CSS**（浅色简洁、蓝系、圆角+轻阴影、卡片网格、头像、气泡、仪表盘、表单/按钮）
 
 创建 `app/web/static/css/app.css`，内容覆盖：
 - CSS 变量：`--primary:#2563eb; --bg:#f5f7fa; --card:#fff; --text:#1f2937; --muted:#6b7280; --border:#e5e7eb; --radius:10px; --shadow:0 1px 3px rgba(0,0,0,.08)`
@@ -381,7 +381,7 @@ git commit -m "feat: 挂载 /avatars 静态目录 + htmx 2.x 本地化"
 - 表单 `.btn`、`.input` 统一样式；`table` 样式（知识库/回复页）
 - 空态 `.empty` 提示
 
-- [ ] **Step 2: 写 JS**
+- [x] **Step 2: 写 JS**
 
 创建 `app/web/static/js/app.js`：
 ```javascript
@@ -428,7 +428,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 ```
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/web/static/css/app.css app/web/static/js/app.js
@@ -448,7 +448,7 @@ git commit -m "feat: 前端静态资源 (app.css 样式系统 + app.js 搜索/�
 - Consumes: `initCustomerFilter()`（app.js）、`settings` 无新依赖
 - Produces: `customers()` 上下文新增 `profiles_by_customer: dict[str, str]`
 
-- [ ] **Step 1: base.html 引入本地资源 + 统一导航**
+- [x] **Step 1: base.html 引入本地资源 + 统一导航**
 
 ```html
 <!DOCTYPE html>
@@ -467,7 +467,7 @@ git commit -m "feat: 前端静态资源 (app.css 样式系统 + app.js 搜索/�
 </html>
 ```
 
-- [ ] **Step 2: routes.customers() 预聚合画像字段**
+- [x] **Step 2: routes.customers() 预聚合画像字段**
 
 `app/web/routes.py` `customers` 视图改为：
 ```python
@@ -484,7 +484,7 @@ async def customers(request: Request):
         {"customers": rows, "profiles_by_customer": profiles_by_customer})
 ```
 
-- [ ] **Step 3: customers.html 卡片网格 + 搜索/筛选**
+- [x] **Step 3: customers.html 卡片网格 + 搜索/筛选**
 
 `customers.html` 改为继承 base：
 ```html
@@ -529,7 +529,7 @@ async def customers(request: Request):
 ```
 （`data-search` 小写由 JS 处理；头像无 `avatar_path` 时 `avatar-holder` 由 app.js 注入首字母占位。）
 
-- [ ] **Step 4: 测试**（渲染含 avatar 与 data-search）
+- [x] **Step 4: 测试**（渲染含 avatar 与 data-search）
 
 `tests/web/test_routes.py` 新增：
 ```python
@@ -547,12 +547,12 @@ def test_customers_page_has_search_data(tmp_data):
     assert 'src="/avatars/c1.png"' in html
 ```
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_routes.py -q`
 Expected: PASS
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add app/web/templates/base.html app/web/templates/customers.html app/web/routes.py tests/web/test_routes.py
@@ -571,7 +571,7 @@ git commit -m "feat: 客户卡片网格 + 头像/占位 + 实时搜索筛选 (�
 - Consumes: `customer.avatar_path`、`profile`（ProfileField 列表）
 - Produces: 保持 `#profile`、`#messages`、`#analysis` 的 HTMX swap 目标不变
 
-- [ ] **Step 1: chat.html 继承 base + 大头像 + 画像卡片**
+- [x] **Step 1: chat.html 继承 base + 大头像 + 画像卡片**
 
 ```html
 {% extends "base.html" %}
@@ -605,7 +605,7 @@ git commit -m "feat: 客户卡片网格 + 头像/占位 + 实时搜索筛选 (�
 {% endblock %}
 ```
 
-- [ ] **Step 2: chat_messages.html 气泡化（保持 partial swap，独立模板不继承 base）**
+- [x] **Step 2: chat_messages.html 气泡化（保持 partial swap，独立模板不继承 base）**
 
 `chat_messages.html`：Jinja2 不允许条件化 `extends`，故保持独立完整页结构（引用本地 static），partial 部分仍为 `#messages`：
 ```html
@@ -649,7 +649,7 @@ git commit -m "feat: 客户卡片网格 + 头像/占位 + 实时搜索筛选 (�
 {% endif %}
 ```
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/web/templates/chat.html app/web/templates/chat_messages.html
@@ -666,7 +666,7 @@ git commit -m "feat: 客户详情大头像+画像卡片 + 聊天气泡左右分�
 **Interfaces:**
 - Consumes: `GET /api/stats` 响应 `{customers, knowledge, collector, recent_chats}`；`/api/collector/status` 5s 轮询
 
-- [ ] **Step 1: 实现仪表盘模板**
+- [x] **Step 1: 实现仪表盘模板**
 
 `home.html` 继承 base：
 ```html
@@ -704,7 +704,7 @@ git commit -m "feat: 客户详情大头像+画像卡片 + 聊天气泡左右分�
 {% endblock %}
 ```
 
-- [ ] **Step 2: home 路由改用 /api/stats 数据**
+- [x] **Step 2: home 路由改用 /api/stats 数据**
 
 `app/web/routes.py` `index` 视图改为：
 ```python
@@ -728,7 +728,7 @@ async def index(request: Request):
          "status": s or {}, "alive": is_alive(settings.status_path)})
 ```
 
-- [ ] **Step 3: 测试**（首页渲染含统计）
+- [x] **Step 3: 测试**（首页渲染含统计）
 
 `tests/web/test_routes.py` 新增：
 ```python
@@ -747,12 +747,12 @@ def test_home_shows_stats(tmp_data):
     assert "客户总数" in html and "近期活跃会话" in html and "Alice" in html
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_routes.py -q`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/templates/home.html app/web/routes.py tests/web/test_routes.py
@@ -772,7 +772,7 @@ git commit -m "feat: 首页仪表盘 (统计卡 + 近期活跃会话)"
 **Interfaces:**
 - Consumes: 现有 HTMX 端点不变（`/api/knowledge/*`、`/api/reply`）
 
-- [ ] **Step 1: knowledge.html 继承 base**
+- [x] **Step 1: knowledge.html 继承 base**
 
 `knowledge.html` 改为：
 ```html
@@ -797,7 +797,7 @@ git commit -m "feat: 首页仪表盘 (统计卡 + 近期活跃会话)"
 {% endblock %}
 ```
 
-- [ ] **Step 2: knowledge_docs.html 表格样式**
+- [x] **Step 2: knowledge_docs.html 表格样式**
 
 `knowledge_docs.html` 包一层 `.table-wrap` 并保留原 `hx-delete` swap：
 ```html
@@ -819,7 +819,7 @@ git commit -m "feat: 首页仪表盘 (统计卡 + 近期活跃会话)"
 </div>
 ```
 
-- [ ] **Step 3: knowledge_search.html + reply_result.html 卡片化**
+- [x] **Step 3: knowledge_search.html + reply_result.html 卡片化**
 
 `knowledge_search.html`（保持 `#search-results` HTMX 目标不变）改为：
 ```html
@@ -857,7 +857,7 @@ git commit -m "feat: 首页仪表盘 (统计卡 + 近期活跃会话)"
 </div>
 ```
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add app/web/templates/knowledge.html app/web/templates/knowledge_docs.html app/web/templates/knowledge_search.html app/web/templates/reply_result.html
@@ -871,23 +871,23 @@ git commit -m "feat: 知识库与回复页统一样式"
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: README 使用流程补头像/仪表盘**
+- [x] **Step 1: README 使用流程补头像/仪表盘**
 
 `README.md` 「客户与回复」节补一段：
 > - 客户列表以卡片网格展示，含 WhatsApp 自动抓取的头像（无头像时为首字母占位），支持按名称/电话/公司/国家/画像字段实时搜索与筛选。
 > - 首页为仪表盘，概览采集器状态、客户与知识库统计、近期活跃会话。
 
-- [ ] **Step 2: 全量测试**
+- [x] **Step 2: 全量测试**
 
 Run: `.venv/Scripts/python.exe -m pytest -q`
 Expected: 全部 PASS（原 94 + 新增，预计 100+）
 
-- [ ] **Step 3: 构建检查**
+- [x] **Step 3: 构建检查**
 
 Run: `.venv/Scripts/python.exe -m compileall -q app tests`
 Expected: 无输出（成功）
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add README.md
@@ -901,18 +901,18 @@ git commit -m "docs: README 补前端改版 (头像/仪表盘) 说明"
 **Files:**
 - Modify: `openspec/changes/frontend-polish/tasks.md`
 
-- [ ] **Step 1: 勾选全部任务**
+- [x] **Step 1: 勾选全部任务**
 
 将 `openspec/changes/frontend-polish/tasks.md` 所有 `- [ ]` 改为 `- [x]`。
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add openspec/changes/frontend-polish/tasks.md
 git commit -m "chore: frontend-polish tasks 全部完成"
 ```
 
-- [ ] **Step 3: 运行 build 守卫**
+- [x] **Step 3: 运行 build 守卫**
 
 Run（git-bash）:
 ```bash
