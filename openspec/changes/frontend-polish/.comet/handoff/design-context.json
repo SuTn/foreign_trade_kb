@@ -1,0 +1,16 @@
+{
+  "change": "frontend-polish",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "d0e0927831f83b97c610dc5830dd1dd88e840f0ff748bd0b3bbd769cd0d6de9b",
+  "files": [
+    { "path": "openspec/changes/frontend-polish/proposal.md", "sha256": "26caf56322d5186bd484ff4453f30e94163659794b190aa8ba994d552067a3bb" },
+    { "path": "openspec/changes/frontend-polish/design.md", "sha256": "74444426a6b8982cf663918dda1d3b3e6b91e614bb85a1e194d3f0e69d5df30a" },
+    { "path": "openspec/changes/frontend-polish/tasks.md", "sha256": "4709a1873c2396c69ce3a02a98c1fe9030a6f1a886a43ece8ba1e70ed1439216" },
+    { "path": "openspec/changes/frontend-polish/specs/customer-profile/spec.md", "sha256": "bd26de5c6e913852e78117f75e9abfbaf29d8a49639046219cadb58559892370" },
+    { "path": "openspec/changes/frontend-polish/specs/web-app/spec.md", "sha256": "cedc511f3ecf4dd1df88660bbd2bdf4239ebed3f9e4c9d01282da6f07e49a5e3" },
+    { "path": "openspec/changes/frontend-polish/specs/whatsapp-sync/spec.md", "sha256": "8aaf2d125cc461475bbfc8b422583716a3d6ef1ed4a4fd7da1e5e141964736bf" }
+  ]
+}
