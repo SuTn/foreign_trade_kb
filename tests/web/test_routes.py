@@ -44,6 +44,21 @@ def test_customers_page_has_search_data(tmp_data):
     assert 'src="/avatars/c1.png"' in html
 
 
+def test_customers_filter_dropdowns_from_profiles(tmp_data):
+    """筛选下拉取值来源 profiles 表 (customers.country/company 列为空时仍可选)。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("c1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO profiles VALUES(?,?,?,?,?)", ("c1", "country", "USA", "auto", 0))
+    store.conn.execute("INSERT INTO profiles VALUES(?,?,?,?,?)", ("c1", "company", "ACME", "auto", 0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    html = client.get("/customers").text
+    assert '<option value="USA">' in html
+    assert '<option value="ACME">' in html
+
+
 def test_export_vault_endpoint(tmp_data):
     client = TestClient(create_app())
     r = client.post("/api/knowledge/export-vault")

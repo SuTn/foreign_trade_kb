@@ -5,13 +5,13 @@
   <input id="search-input" class="input" type="text" placeholder="搜索名称/电话/公司/国家/画像字段...">
   <select id="filter-country" class="input">
     <option value="">全部国家</option>
-    {% for c in customers|selectattr('country')|map(attribute='country')|unique if c %}
+    {% for c in countries %}
       <option value="{{ c }}">{{ c }}</option>
     {% endfor %}
   </select>
   <select id="filter-company" class="input">
     <option value="">全部公司</option>
-    {% for c in customers|selectattr('company')|map(attribute='company')|unique if c %}
+    {% for c in companies %}
       <option value="{{ c }}">{{ c }}</option>
     {% endfor %}
   </select>

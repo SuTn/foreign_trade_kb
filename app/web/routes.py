@@ -88,9 +88,16 @@ async def customers(request: Request):
     for r in store.conn.execute("SELECT customer_id, field, value FROM profiles").fetchall():
         s = profiles_by_customer.setdefault(r["customer_id"], "")
         profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
+    countries = [r[0] for r in store.conn.execute(
+        "SELECT DISTINCT value FROM profiles WHERE field='country' "
+        "AND value IS NOT NULL AND value != '' ORDER BY value").fetchall()]
+    companies = [r[0] for r in store.conn.execute(
+        "SELECT DISTINCT value FROM profiles WHERE field='company' "
+        "AND value IS NOT NULL AND value != '' ORDER BY value").fetchall()]
     return request.app.state.templates.TemplateResponse(
         request, "customers.html",
-        {"customers": rows, "profiles_by_customer": profiles_by_customer})
+        {"customers": rows, "profiles_by_customer": profiles_by_customer,
+         "countries": countries, "companies": companies})
 
 
 @router.get("/customers/{customer_id}")
