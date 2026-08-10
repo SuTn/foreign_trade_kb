@@ -19,6 +19,11 @@ class SqliteStore(StructuredStore):
     def _init_schema(self):
         self.conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
         self.conn.commit()
+        try:
+            self.conn.execute("ALTER TABLE customers ADD COLUMN avatar_path TEXT")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
 
     def upsert_chat(self, chat: Chat):
         # 显示名/类型缺省 (如纯 DOM 增量) 时保留已有值, 仅刷新同步时间

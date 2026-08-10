@@ -47,7 +47,7 @@ def match_customer(store: StructuredStore, account_id: str, chat_id: str,
             store.conn.commit()
     else:
         cid = str(uuid.uuid4())
-        store.conn.execute("INSERT INTO customers VALUES(?,?,?,NULL,NULL,?)",
+        store.conn.execute("INSERT INTO customers VALUES(?,?,?,NULL,NULL,?,NULL)",
                            (cid, display_name, phone, int(__import__("time").time())))
         store.conn.commit()
         conf = 0.9 if phone else 0.5  # 手机号为强标识, 首次创建亦高置信

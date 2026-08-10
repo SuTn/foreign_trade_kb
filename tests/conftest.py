@@ -10,4 +10,5 @@ def tmp_data(tmp_path, monkeypatch):
     monkeypatch.setattr(config.settings, "chroma_dir", tmp_path / "chroma")
     monkeypatch.setattr(config.settings, "status_path", tmp_path / "status.json")
     monkeypatch.setattr(config.settings, "vault_export_dir", tmp_path / "vault")
+    monkeypatch.setattr(config.settings, "avatars_dir", tmp_path / "avatars")
     return tmp_path

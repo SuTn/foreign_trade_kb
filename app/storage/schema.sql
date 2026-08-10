@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS contacts(
   jid TEXT, account_id TEXT, display_name TEXT, phone TEXT, updated_at INTEGER,
   PRIMARY KEY(jid, account_id));
 CREATE TABLE IF NOT EXISTS customers(
-  id TEXT PRIMARY KEY, display_name TEXT, phone TEXT, company TEXT, country TEXT, created_at INTEGER);
+  id TEXT PRIMARY KEY, display_name TEXT, phone TEXT, company TEXT, country TEXT, created_at INTEGER,
+  avatar_path TEXT);
 CREATE TABLE IF NOT EXISTS customer_chat_map(
   account_id TEXT, chat_id TEXT, customer_id TEXT, match_confidence REAL, confirmed INTEGER, updated_at INTEGER,
   PRIMARY KEY(account_id, chat_id));

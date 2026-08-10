@@ -257,8 +257,8 @@ def test_drain_profile_updates_runs_extractor(tmp_data, monkeypatch):
     from app.storage.sqlite_store import SqliteStore
     store = SqliteStore()
     store.conn.execute(
-        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
-        ("cust1", "Alice", "10086", None, None, 0))
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.execute(
         "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
         ("me", "c1", "cust1", 0.9, 0, 0))
@@ -277,8 +277,8 @@ def test_drain_profile_updates_failure_does_not_block(tmp_data, monkeypatch):
     from app.storage.sqlite_store import SqliteStore
     store = SqliteStore()
     store.conn.execute(
-        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
-        ("cust1", "Alice", "10086", None, None, 0))
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.execute(
         "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
         ("me", "c1", "cust1", 0.9, 0, 0))

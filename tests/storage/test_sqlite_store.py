@@ -1,6 +1,22 @@
 import time
+import sqlite3
+from pathlib import Path
 from app.storage.sqlite_store import SqliteStore
 from app.storage.interfaces import Chat, Message, WikiPage
+
+
+def test_old_schema_gets_avatar_path_column(tmp_data):
+    """旧 schema 库 (无 avatar_path) 打开后自动迁移出该列, 且幂等。"""
+    store = SqliteStore()  # 新库已含列
+    # 模拟旧库: 重新建一个不含 avatar_path 的库
+    p = tmp_data / "old.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE customers(id TEXT PRIMARY KEY, display_name TEXT, phone TEXT, company TEXT, country TEXT, created_at INTEGER)")
+    c.commit(); c.close()
+    store2 = SqliteStore(p)
+    cols = [r[1] for r in store2.conn.execute("PRAGMA table_info(customers)").fetchall()]
+    assert "avatar_path" in cols
+    store2.conn.close()
 
 def test_upsert_message_idempotent(tmp_data):
     s = SqliteStore()

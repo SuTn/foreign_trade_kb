@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     user_data_dir: Path = Path("data/user-data-dir")
     status_path: Path = Path("data/status.json")
     vault_export_dir: Path = Path("data/vault")
+    avatars_dir: Path = Path("data/avatars")
 
     # WhatsApp 采集
     whatsapp_url: str = "https://web.whatsapp.com"

@@ -73,8 +73,8 @@ def test_customer_analyze_endpoint(tmp_data, monkeypatch):
     monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
     store = SqliteStore()
     store.conn.execute(
-        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
-        ("cust1", "Alice", "10086", None, None, 0))
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.execute(
         "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
         ("a1", "c1", "cust1", 0.9, 0, 0))
@@ -99,8 +99,8 @@ def test_customer_refresh_profile_endpoint(tmp_data, monkeypatch):
     monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
     store = SqliteStore()
     store.conn.execute(
-        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
-        ("cust1", "Alice", "10086", None, None, 0))
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.execute(
         "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
         ("a1", "c1", "cust1", 0.9, 0, 0))
@@ -118,8 +118,8 @@ def test_profile_manual_edit_saved(tmp_data):
     from app.storage.sqlite_store import SqliteStore
     store = SqliteStore()
     store.conn.execute(
-        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
-        ("cust1", "Alice", "10086", None, None, 0))
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.commit()
     client = TestClient(create_app())
     r = client.post("/customers/cust1/profile",
@@ -137,8 +137,8 @@ def test_chat_messages_pagination(tmp_data):
     from app.storage.interfaces import Message
     store = SqliteStore()
     store.conn.execute(
-        "INSERT INTO customers VALUES(?,?,?,?,?,?)",
-        ("cust1", "Alice", "10086", None, None, 0))
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.execute(
         "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
         ("a1", "c1", "cust1", 0.9, 0, 0))
@@ -224,8 +224,8 @@ def test_reply_accepts_form_and_regenerate(tmp_data, monkeypatch):
     monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
     from app.storage.sqlite_store import SqliteStore
     store = SqliteStore()
-    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?)",
-                       ("cust1", "Alice", "10086", None, None, 0))
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.commit()
     client = TestClient(create_app())
     r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
