@@ -1,32 +1,29 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head><meta charset="utf-8"><title>客户 {{ customer_id }} - 外贸客户知识库</title>
-<script src="https://unpkg.com/htmx.org"></script></head>
-<body>
-<nav><a href="/">首页</a> | <a href="/customers">客户</a> | <a href="/knowledge">知识库</a></nav>
-<main>
-<h1>客户 {{ customer['display_name'] or customer_id }}</h1>
+{% extends "base.html" %}
+{% block title %}客户 {{ customer['display_name'] or customer_id }}{% endblock %}
+{% block content %}
+<h1>
+  <span class="avatar-holder avatar-lg" data-name="{{ customer['display_name'] or customer_id }}">
+    {% if customer and customer['avatar_path'] %}<img class="avatar avatar-lg" src="{{ customer['avatar_path'] }}" alt="头像">{% endif %}
+  </span>
+  {{ customer['display_name'] or customer_id if customer else customer_id }}
+</h1>
 {% if customer %}
-<p>电话: {{ customer['phone'] or '-' }} | 公司: {{ customer['company'] or '-' }} | 国家: {{ customer['country'] or '-' }}</p>
+<p class="muted">电话: {{ customer['phone'] or '-' }} · 公司: {{ customer['company'] or '-' }} · 国家: {{ customer['country'] or '-' }}</p>
 {% endif %}
+<div class="two-col">
+  <section>
+    <h2>画像</h2>
+    <div id="profile">{% include "profile_list.html" %}</div>
+    <button class="btn" hx-post="/customers/{{ customer_id }}/refresh-profile" hx-target="#profile" hx-swap="innerHTML">重新抽取画像</button>
+  </section>
+  <section>
+    <h2>客户分析</h2>
+    <div id="analysis" hx-post="/customers/{{ customer_id }}/analyze" hx-trigger="click from:#analyze-btn" hx-swap="innerHTML">
+      <p>点击下方按钮生成分析</p>
+    </div>
+    <button class="btn" id="analyze-btn">生成客户分析</button>
+  </section>
+</div>
 <h2>关联会话</h2>
-<ul>
-  {% for c in chats %}
-  <li>{{ c['chat_id'] }} (置信度 {{ c['match_confidence'] }})</li>
-  {% else %}
-  <li>暂无关联会话</li>
-  {% endfor %}
-</ul>
-<h2>画像</h2>
-<div id="profile">
-  {% include "profile_list.html" %}
-</div>
-<button hx-post="/customers/{{ customer_id }}/refresh-profile" hx-target="#profile" hx-swap="innerHTML">重新抽取画像</button>
-<h2>客户分析</h2>
-<div id="analysis" hx-post="/customers/{{ customer_id }}/analyze" hx-trigger="click from:#analyze-btn" hx-swap="innerHTML">
-  <p>点击下方按钮生成分析</p>
-</div>
-<button id="analyze-btn">生成客户分析</button>
-</main>
-</body>
-</html>
+<ul>{% for c in chats %}<li>{{ c['chat_id'] }} (置信度 {{ c['match_confidence'] }}) <a class="btn btn-sm" href="/customers/{{ customer_id }}/chat/{{ c['chat_id'] }}">打开聊天</a></li>{% else %}<li>暂无关联会话</li>{% endfor %}</ul>
+{% endblock %}
