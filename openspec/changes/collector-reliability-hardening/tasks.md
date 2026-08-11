@@ -46,8 +46,8 @@
 
 ## 8. IDB 分页读取 (D10)
 
-- [ ] 8.1 idb_walk 页面 JS 改游标分页，应用 `max_records_per_store` 上限
-- [ ] 8.2 单测：超过上限的 store 只返回前 N 条
+- [x] 8.1 idb_walk 页面 JS 改游标分页，应用 `max_records_per_store` 上限
+- [x] 8.2 单测：超过上限的 store 只返回前 N 条
 
 ## 9. 回归验证
 

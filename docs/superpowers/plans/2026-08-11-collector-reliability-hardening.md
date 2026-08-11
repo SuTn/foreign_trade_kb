@@ -918,7 +918,7 @@ git commit -m "fix: backfill 死代码清理 + 失败 attempts 重试 + 表缺�
 - Consumes: `settings.max_records_per_store`
 - Produces: `walk_idb` 各 store 读取受上限约束
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 # 追加 tests/collector/test_idb_walk.py
@@ -931,12 +931,12 @@ def test_read_store_js_has_limit():
     assert str(settings.max_records_per_store) in js
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/collector/test_idb_walk.py -v`
 Expected: FAIL（当前用 `getAll()` 无 limit）
 
-- [ ] **Step 3: 实现游标分页**
+- [x] **Step 3: 实现游标分页**
 
 修改 `_STORE_JS_TEMPLATE`：
 
@@ -972,12 +972,12 @@ Expected: FAIL（当前用 `getAll()` 无 limit）
 
 并在 `_read_store_js` 中 `.replace("__LIMIT__", str(settings.max_records_per_store))`。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/collector/test_idb_walk.py -v`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/collector/idb_walk.py tests/collector/test_idb_walk.py
