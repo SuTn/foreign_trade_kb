@@ -644,7 +644,7 @@ git commit -m "fix: reply/search 错误降级 + OllamaReranker 失败回退原�
 - Consumes: `parse_document`、`RagIndex`、`WikiIndex`
 - Produces: `documents.status` ∈ {processing, done, failed}
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 # 追加 tests/web/test_routes.py
@@ -674,12 +674,12 @@ def test_upload_empty_text_marks_done(tmp_data):
         assert r.status_code in (200, 201, 422)
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/web/test_routes.py -k "upload_bad or upload_empty" -v`
 Expected: FAIL（当前 500 / 卡 processing）
 
-- [ ] **Step 3: 实现上传状态机**
+- [x] **Step 3: 实现上传状态机**
 
 修改 `app/web/routes.py` 的 `upload`：
 
@@ -723,12 +723,12 @@ async def upload(request: Request, file: bytes = File(...), filename: str = Form
 
 同时检查 `parser.py`：未知后缀应抛 `ValueError`（已被 try/except 捕获）；空文件 `parse_document` 若返回空字符串，`chunk_text("")` 应产出 0 chunk，此时 RagIndex 不写 chunks，但仍置 done（符合 spec「空文本跳过向量化直接 done」）——确认 `RagIndex.index` 对空文本不抛错即可。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/web/test_routes.py -k "upload" -v`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/routes.py tests/web/test_routes.py

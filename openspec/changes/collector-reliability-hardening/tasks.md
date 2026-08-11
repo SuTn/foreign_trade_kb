@@ -28,9 +28,9 @@
 
 ## 5. 上传状态机与坏文件处理 (D6)
 
-- [ ] 5.1 upload 包 try/except：parse 失败置 `status='failed'` 返回可读错误，不 500
-- [ ] 5.2 成功路径 parse→index 后置 `status='done'`；空文本（0 chunk）跳过向量化直接 done
-- [ ] 5.3 单测：坏文件/空文件/未知格式上传返回错误且 status 置 failed；正常上传置 done
+- [x] 5.1 upload 包 try/except：parse 失败置 `status='failed'` 返回可读错误，不 500
+- [x] 5.2 成功路径 parse→index 后置 `status='done'`；空文本（0 chunk）跳过向量化直接 done
+- [x] 5.3 单测：坏文件/空文件/未知格式上传返回错误且 status 置 failed；正常上传置 done
 
 ## 6. 模型加载健壮性 (D7)
 
