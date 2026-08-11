@@ -1,0 +1,16 @@
+{
+  "change": "collector-message-integrity",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "a9f16dbe094f31f9cadfbbe36bb27aa4b9dc3a8035c9c1a0d3ba69ead1b3645c",
+  "files": [
+    { "path": "openspec/changes/collector-message-integrity/proposal.md", "sha256": "def0df3a4d247b227a455e50879e3255f0805487e98e5fdc40b0332f3273012e" },
+    { "path": "openspec/changes/collector-message-integrity/design.md", "sha256": "8678ba13c206a93595a389942bdc1c25fca34b6f9e9cd3e058fa46f29bc93332" },
+    { "path": "openspec/changes/collector-message-integrity/tasks.md", "sha256": "cd8ac046f3fe28de6a5acb4c77db115a097de587c9770434c297bd546d365bae" },
+    { "path": "openspec/changes/collector-message-integrity/specs/customer-profile/spec.md", "sha256": "eb99ab20ddc4ff99be035fcd96edce079c10cf8a63f432f99b9a6e0122de5f54" },
+    { "path": "openspec/changes/collector-message-integrity/specs/whatsapp-sync/group-chat/spec.md", "sha256": "bfcdc5dcf03e9d46e096d1fca8c4eedf67820a65df614fdcbfcef064d4e08193" },
+    { "path": "openspec/changes/collector-message-integrity/specs/whatsapp-sync/spec.md", "sha256": "362733b1ce76969fd12ec72d1538126edeb2429d3993adf37c8a7aebc3e107a4" }
+  ]
+}
