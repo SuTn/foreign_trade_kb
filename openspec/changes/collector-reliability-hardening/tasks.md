@@ -39,10 +39,10 @@
 
 ## 7. backfill 清理 (D9)
 
-- [ ] 7.1 删除 `_drain_backfill_requests` 中 `data` 死代码块
-- [ ] 7.2 `backfill_requests` 表定义移入 schema.sql（含 attempts 列），路由 CREATE 保留容错
-- [ ] 7.3 表存在性探测只做一次（__init__ 缓存）；失败任务 attempts+1 不标 done，成功后标 done
-- [ ] 7.4 单测：表缺失轮询不抛错；失败任务不标 done 可重试
+- [x] 7.1 删除 `_drain_backfill_requests` 中 `data` 死代码块
+- [x] 7.2 `backfill_requests` 表定义移入 schema.sql（含 attempts 列），路由 CREATE 保留容错
+- [x] 7.3 表存在性探测只做一次（__init__ 缓存）；失败任务 attempts+1 不标 done，成功后标 done
+- [x] 7.4 单测：表缺失轮询不抛错；失败任务不标 done 可重试
 
 ## 8. IDB 分页读取 (D10)
 

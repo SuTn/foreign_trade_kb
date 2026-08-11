@@ -827,7 +827,7 @@ git commit -m "fix: use_fp16 按 CUDA 可用性决定（CPU-only 回退 fp32）"
 - Consumes: `backfill_requests` 表（含 `attempts` 列）
 - Produces: `Scanner._backfill_table_checked`（bool）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 def test_drain_backfill_table_missing_no_error(tmp_data):
@@ -843,12 +843,12 @@ def test_drain_backfill_table_missing_no_error(tmp_data):
     asyncio.run(scanner._drain_backfill_requests())
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/collector/test_resilience.py -k "backfill_table" -v`
 Expected: FAIL（当前每 2s 抛被吞异常，测试设计为断言不抛）
 
-- [ ] **Step 3: 实现 backfill 清理**
+- [x] **Step 3: 实现 backfill 清理**
 
 修改 `app/collector/scanner.py`：
 
@@ -894,12 +894,12 @@ CREATE TABLE IF NOT EXISTS backfill_requests(
 
 `app/web/routes.py` 的 `collector_backfill` 建表改为兼容（保留 CREATE IF NOT EXISTS 或依赖 schema）。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/collector/test_resilience.py -k "backfill" -v`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/collector/scanner.py app/storage/schema.sql app/web/routes.py tests/collector/test_resilience.py
