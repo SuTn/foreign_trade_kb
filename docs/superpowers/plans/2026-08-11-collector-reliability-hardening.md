@@ -326,7 +326,7 @@ git commit -m "fix: supervisor 守护采集器子进程 + 异常退出码"
 - Consumes: `ChromaStore.msg_col`
 - Produces: `ChromaStore.clear_message_vectors()`；向量键 `f"{chat_id}:{msg_id}"`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 def test_message_vector_key_is_per_message():
@@ -351,12 +351,12 @@ def test_clear_message_vectors_only_msg_col():
     assert vs.msg_col.count() == 0  # 清空 message_vectors，knowledge_chunks 不受影响
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/collector/test_resilience.py -k "vector or clear_message" -v`
 Expected: FAIL（`_msg_vector_key` 不存在 / `clear_message_vectors` 不存在）
 
-- [ ] **Step 3: 实现向量键函数与清理**
+- [x] **Step 3: 实现向量键函数与清理**
 
 在 `app/collector/scanner.py` 增加模块级函数：
 
@@ -401,12 +401,12 @@ if not getattr(self, "_vectors_cleared", False):
     self._vectors_cleared = True
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/collector/test_resilience.py -k "vector or clear_message" -v`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/collector/scanner.py app/storage/chroma_store.py tests/collector/test_resilience.py

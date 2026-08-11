@@ -9,9 +9,9 @@
 
 ## 2. 消息向量语义修正 (D3)
 
-- [ ] 2.1 scanner 向量键从 `f"{chat_id}:{day}"` 改为 `f"{chat_id}:{msg_id}"`（无 id 回退 day 键）
-- [ ] 2.2 旧向量清理：一次性清空 `message_vectors` 集合（delete where={}），随扫描重建 per-message 向量
-- [ ] 2.3 单测：同会话同日多条消息各自独立向量键，互不覆盖
+- [x] 2.1 scanner 向量键从 `f"{chat_id}:{day}"` 改为 `f"{chat_id}:{msg_id}"`（无 id 回退 day 键）
+- [x] 2.2 旧向量清理：一次性清空 `message_vectors` 集合（delete where={}），随扫描重建 per-message 向量
+- [x] 2.3 单测：同会话同日多条消息各自独立向量键，互不覆盖
 
 ## 3. Web 存储单例 (D4/D8)
 
