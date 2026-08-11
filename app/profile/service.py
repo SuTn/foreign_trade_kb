@@ -14,14 +14,27 @@ def list_customer_chat_ids(store: StructuredStore, customer_id: str) -> list[str
     except Exception:
         return []
 
+def _chat_kind(store: StructuredStore, chat_id: str) -> str | None:
+    try:
+        row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
+        return row["kind"] if row else None
+    except Exception:
+        return None
+
 def build_chat_summary(store: StructuredStore, chat_id: str, limit: int | None = None) -> str:
-    """把某会话近期消息格式化为 我/客户 对话摘要 (时间正序)。"""
+    """把某会话近期消息格式化为对话摘要 (时间正序)。
+    群聊按发送者标注 (成员名: 正文, 我方仍 '我:'), 单聊保持 '我/客户'。"""
     limit = limit or settings.profile_summary_messages
+    kind = _chat_kind(store, chat_id)
     lines = []
     for m in reversed(store.list_messages(chat_id, limit=limit)):
         body = (m.body or "").strip()
         if body:
-            lines.append(f"{'我' if m.from_me else '客户'}: {body}")
+            if kind == "group":
+                who = "我" if m.from_me else (m.sender_name or "未知")
+            else:
+                who = "我" if m.from_me else "客户"
+            lines.append(f"{who}: {body}")
     return "\n".join(lines)
 
 def build_customer_summary(store: StructuredStore, customer_id: str,

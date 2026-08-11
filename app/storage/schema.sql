@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS chats(
 CREATE TABLE IF NOT EXISTS messages(
   id TEXT, account_id TEXT, chat_id TEXT, from_me INTEGER, sender_jid TEXT,
   ts INTEGER, type TEXT, body TEXT, body_present INTEGER, ingested_at INTEGER,
+  sender_name TEXT,
   PRIMARY KEY(id, account_id));
 CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts);
 CREATE TABLE IF NOT EXISTS contacts(

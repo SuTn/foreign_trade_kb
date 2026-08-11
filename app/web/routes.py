@@ -116,6 +116,13 @@ async def customer_chat_messages(customer_id: str, chat_id: str, request: Reques
     before = int(before_raw) if before_raw and before_raw.isdigit() else None
     store = _store()
     msgs = store.list_messages(chat_id, limit=50, before_ts=before)
+    kind = None
+    try:
+        row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
+        if row:
+            kind = row["kind"]
+    except Exception:
+        kind = None
     # 时间正序展示
     msgs = sorted(msgs, key=lambda m: m.ts)
     older_ts = msgs[0].ts if msgs else None
@@ -123,7 +130,7 @@ async def customer_chat_messages(customer_id: str, chat_id: str, request: Reques
     return request.app.state.templates.TemplateResponse(
         request, "chat_messages.html",
         {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs,
-         "older_ts": older_ts, "partial": partial},
+         "older_ts": older_ts, "partial": partial, "kind": kind},
     )
 
 

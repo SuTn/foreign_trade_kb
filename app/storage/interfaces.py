@@ -12,6 +12,7 @@ class Message:
     id: str; account_id: str; chat_id: str; from_me: bool
     sender_jid: str | None; ts: int; type: str | None
     body: str | None; body_present: bool; ingested_at: int
+    sender_name: str | None = None
 
 @dataclass
 class ProfileField:

@@ -15,7 +15,7 @@
   {% for m in messages %}
   <div class="chat-row {{ 'mine' if m.from_me else 'theirs' }}">
     <div class="chat-bubble {{ 'mine' if m.from_me else 'theirs' }}">
-      <div class="chat-meta">{{ '我' if m.from_me else '客户' }} · {{ m.ts }}</div>
+      <div class="chat-meta">{% if kind == 'group' %}{{ '我' if m.from_me else (m.sender_name or '未知') }} · {{ m.ts }}{% else %}{{ '我' if m.from_me else '客户' }} · {{ m.ts }}{% endif %}</div>
       <div class="chat-text">{{ m.body or '(无正文)' }}</div>
       <div id="reply-{{ m.id }}">
         <button class="btn btn-sm" hx-post="/api/reply"

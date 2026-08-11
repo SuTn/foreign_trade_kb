@@ -51,6 +51,18 @@ def _read_store_js(store: str) -> str:
             " var jid = typeof idv === 'string' ? idv : (idv && (idv._serialized || idv.user));"
             " return {id: jid, name: c.name || c.formattedTitle || null}; }"
         )
+    elif store == "group-metadata":
+        mapping = (
+            "function(g) {"
+            " var idv = g.id;"
+            " var jid = typeof idv === 'string' ? idv : (idv && (idv._serialized || idv.user));"
+            " var members = (g.members || []).map(function(m) {"
+            "   var mv = m.jid;"
+            "   var mj = typeof mv === 'string' ? mv : (mv && (mv._serialized || mv.user));"
+            "   return {jid: mj, name: m.name || m.pushname || null};"
+            " });"
+            " return {id: jid, name: g.name || g.formattedTitle || null, members: members}; }"
+        )
     else:  # contact
         mapping = (
             "function(c) {"
@@ -72,15 +84,15 @@ def _read_store_js(store: str) -> str:
 
 
 async def walk_idb(cdp: ReadOnlyCDP, account_id: str) -> dict:
-    """读 model-storage 的 message/chat/contact stores (页面 JS 只读)。
+    """读 model-storage 的 message/chat/contact/group-metadata stores (页面 JS 只读)。
     返回 {chats: {jid:name}, messages: [...], contacts: {jid:name},
-          lids: {lid_jid: {phone_jid, name}}, lid_to_phone: {lid_jid: phone_jid}}。
-    contacts 同时按手机号 jid 与 lid jid 建索引, 供 LID↔手机号双向查找。"""
+          lids: {lid_jid: {phone_jid, name}}, lid_to_phone: {lid_jid: phone_jid},
+          groups: {g_jid: {"name": str|None, "members": {member_jid: name|None}}}}。
+    contacts 同时按手机号 jid 与 lid jid 建索引, 供 LID↔手机号双向查找;
+    groups 由 group-metadata store 防御式构建, store 缺失时静默为空。"""
     result = {"chats": {}, "messages": [], "contacts": {}, "lids": {}, "lid_to_phone": {},
-              "phone_by_lid": {}}
+              "phone_by_lid": {}, "groups": {}}
     for store in settings.idb_stores:
-        if store == "group-metadata":
-            continue  # 群元数据暂不读取 (无明文正文可用)
         rows = await cdp.eval_async_readonly(_read_store_js(store)) or []
         if store == "message":
             result["messages"] = rows
@@ -88,6 +100,17 @@ async def walk_idb(cdp: ReadOnlyCDP, account_id: str) -> dict:
             for r in rows:
                 if r.get("id"):
                     result["chats"][r["id"]] = r.get("name")
+        elif store == "group-metadata":
+            for r in rows:
+                gid = r.get("id")
+                if not gid:
+                    continue
+                members = {}
+                for m in r.get("members") or []:
+                    mj = m.get("jid")
+                    if mj:
+                        members[mj] = m.get("name")
+                result["groups"][gid] = {"name": r.get("name"), "members": members}
         elif store == "contact":
             for r in rows:
                 if not r.get("id"):

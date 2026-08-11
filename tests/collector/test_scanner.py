@@ -368,6 +368,58 @@ def test_capture_avatar_skips_when_no_customer(tmp_data):
     assert not av.exists() or not list(av.glob("*"))  # 未写任何头像文件
 
 
+def _group_data(**overrides):
+    data = {
+        "chats": {}, "contacts": {},
+        "groups": {"120363123456789@g.us": {"name": "海外采购群",
+                                            "members": {"8615976909619@c.us": "Sonya"}}},
+        "lid_to_phone": {}, "phone_by_lid": {},
+        "messages": [{"id": "false_120363123456789@g.us_ABC123", "t": 1710000000,
+                      "from": "8615976909619@c.us", "to": "120363123456789@g.us",
+                      "type": "chat", "fromMe": False}],
+    }
+    data.update(overrides)
+    return data
+
+
+def test_merge_idb_dom_group_uses_group_jid_and_sender_name():
+    """群聊: chatId=群 JID, kind=group, sender_name 来自群成员表, name=群名。"""
+    sc = Scanner(None, None, None)
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hello", "body_present": True}]
+    merged = sc._merge_idb_dom(_group_data(), dom)
+    assert merged[0]["chatId"] == "120363123456789@g.us"
+    assert merged[0]["kind"] == "group"
+    assert merged[0]["sender_name"] == "Sonya"
+    assert merged[0]["name"] == "海外采购群"
+
+
+def test_merge_group_member_missing_falls_back_to_jid():
+    """群成员名缺失 (contacts/成员表/DOM 均无) → sender_name 回退为原始 JID。"""
+    sc = Scanner(None, None, None)
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hello", "body_present": True}]
+    data = _group_data(groups={"120363123456789@g.us": {"name": None, "members": {}}},
+                       contacts={})
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["sender_name"] == "8615976909619@c.us"
+
+
+def test_upsert_group_writes_kind_group_and_sender_name(tmp_data):
+    """群聊消息入库: chats.kind=group + display_name=群名, messages.sender_name 随行。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    sc._upsert_one({"id": "m1", "chatId": "120363123456789@g.us", "fromMe": False,
+                    "from": "8615976909619@c.us", "timestamp": 1, "type": "chat",
+                    "name": "海外采购群", "sender_name": "Sonya"})
+    row = store.conn.execute("SELECT * FROM chats WHERE id='120363123456789@g.us'").fetchone()
+    assert row["kind"] == "group"
+    assert row["display_name"] == "海外采购群"
+    msg = store.list_messages("120363123456789@g.us")[0]
+    assert msg.sender_name == "Sonya"
+
+
 def test_drain_profile_updates_failure_does_not_block(tmp_data, monkeypatch):
     """LLM 失败时静默跳过, 不抛异常阻塞采集。"""
     from app.storage.sqlite_store import SqliteStore
@@ -386,3 +438,60 @@ def test_drain_profile_updates_failure_does_not_block(tmp_data, monkeypatch):
     sc._profile_pending.add(("cust1", "c1"))
     asyncio.run(sc._drain_profile_updates())  # 不应抛异常
     assert sc._profile_pending == set()  # 失败项已消费, 不无限重试
+
+
+def test_merge_group_sender_lid_normalized_to_phone():
+    """群成员表按手机号 JID 建键, 消息 from 为 @lid → 归一后解析成员名。"""
+    sc = Scanner(None, None, None)
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hello", "body_present": True}]
+    data = _group_data(
+        messages=[{"id": "false_120363123456789@g.us_ABC123", "t": 1710000000,
+                   "from": "123456789@lid", "to": "120363123456789@g.us",
+                   "type": "chat", "fromMe": False}],
+        lid_to_phone={"123456789@lid": "8615976909619@c.us"},
+        groups={"120363123456789@g.us": {"name": "海外采购群",
+                                         "members": {"8615976909619@c.us": "Sonya"}}},
+    )
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["sender_name"] == "Sonya"
+
+
+def test_merge_group_sender_phone_normalized_to_lid():
+    """群成员表按 LID 建键, 消息 from 为手机号 JID → 反向归一后解析成员名。"""
+    sc = Scanner(None, None, None)
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hello", "body_present": True}]
+    data = _group_data(
+        messages=[{"id": "false_120363123456789@g.us_ABC123", "t": 1710000000,
+                   "from": "8615976909619@c.us", "to": "120363123456789@g.us",
+                   "type": "chat", "fromMe": False}],
+        lid_to_phone={"123456789@lid": "8615976909619@c.us"},
+        groups={"120363123456789@g.us": {"name": "海外采购群",
+                                         "members": {"123456789@lid": "Sonya"}}},
+    )
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["sender_name"] == "Sonya"
+
+
+def test_merge_idb_from_me_is_authoritative_over_dom_tail():
+    """fromMe 冲突时 IDB 发送者==自身账号为权威 (覆盖 DOM tail-in 信号)。"""
+    sc = Scanner(None, None, None)
+    data = {
+        "chats": {}, "contacts": {}, "groups": {},
+        "lid_to_phone": {}, "phone_by_lid": {},
+        "messages": [
+            # 首条入站消息确立 our_jid (=to)
+            {"id": "false_8615976909619@c.us_ABC000", "t": 1700000000,
+             "from": "8615976909619@c.us", "to": "8618963126542@c.us",
+             "type": "chat", "fromMe": False},
+            # 出站消息: from == our_jid
+            {"id": "false_8615976909619@c.us_ABC123", "t": 1710000000,
+             "from": "8618963126542@c.us", "to": "8615976909619@c.us",
+             "type": "chat", "fromMe": True},
+        ],
+    }
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hi", "body_present": True}]  # DOM tail-in 说 fromMe=False
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["fromMe"] is True  # IDB 权威覆盖

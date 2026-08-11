@@ -9,10 +9,10 @@ def test_stats_endpoint(tmp_data):
         "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
         [("c1","A","1",None,None,0,None),("c2","B","2",None,None,0,None)])
     store.conn.executemany(
-        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?)",
-        [("m1","me","ch1",0,"x",1000,"chat","hi",1,0),
-         ("m2","me","ch1",0,"x",2000,"chat","yo",1,0),
-         ("m3","me","ch2",0,"y",1500,"chat","a",1,0)])
+        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        [("m1","me","ch1",0,"x",1000,"chat","hi",1,0,None),
+         ("m2","me","ch1",0,"x",2000,"chat","yo",1,0,None),
+         ("m3","me","ch2",0,"y",1500,"chat","a",1,0,None)])
     store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",("ch1","me","ch1","Alice","single",0))
     store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",("me","ch1","c1",0.9,0,0))
     store.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?)",("d1","a.pdf","pdf","docreader","done",0))
@@ -302,11 +302,43 @@ def test_home_shows_stats(tmp_data):
     from app.storage.sqlite_store import SqliteStore
     store = SqliteStore()
     store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",("c1","Alice","1",None,None,0,None))
-    store.conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?)",("m1","me","ch1",0,"x",1000,"chat","hi",1,0))
+    store.conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",("m1","me","ch1",0,"x",1000,"chat","hi",1,0,None))
     store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",("ch1","me","ch1","Alice","single",0))
     store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",("me","ch1","c1",0.9,0,0))
     store.conn.commit()
     client = TestClient(create_app())
     html = client.get("/").text
     assert "客户总数" in html and "近期活跃会话" in html and "Alice" in html
+
+
+def test_chat_page_group_renders_sender_name(tmp_data):
+    """群聊聊天页在 meta 区渲染发送者名。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)", ("cust1","Alice","10086",None,None,0,None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)", ("a1","g1","cust1",0.9,0,0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)", ("g1","a1","g1","海外采购群","group",0))
+    store.conn.commit()
+    from app.storage.interfaces import Message
+    store.upsert_message(Message("m1", "a1", "g1", False, "8615976909619@c.us", 1,
+                                 "chat", "hello", True, 0, "Sonya"))
+    client = TestClient(create_app())
+    html = client.get("/customers/cust1/chat/g1").text
+    assert "Sonya ·" in html
+
+
+def test_chat_page_single_keeps_customer_label(tmp_data):
+    """单聊聊天页保持 '客户' 标签。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)", ("cust1","Alice","10086",None,None,0,None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)", ("a1","c1","cust1",0.9,0,0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)", ("c1","a1","c1","Alice","single",0))
+    store.conn.commit()
+    from app.storage.interfaces import Message
+    store.upsert_message(Message("m1", "a1", "c1", False, "x@w", 1,
+                                 "chat", "hello", True, 0))
+    client = TestClient(create_app())
+    html = client.get("/customers/cust1/chat/c1").text
+    assert "客户 ·" in html
 

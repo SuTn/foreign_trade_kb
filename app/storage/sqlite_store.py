@@ -24,6 +24,11 @@ class SqliteStore(StructuredStore):
             self.conn.commit()
         except sqlite3.OperationalError:
             pass  # 列已存在 (新库 schema.sql 已含) — 幂等
+        try:
+            self.conn.execute("ALTER TABLE messages ADD COLUMN sender_name TEXT")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
 
     def upsert_chat(self, chat: Chat):
         # 显示名/类型缺省 (如纯 DOM 增量) 时保留已有值, 仅刷新同步时间
@@ -36,11 +41,12 @@ class SqliteStore(StructuredStore):
 
     def upsert_message(self, msg: Message):
         self.conn.execute(
-            "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,account_id) DO UPDATE SET "
+            "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,account_id) DO UPDATE SET "
             "from_me=excluded.from_me, sender_jid=excluded.sender_jid, ts=excluded.ts, type=excluded.type, "
-            "body=COALESCE(excluded.body, body), body_present=excluded.body_present",
+            "body=COALESCE(excluded.body, body), body_present=excluded.body_present, "
+            "sender_name=COALESCE(excluded.sender_name, sender_name)",
             (msg.id, msg.account_id, msg.chat_id, int(msg.from_me), msg.sender_jid,
-             msg.ts, msg.type, msg.body, int(msg.body_present), msg.ingested_at))
+             msg.ts, msg.type, msg.body, int(msg.body_present), msg.ingested_at, msg.sender_name))
         if msg.body:
             self.conn.execute("INSERT OR REPLACE INTO messages_fts(rowid, body) VALUES((SELECT rowid FROM messages WHERE id=? AND account_id=?), ?)",
                               (msg.id, msg.account_id, msg.body))
@@ -141,4 +147,5 @@ class SqliteStore(StructuredStore):
 
     def _row_to_msg(self, r):
         return Message(r["id"], r["account_id"], r["chat_id"], bool(r["from_me"]), r["sender_jid"],
-                       r["ts"], r["type"], r["body"], bool(r["body_present"]), r["ingested_at"])
+                       r["ts"], r["type"], r["body"], bool(r["body_present"]), r["ingested_at"],
+                       r["sender_name"])

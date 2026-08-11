@@ -10,7 +10,7 @@ class FakeCDP:
     async def eval_async_readonly(self, expression):
         self.expressions.append(expression)
         store = None
-        for key in ("message", "chat", "contact"):
+        for key in ("message", "chat", "contact", "group-metadata"):
             if f"'{key}'" in expression:
                 store = key
                 break
@@ -50,3 +50,28 @@ def test_read_store_js_is_readonly():
     assert "readonly" in js
     assert "readwrite" not in js
     assert "delete" not in js and "put(" not in js and "add(" not in js
+
+
+async def test_walk_idb_reads_group_metadata(monkeypatch):
+    monkeypatch.setattr(idb_walk.settings, "idb_stores",
+                        ["message", "chat", "contact", "group-metadata"])
+    cdp = FakeCDP({
+        "group-metadata": [
+            {"id": "120363123456789@g.us", "name": "海外采购群",
+             "members": [{"jid": "8615976909619@c.us", "name": "Sonya"},
+                         {"jid": "8616111222333@c.us", "name": None}]},
+        ],
+    })
+    data = await idb_walk.walk_idb(cdp, "me")
+    g = data["groups"]["120363123456789@g.us"]
+    assert g["name"] == "海外采购群"
+    assert g["members"] == {"8615976909619@c.us": "Sonya", "8616111222333@c.us": None}
+
+
+async def test_walk_idb_group_metadata_missing_silently_empty(monkeypatch):
+    """store 缺失 (null) → groups 空字典, 不抛异常。"""
+    monkeypatch.setattr(idb_walk.settings, "idb_stores",
+                        ["message", "chat", "contact", "group-metadata"])
+    cdp = FakeCDP({"group-metadata": None})
+    data = await idb_walk.walk_idb(cdp, "me")
+    assert data["groups"] == {}
