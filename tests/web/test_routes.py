@@ -86,6 +86,35 @@ def test_backfill_endpoint_records_request(tmp_data):
     assert rows[0]["max_scrolls"] == 5
 
 
+def test_upload_bad_file_marks_failed(tmp_data):
+    from fastapi.testclient import TestClient
+    from app.web.app import create_app
+
+    with TestClient(create_app()) as client:
+        r = client.post("/api/knowledge/upload",
+                        files={"file": ("bad.bin", b"\x00\x01\x02", "application/octet-stream")},
+                        data={"filename": "bad.bin"})
+        assert r.status_code != 500
+        # 无残留 processing 行（failed 或不存在）
+        store = client.app.state.sqlite_store
+        rows = store.conn.execute("SELECT status FROM documents").fetchall()
+        assert all(row["status"] != "processing" for row in rows)
+
+
+def test_upload_empty_text_marks_done(tmp_data):
+    from fastapi.testclient import TestClient
+    from app.web.app import create_app
+
+    with TestClient(create_app()) as client:
+        r = client.post("/api/knowledge/upload",
+                        files={"file": ("empty.txt", b"", "text/plain")},
+                        data={"filename": "empty.txt"})
+        assert r.status_code in (200, 201, 422)
+        store = client.app.state.sqlite_store
+        rows = store.conn.execute("SELECT status FROM documents").fetchall()
+        assert rows and all(row["status"] == "done" for row in rows)
+
+
 def test_upload_succeeds_when_wiki_fails(tmp_data, monkeypatch):
     """4.11: Wiki 索引失败不影响 RAG 索引 — 上传仍成功, RAG chunks 已入库, 无 wiki_pages。"""
     from app.web import routes

@@ -339,25 +339,43 @@ async def reply_regenerate(request: Request):
 async def upload(request: Request, file: bytes = File(...), filename: str = Form(...)):
     doc_id = str(uuid.uuid4())
     store = _store(request)
+    fmt = Path(filename).suffix.lstrip(".") or "txt"
     store.conn.execute(
         "INSERT INTO documents VALUES(?,?,?,?,?,?)",
-        (doc_id, filename, filename.split(".")[-1], "docreader", "processing", int(time.time())),
+        (doc_id, filename, fmt, "docreader", "processing", int(time.time())),
     )
     store.conn.commit()
     tmp = tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False)
     try:
         tmp.write(file)
         tmp.close()
-        text = parse_document(tmp.name)
+        try:
+            text = parse_document(tmp.name)
+        except Exception as e:
+            store.conn.execute("UPDATE documents SET status='failed' WHERE id=?", (doc_id,))
+            store.conn.commit()
+            return {"doc_id": doc_id, "error": f"解析失败: {e}", "status": "failed"}
     finally:
         Path(tmp.name).unlink(missing_ok=True)
-    RagIndex(store, _chroma_store(request)).index(doc_id, text)
-    # Wiki 索引失败不影响 RAG 索引 (双索引互不阻塞)
+    if not text.strip():
+        # 空文本跳过向量化直接 done (chromadb 空 upsert 会抛错)
+        store.conn.execute("UPDATE documents SET status='done' WHERE id=?", (doc_id,))
+        store.conn.commit()
+        return {"doc_id": doc_id, "status": "done"}
+    try:
+        RagIndex(store, _chroma_store(request)).index(doc_id, text)
+        store.conn.execute("UPDATE documents SET status='done' WHERE id=?", (doc_id,))
+        store.conn.commit()
+    except Exception as e:
+        store.conn.execute("UPDATE documents SET status='failed' WHERE id=?", (doc_id,))
+        store.conn.commit()
+        return {"doc_id": doc_id, "error": f"索引失败: {e}", "status": "failed"}
+    # Wiki 索引失败不影响 RAG 状态 (双索引互不阻塞)
     try:
         WikiIndex(store, CloudLLM(), get_embedding()).index(doc_id, text)
     except Exception:
         pass  # Wiki 失败不阻塞上传; RAG 索引已成功
-    return {"doc_id": doc_id}
+    return {"doc_id": doc_id, "status": "done"}
 
 
 @router.post("/api/collector/backfill")
