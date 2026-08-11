@@ -50,7 +50,7 @@
 - Consumes: 现有 `Scanner` 类、`settings`、`write_status`
 - Produces: `Scanner._reconnect()`（重建浏览器）、`Scanner._cdp_failures`（int，连续致命失败计数）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 # tests/collector/test_resilience.py
@@ -106,12 +106,12 @@ def test_run_survives_transient_and_recovers(tmp_data):
         settings.fast_tick_jitter = 0.5
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/collector/test_resilience.py -v`
 Expected: FAIL（`_run_once` 不存在 / AttributeError）
 
-- [ ] **Step 3: 实现主循环自愈**
+- [x] **Step 3: 实现主循环自愈**
 
 修改 `app/collector/scanner.py`：
 
@@ -159,7 +159,7 @@ async def run(self):
         await asyncio.sleep(settings.fast_tick_sec + random.uniform(0, settings.fast_tick_jitter))
 ```
 
-- [ ] **Step 4: 实现 fast_tick 异常分类与 `_run_once`/`_reconnect`**
+- [x] **Step 4: 实现 fast_tick 异常分类与 `_run_once`/`_reconnect`**
 
 ```python
 def _is_cdp_fatal(self, e: Exception) -> bool:
@@ -191,12 +191,12 @@ async def _reconnect(self):
 
 并在 `__init__` 增加 `self._cdp_failures = 0`、`self._pw = None`、`self._context = None`。同时 `fast_tick` 内 `capture_snapshot` 的异常会向上传播到 run 循环（不在此捕获）。
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/collector/test_resilience.py -v`
 Expected: PASS
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add app/collector/scanner.py tests/collector/test_resilience.py

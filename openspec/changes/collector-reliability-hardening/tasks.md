@@ -2,8 +2,8 @@
 
 ## 1. 采集器自愈 (D1/D2)
 
-- [ ] 1.1 `Scanner.run()` 主循环整体 try/except + 指数退避（1s→30s 上限），异常记录到 status/日志不退出
-- [ ] 1.2 CDP 失效检测：区分可重试/致命异常，连续 3 次致命失败才重建浏览器（launch_browser + 重置会话状态）
+- [x] 1.1 `Scanner.run()` 主循环整体 try/except + 指数退避（1s→30s 上限），异常记录到 status/日志不退出
+- [x] 1.2 CDP 失效检测：区分可重试/致命异常，连续 3 次致命失败才重建浏览器（launch_browser + 重置会话状态）
 - [ ] 1.3 `app/__main__.py` supervisor 循环：采集器进程异常退出自动拉起（正常退出/用户中断不重启）
 - [ ] 1.4 采集器 `__main__.py` 异常时以非 0 exit code 退出，供 supervisor 判定
 
