@@ -19,10 +19,10 @@
 
 ## 4. 复合行净化（DOM 解析）
 
-- [ ] 4.1 `dom_snapshot._parse_row` 跳过引用容器（testid 含 `message-quote`/`quoted-`），body 只含本人正文；testid 漂移时静默回退原行为
-- [ ] 4.2 `parse_dom_snapshot` 识别媒体行（image-album/image/video/ptt/document/audio/location），说明文字作 body，无正文用媒体标记占位，type 记录媒体类型
-- [ ] 4.3 fromMe：`_merge_idb_dom` 以 IDB 发送者==自身账号为权威（DOM tail 信号冲突时覆盖）；DOM-only 路径保持 tail-in/out
-- [ ] 4.4 补测试：引用回复 body 排除引用文本；相册/图片行入库带说明或媒体标记；fromMe 冲突时 IDB 优先
+- [x] 4.1 `dom_snapshot._parse_row` 跳过引用容器（testid 含 `message-quote`/`quoted-`），body 只含本人正文；testid 漂移时静默回退原行为
+- [x] 4.2 `parse_dom_snapshot` 识别媒体行（image-album/image/video/ptt/document/audio/location），说明文字作 body，无正文用媒体标记占位，type 记录媒体类型
+- [x] 4.3 fromMe：`_merge_idb_dom` 以 IDB 发送者==自身账号为权威（DOM tail 信号冲突时覆盖）；DOM-only 路径保持 tail-in/out
+- [x] 4.4 补测试：引用回复 body 排除引用文本；相册/图片行入库带说明或媒体标记；fromMe 冲突时 IDB 优先
 
 ## 5. 画像摘要发送者标注
 

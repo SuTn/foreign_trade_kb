@@ -453,7 +453,7 @@ git commit -m "feat: 采集器识别群聊 (@g.us → kind=group) 并解析发�
 - Consumes: `settings.dom_media_row_prefixes`（本任务新增）；`parse_dom_snapshot` 现有行结构。
 - Produces: `parse_dom_snapshot(snapshot, active_chat_id)` 输出：引用容器文本不入 `body`；媒体行 `type` = 白名单前缀（去尾 `-`，如 `image-album`/`image`/`video`/`ptt`），无正文时 `body` = 媒体标记（`[相册]`/`[图片]` 等）。`_merge_idb_dom` 的 fromMe IDB 权威逻辑**已存在**（`scanner.py:109`），本任务仅补测试锁定。
 
-- [ ] **Step 1: settings 新增媒体行白名单**
+- [x] **Step 1: settings 新增媒体行白名单**
 
 `app/config.py` 第 30-32 行 DOM 选择器配置区追加：
 
@@ -463,7 +463,7 @@ git commit -m "feat: 采集器识别群聊 (@g.us → kind=group) 并解析发�
                                          "document-", "audio-", "location-"]
 ```
 
-- [ ] **Step 2: dom_snapshot 模块常量 + 行识别 + 净化**
+- [x] **Step 2: dom_snapshot 模块常量 + 行识别 + 净化**
 
 `app/collector/dom_snapshot.py`：
 
@@ -535,7 +535,7 @@ def _parse_row(i, ad, children, ntype, node_value, text_value, testid, pre_value
     }
 ```
 
-- [ ] **Step 3: 写失败测试（引用排除 + 媒体行）**
+- [x] **Step 3: 写失败测试（引用排除 + 媒体行）**
 
 追加到 `tests/collector/test_dom_snapshot.py`：
 
@@ -624,7 +624,7 @@ def test_parse_media_row_marker_placeholder():
     assert m["body"] == "[相册]"
 ```
 
-- [ ] **Step 4: 写失败测试（fromMe IDB 权威）**
+- [x] **Step 4: 写失败测试（fromMe IDB 权威）**
 
 追加到 `tests/collector/test_scanner.py`：
 
@@ -657,7 +657,7 @@ def test_merge_idb_from_me_is_authoritative_over_dom_tail():
 Run: `.venv/Scripts/python.exe -m pytest -q tests/collector/test_dom_snapshot.py tests/collector/test_scanner.py -k "quote or media or from_me_is" -v`
 Expected: 新测试 FAIL（引用文本仍在 body / 媒体行未识别 / fromMe 未覆盖）。
 
-- [ ] **Step 6: 运行并确认通过（含既有回归）**
+- [x] **Step 6: 运行并确认通过（含既有回归）**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/collector/test_dom_snapshot.py tests/collector/test_scanner.py tests/integration/test_readonly_constraint.py`
 Expected: 全部 PASS（既有 `test_parse_ignores_non_conv_msg_rows` 中 testid 为 `album-x` 不匹配白名单 → 仍被忽略；只读约束扫描仍通过）。
