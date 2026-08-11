@@ -21,6 +21,8 @@
 - **WHEN** 某历史消息未在当前 DOM 渲染
 - **THEN** 系统 SHALL 保存其元数据，正文标记为缺失，不阻塞该批采集
 
+## ADDED Requirements
+
 ### Requirement: 消息发送方向判断
 系统 SHALL 通过 DOM 渲染信号（tail-in/tail-out）与 IDB 消息元数据（发送者 JID 与自身账号比对）联合判断消息方向，任一来源可用时作为依据，两者冲突时以 IDB 元数据为准，降低误判。
 

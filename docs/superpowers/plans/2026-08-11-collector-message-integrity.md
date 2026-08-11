@@ -2,6 +2,7 @@
 change: collector-message-integrity
 design-doc: docs/superpowers/specs/2026-08-11-collector-message-integrity-design.md
 base-ref: b5113428e1f06972729d92c2587ae34e7bb26ff8
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 # collector-message-integrity 实施计划
@@ -26,6 +27,7 @@ base-ref: b5113428e1f06972729d92c2587ae34e7bb26ff8
 - **字段命名**：新增列/字段统一为 `sender_name`；群聊类型字符串统一为 `group`（单聊沿用 `single`）。
 - 任务按顺序执行；每任务独立测试 + 提交，全部完成后在 tasks.md 勾选。
 
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 ### Task 1: 数据层 —— `messages.sender_name` 列 + `Message` 模型扩展
@@ -163,6 +165,7 @@ git add app/storage/schema.sql app/storage/interfaces.py app/storage/sqlite_stor
 git commit -m "feat: messages 表新增 sender_name 列 (幂等迁移) + Message 模型扩展"
 ```
 
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 ### Task 2: IDB 群聊元数据读取（group-metadata → groups 映射）
@@ -275,6 +278,7 @@ git add app/collector/idb_walk.py tests/collector/test_idb_walk.py
 git commit -m "feat: idb_walk 读取 group-metadata → groups 映射 (防御式, 静默降级)"
 ```
 
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 ### Task 3: 采集器群聊识别 + 发送者解析入库
@@ -440,6 +444,7 @@ git add app/collector/scanner.py tests/collector/test_scanner.py
 git commit -m "feat: 采集器识别群聊 (@g.us → kind=group) 并解析发送者显示名"
 ```
 
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 ### Task 4: 复合行净化 —— 引用排除 / 媒体行 / fromMe IDB 权威
@@ -669,6 +674,7 @@ git add app/config.py app/collector/dom_snapshot.py tests/collector/test_dom_sna
 git commit -m "feat: DOM 解析净化引用块/识别媒体行, fromMe 冲突时 IDB 权威"
 ```
 
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 ### Task 5: 画像摘要发送者标注
@@ -758,6 +764,7 @@ git add app/profile/service.py tests/profile/test_service.py
 git commit -m "feat: 画像摘要群聊按发送者标注 (sender_name: body), 单聊格式不变"
 ```
 
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 ### Task 6: Web 聊天页发送者展示
@@ -858,6 +865,7 @@ git add app/web/routes.py app/web/templates/chat_messages.html tests/web/test_ro
 git commit -m "feat: Web 聊天页群聊显示发送者名, 单聊保持 我/客户"
 ```
 
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 ### Task 7: 收尾验证（全量回归）
@@ -894,6 +902,7 @@ git add openspec/changes/collector-message-integrity/tasks.md
 git commit -m "chore: collector-message-integrity 收尾回归验证 (pytest 117/117 + compileall)"
 ```
 
+archived-with: 2026-08-11-collector-message-integrity
 ---
 
 ## 自检记录

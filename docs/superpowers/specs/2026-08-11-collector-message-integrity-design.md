@@ -2,6 +2,8 @@
 comet_change: collector-message-integrity
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-11-collector-message-integrity
+status: final
 ---
 
 # collector-message-integrity 技术设计
