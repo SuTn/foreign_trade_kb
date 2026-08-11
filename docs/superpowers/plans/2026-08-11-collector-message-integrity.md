@@ -681,7 +681,7 @@ git commit -m "feat: DOM 解析净化引用块/识别媒体行, fromMe 冲突时
 - Consumes: `chats.kind`（Task 3 写入）、`Message.sender_name`（Task 1）。
 - Produces: `build_chat_summary(store, chat_id, limit=None) -> str`：group 时入站为 `{sender_name}: {body}`、我方仍 `我:`；single 时保持 `我/客户`。下游 `refresh_customer_profile`/`analyze_customer_full` 无需改动。
 
-- [ ] **Step 1: 实现 kind 分支**
+- [x] **Step 1: 实现 kind 分支**
 
 `app/profile/service.py` 第 17-25 行替换为：
 
@@ -710,7 +710,7 @@ def build_chat_summary(store: StructuredStore, chat_id: str, limit: int | None =
     return "\n".join(lines)
 ```
 
-- [ ] **Step 2: 写失败测试**
+- [x] **Step 2: 写失败测试**
 
 追加到 `tests/profile/test_service.py`：
 
@@ -741,17 +741,17 @@ def test_build_chat_summary_single_format_unchanged(tmp_data):
     assert "我: Hello" in s
 ```
 
-- [ ] **Step 3: 运行并确认失败**
+- [x] **Step 3: 运行并确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/profile/test_service.py -k "group or single_format" -v`
 Expected: 两个新测试 FAIL（群聊未按发送者标注 / 断言不符）。
 
-- [ ] **Step 4: 运行并确认通过（含既有格式不回归）**
+- [x] **Step 4: 运行并确认通过（含既有格式不回归）**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/profile/test_service.py`
 Expected: 全部 PASS（既有 `test_build_chat_summary_chronological` 等未关联 chats 行 → `kind=None` → 仍走 `我/客户`）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/profile/service.py tests/profile/test_service.py

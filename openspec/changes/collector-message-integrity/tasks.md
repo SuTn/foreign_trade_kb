@@ -26,8 +26,8 @@
 
 ## 5. 画像摘要发送者标注
 
-- [ ] 5.1 `profile/service.py build_chat_summary`：按 `chats.kind` 分支——group 用 `{sender_name}: {body}`（我方仍 `我:`），single 保持 `我/客户`
-- [ ] 5.2 补测试：群聊会话摘要按发送者标注；单聊摘要格式不变
+- [x] 5.1 `profile/service.py build_chat_summary`：按 `chats.kind` 分支——group 用 `{sender_name}: {body}`（我方仍 `我:`），single 保持 `我/客户`
+- [x] 5.2 补测试：群聊会话摘要按发送者标注；单聊摘要格式不变
 
 ## 6. Web 聊天页发送者展示
 
