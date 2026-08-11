@@ -19,6 +19,29 @@ def test_old_schema_gets_avatar_path_column(tmp_data):
         assert "avatar_path" in cols
         store2.conn.close()
 
+def test_old_schema_gets_sender_name_column(tmp_data):
+    """旧库 (messages 无 sender_name) 打开后自动迁移出该列, 且幂等。"""
+    p = tmp_data / "old.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE messages(id TEXT, account_id TEXT, chat_id TEXT, from_me INTEGER, "
+              "sender_jid TEXT, ts INTEGER, type TEXT, body TEXT, body_present INTEGER, "
+              "ingested_at INTEGER, PRIMARY KEY(id, account_id))")
+    c.commit(); c.close()
+    for _ in range(2):  # 同一旧库重复打开 → 迁移幂等
+        store2 = SqliteStore(p)
+        cols = [r[1] for r in store2.conn.execute("PRAGMA table_info(messages)").fetchall()]
+        assert "sender_name" in cols
+        store2.conn.close()
+
+def test_upsert_message_roundtrips_sender_name(tmp_data):
+    s = SqliteStore()
+    m = Message("m1", "a1", "c1", False, "x@w", 1000, "chat", "hello", True,
+                int(time.time()), "Sonya")
+    s.upsert_message(m)
+    rows = s.list_messages("c1")
+    assert rows[0].sender_name == "Sonya"
+
+
 def test_upsert_message_idempotent(tmp_data):
     s = SqliteStore()
     m = Message("m1", "a1", "c1", False, "x@w", 1000, "chat", "hello", True, int(time.time()))
