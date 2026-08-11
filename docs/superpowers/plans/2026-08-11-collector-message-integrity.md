@@ -868,26 +868,26 @@ git commit -m "feat: Web 聊天页群聊显示发送者名, 单聊保持 我/客
 **Interfaces:**
 - 无新接口。验证前序所有产出的端到端一致性。
 
-- [ ] **Step 1: 全量测试**
+- [x] **Step 1: 全量测试**
 
 Run: `.venv/Scripts/python.exe -m pytest -q`
 Expected: 全部 PASS。测试数从 102 增至约 **117**（新增 15：存储 2 + idb_walk 2 + scanner 4 + dom_snapshot 3 + profile 2 + web 2）。若出现失败，定位到具体任务回修（不得用 `-k` 跳过）。
 
-- [ ] **Step 2: 构建检查**
+- [x] **Step 2: 构建检查**
 
 Run: `.venv/Scripts/python.exe -m compileall -q app tests`
 Expected: 无输出、退出码 0（`-q` 静默）。
 
-- [ ] **Step 3: 只读约束回归（采集器硬约束）**
+- [x] **Step 3: 只读约束回归（采集器硬约束）**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/integration/test_readonly_constraint.py tests/collector/test_readonly_cdp.py`
 Expected: 全部 PASS（确认新增 JS/代码无发送类操作、全部经 ReadOnlyCDP）。
 
-- [ ] **Step 4: 勾选 tasks.md**
+- [x] **Step 4: 勾选 tasks.md**
 
 将 `openspec/changes/collector-message-integrity/tasks.md` 中 1.1-7.3 共 17 个复选框全部勾为 `[x]`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add openspec/changes/collector-message-integrity/tasks.md
