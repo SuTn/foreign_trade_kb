@@ -994,24 +994,24 @@ git commit -m "fix: IDB 游标分页，max_records_per_store 生效"
 **Interfaces:**
 - Consumes: 上述全部改动
 
-- [ ] **Step 1: 全量测试**
+- [x] **Step 1: 全量测试**
 
 Run: `.venv\Scripts\python -m pytest -q`
 Expected: 全部通过（121 + 新增，无回归）
 
-- [ ] **Step 2: 编译检查**
+- [x] **Step 2: 编译检查**
 
 Run: `.venv\Scripts\python -m compileall -q app`
 Expected: 无输出（成功）
 
-- [ ] **Step 3: 代码走读**
+- [x] **Step 3: 代码走读**
 
 确认：
 - `grep -rn "ChromaStore(" app/web/routes.py` 仅剩 import 或单例引用，无每请求新建
 - `grep -n "debug_walk\|data.get" app/collector/scanner.py` 无死代码残留
 - `git status` 确认无意外文件
 
-- [ ] **Step 4: 提交（如有遗留）**
+- [x] **Step 4: 提交（如有遗留）**
 
 ```bash
 git add -A
