@@ -1,0 +1,18 @@
+{
+  "change": "collector-reliability-hardening",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "83bc286be4d4c8486fe5f90556147df1723830223136ecaa2e46bd98f7f387d2",
+  "files": [
+    { "path": "openspec/changes/collector-reliability-hardening/proposal.md", "sha256": "406b9b2971e87e42d069db2cd5a2366cacd7fd968c558bfb91315f5d86d5daf9" },
+    { "path": "openspec/changes/collector-reliability-hardening/design.md", "sha256": "c3051ddf013c5993dae36ac7d227c1650923d46ac02e974262fd5f96bc400d54" },
+    { "path": "openspec/changes/collector-reliability-hardening/tasks.md", "sha256": "a06b41a79af9319a7053e09999735e7665c622c0f25825e4fb626baac7563d47" },
+    { "path": "openspec/changes/collector-reliability-hardening/specs/knowledge-base/spec.md", "sha256": "ddfc231777ff1d6146838425e9f35aabfe0c71863981931552c27770343d26b5" },
+    { "path": "openspec/changes/collector-reliability-hardening/specs/reply-assist/spec.md", "sha256": "8908969ada2fbc67ae32721f480974aa1bd7fe816735d916bed1d95a8eaef0c6" },
+    { "path": "openspec/changes/collector-reliability-hardening/specs/web-app/spec.md", "sha256": "42d3af1eaa384ac14b711f5fe44918bd3fff01fdb7c2f506da99616b83db3928" },
+    { "path": "openspec/changes/collector-reliability-hardening/specs/whatsapp-sync/resilience/spec.md", "sha256": "8dca3083ca4d45afdeb73758e2609991312c178a52de64418e6e33aea197b16f" },
+    { "path": "openspec/changes/collector-reliability-hardening/specs/whatsapp-sync/spec.md", "sha256": "0ea6c6dff6d5e45a807dff992f9bd67fb1cdd16475d409ff8193de68d0880713" }
+  ]
+}
