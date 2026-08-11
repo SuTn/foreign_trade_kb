@@ -72,3 +72,28 @@ def test_analyze_customer_full(tmp_data):
     llm = FakeLLM("兴趣:LED; 活跃:高; 建议:报价")
     r = analyze_customer_full(store, llm, "cust1")
     assert "LED" in r
+
+def test_build_chat_summary_group_annotates_sender_name(tmp_data):
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)", ("g1","a1","g1","海外采购群","group",0))
+    store.conn.commit()
+    store.upsert_message(Message("m1", "a1", "g1", False, "8615976909619@c.us", 100,
+                                 "chat", "Hi", True, int(time.time()), "Sonya"))
+    store.upsert_message(Message("m2", "a1", "g1", True, "a1@c.us", 101,
+                                 "chat", "Ok", True, int(time.time())))
+    s = build_chat_summary(store, "g1")
+    assert "Sonya: Hi" in s
+    assert "我: Ok" in s
+
+
+def test_build_chat_summary_single_format_unchanged(tmp_data):
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)", ("c1","a1","c1","Alice","single",0))
+    store.conn.commit()
+    store.upsert_message(Message("m1", "a1", "c1", False, "x@w", 100,
+                                 "chat", "Hi", True, int(time.time())))
+    store.upsert_message(Message("m2", "a1", "c1", True, "a1@w", 101,
+                                 "chat", "Hello", True, int(time.time())))
+    s = build_chat_summary(store, "c1")
+    assert "客户: Hi" in s
+    assert "我: Hello" in s
