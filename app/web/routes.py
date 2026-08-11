@@ -1,5 +1,6 @@
 # app/web/routes.py
 import time, uuid, tempfile
+import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, Request, File, Form
@@ -22,8 +23,31 @@ from app.reply.generator import generate_reply, regenerate_reply
 router = APIRouter()
 
 
-def _store() -> SqliteStore:
-    return SqliteStore()
+def _build_store() -> SqliteStore:
+    """进程级 sqlite 单例: 连接需跨线程共享 (TestClient 各请求可能在不同线程),
+    故以 check_same_thread=False + WAL 重建连接 (顺序访问下安全)。"""
+    store = SqliteStore()
+    store.conn.close()
+    conn = sqlite3.connect(str(store.path), timeout=5.0, check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=5000;")
+    conn.row_factory = sqlite3.Row
+    store.conn = conn
+    return store
+
+
+def _store(request: Request) -> SqliteStore:
+    """返回进程级 sqlite 单例 (lifespan 创建; 测试无 lifespan 时惰性创建并缓存)。"""
+    if not hasattr(request.app.state, "sqlite_store"):
+        request.app.state.sqlite_store = _build_store()
+    return request.app.state.sqlite_store
+
+
+def _chroma_store(request: Request) -> ChromaStore:
+    """返回进程级 chroma 单例 (首次访问惰性创建, 复用 embedding_fn 便于测试替换)。"""
+    if not getattr(request.app.state, "chroma_store", None):
+        request.app.state.chroma_store = ChromaStore(embedding_fn=get_embedding().embed)
+    return request.app.state.chroma_store
 
 
 def _build_stats(store) -> dict:
@@ -53,7 +77,7 @@ def _build_stats(store) -> dict:
 
 @router.get("/")
 async def index(request: Request):
-    stats = _build_stats(_store())
+    stats = _build_stats(_store(request))
     s = read_status(settings.status_path)
     return request.app.state.templates.TemplateResponse(
         request, "home.html",
@@ -67,15 +91,15 @@ async def collector_status():
 
 
 @router.get("/api/stats")
-async def stats():
-    st = _build_stats(_store())
+async def stats(request: Request):
+    st = _build_stats(_store(request))
     s = read_status(settings.status_path)
     return {**st, "collector": {"alive": is_alive(settings.status_path), "status": s or {}}}
 
 
 @router.get("/customers")
 async def customers(request: Request):
-    store = _store()
+    store = _store(request)
     rows = store.conn.execute("SELECT * FROM customers").fetchall()
     profiles_by_customer: dict[str, str] = {}
     for r in store.conn.execute("SELECT customer_id, field, value FROM profiles").fetchall():
@@ -95,7 +119,7 @@ async def customers(request: Request):
 
 @router.get("/customers/{customer_id}")
 async def customer_detail(customer_id: str, request: Request):
-    store = _store()
+    store = _store(request)
     customer = store.conn.execute(
         "SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
     chats = store.conn.execute(
@@ -114,7 +138,7 @@ async def customer_chat_messages(customer_id: str, chat_id: str, request: Reques
     """web-app: 聊天浏览页 — 分页展示该会话历史消息 (含元数据与正文), 支持触发回复。"""
     before_raw = request.query_params.get("before_ts")
     before = int(before_raw) if before_raw and before_raw.isdigit() else None
-    store = _store()
+    store = _store(request)
     msgs = store.list_messages(chat_id, limit=50, before_ts=before)
     kind = None
     try:
@@ -137,7 +161,7 @@ async def customer_chat_messages(customer_id: str, chat_id: str, request: Reques
 @router.post("/customers/{customer_id}/analyze")
 async def customer_analyze(customer_id: str, request: Request):
     """6.4: 生成客户分析 (兴趣点/活跃度/跟进建议)。仅生成不写入画像。"""
-    store = _store()
+    store = _store(request)
     from app.profile.service import analyze_customer_full
     try:
         analysis = analyze_customer_full(store, CloudLLM(), customer_id)
@@ -151,7 +175,7 @@ async def customer_analyze(customer_id: str, request: Request):
 @router.post("/customers/{customer_id}/refresh-profile")
 async def customer_refresh_profile(customer_id: str, request: Request):
     """6.2: 手动重新抽取画像 (auto 来源, 不覆盖 manual)。"""
-    store = _store()
+    store = _store(request)
     from app.profile.service import refresh_customer_profile
     try:
         refresh_customer_profile(store, CloudLLM(), customer_id)
@@ -169,7 +193,7 @@ async def customer_profile_save(customer_id: str, request: Request):
     body = await request.form()
     field = (body.get("field") or "").strip()
     value = (body.get("value") or "").strip()
-    store = _store()
+    store = _store(request)
     if field and value:
         store.upsert_profile_field(customer_id, field, value, source="manual")
     profile = store.get_profile(customer_id)
@@ -180,22 +204,22 @@ async def customer_profile_save(customer_id: str, request: Request):
 
 @router.get("/knowledge")
 async def knowledge(request: Request):
-    docs = _store().list_documents()
+    docs = _store(request).list_documents()
     return request.app.state.templates.TemplateResponse(request, "knowledge.html", {"docs": docs})
 
 
 @router.get("/api/knowledge/list")
-async def knowledge_list():
+async def knowledge_list(request: Request):
     """knowledge-base: 文档列表 (含 chunk/wiki 状态)。"""
-    return {"docs": _store().list_documents()}
+    return {"docs": _store(request).list_documents()}
 
 
 @router.delete("/api/knowledge/{doc_id}")
-async def knowledge_delete(doc_id: str):
+async def knowledge_delete(request: Request, doc_id: str):
     """knowledge-base: 删除文档 (chunks + 向量 + wiki 引用一并清理)。"""
-    store = _store()
+    store = _store(request)
     deleted = store.delete_document(doc_id)
-    ChromaStore(embedding_fn=get_embedding().embed).delete_chunks(doc_id)
+    _chroma_store(request).delete_chunks(doc_id)
     return {"deleted": deleted, "doc_id": doc_id}
 
 
@@ -204,8 +228,8 @@ async def knowledge_search(request: Request):
     """knowledge-base: 检索测试 — 返回含来源文档与片段的检索结果。"""
     p = await _reply_params(request)
     query = p.get("message") or ""
-    store = _store()
-    vs = ChromaStore(embedding_fn=get_embedding().embed)
+    store = _store(request)
+    vs = _chroma_store(request)
     # 向量召回 + BM25 关键词召回, 合并去重
     vec = vs.query_chunks(query, top_k=5)
     bm25 = store.search_fts("doc_chunks", query, limit=5)
@@ -249,8 +273,8 @@ def _render_reply_result(request: Request, customer_id: str, chat_id: str,
 @router.post("/api/reply")
 async def reply(request: Request):
     p = await _reply_params(request)
-    store = _store()
-    vs = ChromaStore(embedding_fn=get_embedding().embed)
+    store = _store(request)
+    vs = _chroma_store(request)
     pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
     result = generate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
                             style=p.get("style") or "default")
@@ -261,8 +285,8 @@ async def reply(request: Request):
 async def reply_regenerate(request: Request):
     """reply-assist: 为同一条消息重新生成获得不同候选回复。"""
     p = await _reply_params(request)
-    store = _store()
-    vs = ChromaStore(embedding_fn=get_embedding().embed)
+    store = _store(request)
+    vs = _chroma_store(request)
     pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
     result = regenerate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
                               previous_style=p.get("style") or "default")
@@ -270,9 +294,9 @@ async def reply_regenerate(request: Request):
 
 
 @router.post("/api/knowledge/upload")
-async def upload(file: bytes = File(...), filename: str = Form(...)):
+async def upload(request: Request, file: bytes = File(...), filename: str = Form(...)):
     doc_id = str(uuid.uuid4())
-    store = _store()
+    store = _store(request)
     store.conn.execute(
         "INSERT INTO documents VALUES(?,?,?,?,?,?)",
         (doc_id, filename, filename.split(".")[-1], "docreader", "processing", int(time.time())),
@@ -285,7 +309,7 @@ async def upload(file: bytes = File(...), filename: str = Form(...)):
         text = parse_document(tmp.name)
     finally:
         Path(tmp.name).unlink(missing_ok=True)
-    RagIndex(store, ChromaStore(embedding_fn=get_embedding().embed)).index(doc_id, text)
+    RagIndex(store, _chroma_store(request)).index(doc_id, text)
     # Wiki 索引失败不影响 RAG 索引 (双索引互不阻塞)
     try:
         WikiIndex(store, CloudLLM(), get_embedding()).index(doc_id, text)
@@ -295,14 +319,14 @@ async def upload(file: bytes = File(...), filename: str = Form(...)):
 
 
 @router.post("/api/collector/backfill")
-async def collector_backfill(body: dict):
+async def collector_backfill(request: Request, body: dict):
     """3.7: 按需历史回溯 — 触发采集器滚动当前会话加载更早消息。
     body: {chat_id?: str, max_scrolls?: int}。
     采集器为独立进程, 实际滚动由采集器读取 status 触发或 CLI 执行;
     此端点记录请求意图供采集器轮询, 返回 accepted。"""
     chat_id = body.get("chat_id")
     max_scrolls = int(body.get("max_scrolls", 10))
-    store = _store()
+    store = _store(request)
     store.conn.execute(
         "CREATE TABLE IF NOT EXISTS backfill_requests "
         "(id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, max_scrolls INTEGER, requested_at INTEGER, done INTEGER DEFAULT 0)"
@@ -316,5 +340,5 @@ async def collector_backfill(body: dict):
 
 
 @router.post("/api/knowledge/export-vault")
-async def export_v():
-    return {"exported": export_vault(_store(), settings.vault_export_dir)}
+async def export_v(request: Request):
+    return {"exported": export_vault(_store(request), settings.vault_export_dir)}
