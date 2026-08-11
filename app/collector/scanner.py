@@ -30,6 +30,9 @@ class Scanner:
         self._matched_chats: set[str] = set()
         self._profile_pending: set[tuple[str, str]] = set()  # (customer_id, chat_id) 待抽取画像
         self._current_chat_id: str | None = None  # 由 slow_tick 推导的当前会话 JID
+        self._cdp_failures = 0  # 连续致命 CDP 失败计数 (>=3 触发重建)
+        self._pw = None  # Playwright 实例 (重建时关闭旧实例)
+        self._context = None  # 持久上下文 (重建时关闭旧实例)
 
     async def fast_tick(self):
         """DOM 增量: hash 不变则跳过。心跳每个 tick 都写, 避免空闲时误判死。"""
@@ -328,23 +331,76 @@ class Scanner:
     async def run(self):
         last_slow = 0.0
         last_scan = -1e9  # 启动即扫描全部会话 (首次知识构建)
+        backoff = 1.0
         while True:
-            await self.fast_tick()
-            if time.time() - last_slow >= settings.slow_tick_sec:
+            try:
+                await self.fast_tick()
+                if time.time() - last_slow >= settings.slow_tick_sec:
+                    try:
+                        await self.slow_tick()
+                    except Exception:
+                        pass  # IDB 校准失败不阻塞主循环
+                    last_slow = time.time()
+                if settings.auto_scan_chats and self.page is not None and time.time() - last_scan >= settings.auto_scan_interval_sec:
+                    try:
+                        await self.scan_all_chats()
+                    except Exception:
+                        pass  # 扫描失败不阻塞主循环
+                    last_scan = time.time()
+                await self._drain_backfill_requests()
+                await self._drain_profile_updates()
+                backoff = 1.0  # 成功一轮, 重置退避
+            except Exception as e:
+                # 记录但不退出; CDP 致命失败连续累积触发重建
+                await self._record_cdp_failure(e)
                 try:
-                    await self.slow_tick()
+                    write_status(settings.status_path, {"state": "error", "error": str(e)[:200]})
                 except Exception:
-                    pass  # IDB 校准失败不阻塞主循环
-                last_slow = time.time()
-            if settings.auto_scan_chats and self.page is not None and time.time() - last_scan >= settings.auto_scan_interval_sec:
-                try:
-                    await self.scan_all_chats()
-                except Exception:
-                    pass  # 扫描失败不阻塞主循环
-                last_scan = time.time()
-            await self._drain_backfill_requests()
-            await self._drain_profile_updates()
+                    pass
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 30.0)  # 指数退避 1s→30s 上限
             await asyncio.sleep(settings.fast_tick_sec + random.uniform(0, settings.fast_tick_jitter))
+
+    async def _run_once(self):
+        """供测试驱动单轮 fast_tick (不含 sleep 与退避): 异常分类/致命计数/阈值重建。"""
+        try:
+            await self.fast_tick()
+        except Exception as e:
+            await self._record_cdp_failure(e)
+
+    async def _record_cdp_failure(self, e: Exception):
+        """CDP 异常分类: 致命则累积计数 (>=3 触发重建), 瞬时异常归零计数。"""
+        if self._is_cdp_fatal(e):
+            self._cdp_failures += 1
+            if self._cdp_failures >= 3:
+                try:
+                    await self._reconnect()
+                except Exception:
+                    pass  # 重连失败继续退避, 下一轮重试
+        else:
+            self._cdp_failures = 0
+
+    def _is_cdp_fatal(self, e: Exception) -> bool:
+        """判断异常是否属于 CDP/浏览器连接失效 (致命, 需重建)。宽匹配, 误判回退可重试。"""
+        msg = str(e).lower()
+        return any(k in msg for k in ("target closed", "connection", "session", "protocol error",
+                                      "page crashed", "context was destroyed", "browser has been disconnected"))
+
+    async def _reconnect(self):
+        """重建浏览器连接并重置会话状态。失败抛回主循环继续退避。"""
+        from app.collector.browser import launch_browser
+        for old in (self._pw, self._context):
+            try:
+                if old is not None:
+                    await old.close()
+            except Exception:
+                pass
+        pw, context, page, cdp = await launch_browser()
+        self._pw, self._context, self.page, self.cdp = pw, context, page, cdp
+        self._current_chat_id = None
+        self._last_dom_hash = None
+        self._cdp_failures = 0
+        self._matched_chats = set()
 
     async def _drain_profile_updates(self):
         """执行待抽取画像任务 (每客户一次): LLM 在 executor 中跑, 不阻塞事件循环。"""
