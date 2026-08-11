@@ -216,7 +216,7 @@ git commit -m "fix: 采集器主循环自愈 + CDP 失效阈值重建"
 - Consumes: `app/collector` 的 `main()`、`app.web.app:create_app`
 - Produces: `app/__main__.py` 的 supervisor 循环；采集器非 0 退出码
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 # 追加到 tests/test_main.py
@@ -253,12 +253,12 @@ def test_collector_exit_code_on_error(monkeypatch):
     assert raised == [1]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/test_main.py -v`
 Expected: FAIL（`_fail` 未定义）
 
-- [ ] **Step 3: 实现 supervisor**
+- [x] **Step 3: 实现 supervisor**
 
 修改 `app/__main__.py`：
 
@@ -284,7 +284,7 @@ def main():
     uvicorn.run("app.web.app:create_app", factory=True, host="127.0.0.1", port=8000)
 ```
 
-- [ ] **Step 4: 实现采集器退出码**
+- [x] **Step 4: 实现采集器退出码**
 
 修改 `app/collector/__main__.py`：
 
@@ -300,12 +300,12 @@ async def main():
         sys.exit(1)
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/test_main.py tests/collector/test_resilience.py -v`
 Expected: PASS
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add app/__main__.py app/collector/__main__.py tests/test_main.py
