@@ -17,14 +17,14 @@
 
 - [x] 3.1 `create_app()` 加 lifespan 持有 `app.state.sqlite_store`/`app.state.chroma_store`，退出时关闭
 - [x] 3.2 路由全部改为读 `request.app.state.*` 单例，删除每请求 `_store()`/`ChromaStore(...)` 新建
-- [ ] 3.3 embedding/reranker 在 lifespan 后台线程预热；首次接口调用未就绪时有超时降级
+- [x] 3.3 embedding/reranker 在 lifespan 后台线程预热；首次接口调用未就绪时有超时降级
 
 ## 4. 接口错误降级 (D5)
 
-- [ ] 4.1 `/api/reply` 与 `/api/reply/regenerate` try/except，失败渲染 `reply_result.html` 带 error 字段
-- [ ] 4.2 `/api/knowledge/search` 嵌入失败降级为 BM25-only + degraded 提示
-- [ ] 4.3 `OllamaReranker.rerank` 网络/HTTP 失败回退原序候选并打日志
-- [ ] 4.4 单测：reply 失败路径返回降级不抛 500；OllamaReranker 网络失败回退原序
+- [x] 4.1 `/api/reply` 与 `/api/reply/regenerate` try/except，失败渲染 `reply_result.html` 带 error 字段
+- [x] 4.2 `/api/knowledge/search` 嵌入失败降级为 BM25-only + degraded 提示
+- [x] 4.3 `OllamaReranker.rerank` 网络/HTTP 失败回退原序候选并打日志
+- [x] 4.4 单测：reply 失败路径返回降级不抛 500；OllamaReranker 网络失败回退原序
 
 ## 5. 上传状态机与坏文件处理 (D6)
 

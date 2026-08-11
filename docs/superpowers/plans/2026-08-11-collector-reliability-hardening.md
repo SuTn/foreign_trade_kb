@@ -530,7 +530,7 @@ git commit -m "fix: Web 进程级 store 单例（lifespan 持有）"
 - Consumes: `generate_reply`、`regenerate_reply`、`_render_reply_result`
 - Produces: `_render_reply_result(..., error=str)`；search 结果带 `degraded` 字段
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 # 追加 tests/rag/test_reranker.py
@@ -548,12 +548,12 @@ def test_ollama_reranker_network_failure_returns_original(monkeypatch):
     assert [c["text"] for c in ranked] == ["a", "b"]  # 原序回退
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/rag/test_reranker.py -k "network_failure" -v`
 Expected: FAIL（当前 raise_for_status 抛错无回退）
 
-- [ ] **Step 3: 实现 OllamaReranker 失败回退**
+- [x] **Step 3: 实现 OllamaReranker 失败回退**
 
 修改 `app/rag/reranker.py` 的 `OllamaReranker.rerank`：
 
@@ -583,7 +583,7 @@ def rerank(self, query, candidates, top_k=8):
         return candidates[:top_k]  # 原序回退
 ```
 
-- [ ] **Step 4: 实现 reply/search 降级**
+- [x] **Step 4: 实现 reply/search 降级**
 
 修改 `app/web/routes.py`：
 
@@ -618,12 +618,12 @@ except Exception:
 merged_degraded = "向量检索不可用" if vec_failed else None
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/rag/test_reranker.py tests/web/test_routes.py -v`
 Expected: PASS
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add app/web/routes.py app/web/templates/reply_result.html app/rag/reranker.py tests/rag/test_reranker.py
