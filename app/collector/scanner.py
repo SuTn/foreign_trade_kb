@@ -19,7 +19,7 @@ def is_alive(path: Path, timeout: float | None = None) -> bool:
     return (time.time() - s.get("last_heartbeat", 0)) < timeout
 
 class Scanner:
-    def __init__(self, cdp, store, vector_store, account_id="me", page=None, llm=None):
+    def __init__(self, cdp, store, vector_store, account_id="me", page=None, llm=None, pw=None, context=None):
         self.cdp = cdp
         self.store = store
         self.vector_store = vector_store
@@ -31,8 +31,8 @@ class Scanner:
         self._profile_pending: set[tuple[str, str]] = set()  # (customer_id, chat_id) 待抽取画像
         self._current_chat_id: str | None = None  # 由 slow_tick 推导的当前会话 JID
         self._cdp_failures = 0  # 连续致命 CDP 失败计数 (>=3 触发重建)
-        self._pw = None  # Playwright 实例 (重建时关闭旧实例)
-        self._context = None  # 持久上下文 (重建时关闭旧实例)
+        self._pw = pw  # Playwright 实例 (重建时关闭旧实例)
+        self._context = context  # 持久上下文 (重建时关闭旧实例)
 
     async def fast_tick(self):
         """DOM 增量: hash 不变则跳过。心跳每个 tick 都写, 避免空闲时误判死。"""
