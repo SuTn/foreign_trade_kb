@@ -48,3 +48,16 @@ def test_cloud_llm_carries_api_base(monkeypatch):
     assert llm.provider == "openai"
     assert llm.api_base == "https://llm.example.com/v1"
     assert llm._resolve_key() == "sk-test"  # 不回退环境变量
+
+def test_use_fp16_cpu_only_false(monkeypatch):
+    from app.llm.device_utils import use_fp16
+
+    monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+    assert use_fp16() is False
+
+
+def test_use_fp16_gpu_true(monkeypatch):
+    from app.llm.device_utils import use_fp16
+
+    monkeypatch.setattr("torch.cuda.is_available", lambda: True)
+    assert use_fp16() is True

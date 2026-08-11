@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from app.config import settings
+from app.llm.device_utils import use_fp16
 
 
 class Reranker(ABC):
@@ -31,7 +32,7 @@ class BgeReranker(Reranker):
             key = self._name
             if key not in BgeReranker._model_cache:
                 from FlagEmbedding import FlagReranker
-                BgeReranker._model_cache[key] = FlagReranker(key, use_fp16=True)
+                BgeReranker._model_cache[key] = FlagReranker(key, use_fp16=use_fp16())
             self._model = BgeReranker._model_cache[key]
 
     def rerank(self, query, candidates, top_k=8):

@@ -2,6 +2,7 @@
 from typing import Any
 from app.llm.interfaces import Embedding
 from app.config import settings
+from app.llm.device_utils import use_fp16
 
 
 class BgeEmbedding(Embedding):
@@ -18,7 +19,7 @@ class BgeEmbedding(Embedding):
             key = self._model_name
             if key not in BgeEmbedding._model_cache:
                 from FlagEmbedding import BGEM3FlagModel
-                BgeEmbedding._model_cache[key] = BGEM3FlagModel(key, use_fp16=True)
+                BgeEmbedding._model_cache[key] = BGEM3FlagModel(key, use_fp16=use_fp16())
             self._model = BgeEmbedding._model_cache[key]
 
     def embed(self, text: str) -> list[float]:
