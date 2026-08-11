@@ -1,5 +1,5 @@
 workflow: full
-phase: verify
+phase: archive
 context_compression: off
 build_mode: subagent-driven-development
 build_pause: null
@@ -12,11 +12,11 @@ auto_transition: true
 base_ref: ab460c5668c37aec5098ad032ef1b7678ec32e61
 design_doc: docs/superpowers/specs/2026-08-11-collector-reliability-hardening-design.md
 plan: docs/superpowers/plans/2026-08-11-collector-reliability-hardening.md
-verify_result: pending
+verify_result: pass
 verification_report: docs/superpowers/reports/2026-08-11-collector-reliability-hardening-verify.md
 branch_status: handled
 created_at: 2026-08-11
-verified_at: null
+verified_at: 2026-08-11
 archived: false
 handoff_context: openspec/changes/collector-reliability-hardening/.comet/handoff/design-context.json
 handoff_hash: 83bc286be4d4c8486fe5f90556147df1723830223136ecaa2e46bd98f7f387d2
