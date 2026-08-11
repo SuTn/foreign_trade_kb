@@ -75,3 +75,11 @@ async def test_walk_idb_group_metadata_missing_silently_empty(monkeypatch):
     cdp = FakeCDP({"group-metadata": None})
     data = await idb_walk.walk_idb(cdp, "me")
     assert data["groups"] == {}
+
+
+def test_read_store_js_has_limit():
+    from app.config import settings
+
+    js = idb_walk._read_store_js("message")
+    assert "openCursor" in js or "limit" in js
+    assert str(settings.max_records_per_store) in js

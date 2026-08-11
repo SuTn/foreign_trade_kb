@@ -18,12 +18,19 @@ _STORE_JS_TEMPLATE = """
         var db = req.result;
         if (!db.objectStoreNames.contains('__STORE__')) { db.close(); resolve([]); return; }
         var st = db.transaction('__STORE__', 'readonly').objectStore('__STORE__');
-        var g = st.getAll();
-        g.onerror = function() { resolve(null); };
-        g.onsuccess = function() {
-          var out = (g.result || []).map(__MAPPING__);
-          db.close();
-          resolve(out);
+        var out = [];
+        var limit = __LIMIT__;
+        var curReq = st.openCursor();
+        curReq.onerror = function() { resolve(null); };
+        curReq.onsuccess = function() {
+          var cur = curReq.result;
+          if (!cur || out.length >= limit) {
+            db.close();
+            resolve(out);
+            return;
+          }
+          out.push(__MAPPING__(cur.value));
+          cur["continue"]();
         };
       } catch (e) { resolve(null); }
     };
@@ -80,6 +87,7 @@ def _read_store_js(store: str) -> str:
     return (_STORE_JS_TEMPLATE
             .replace("__DB__", settings.idb_database)
             .replace("__STORE__", store)
+            .replace("__LIMIT__", str(settings.max_records_per_store))
             .replace("__MAPPING__", mapping))
 
 
