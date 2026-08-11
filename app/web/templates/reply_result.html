@@ -1,4 +1,8 @@
 <div class="result-card">
+  {% if error %}
+  <p><strong>回复生成失败</strong></p>
+  <p class="muted">{{ error }}</p>
+  {% else %}
   <p><strong>建议回复</strong> <span class="tag">风格: {{ style }}</span></p>
   <textarea class="input" rows="4" style="width:100%">{{ reply }}</textarea>
   <button class="btn" hx-post="/api/reply/regenerate"
@@ -14,4 +18,5 @@
       {% endfor %}
     </ul>
   </details>
+  {% endif %}
 </div>

@@ -6,6 +6,7 @@
 此处委托给 FakeReranker 以保持可导入且无副作用。
 """
 from abc import ABC, abstractmethod
+import logging
 from typing import Any
 
 from app.config import settings
@@ -66,21 +67,26 @@ class OllamaReranker(Reranker):
         if not candidates:
             return []
         import httpx
-        resp = httpx.post(
-            f"{self.api_base}/rerank",
-            json={"model": self._name, "query": query,
-                  "documents": [c.get("text", "") for c in candidates]},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-        ranked = sorted(results, key=lambda r: r.get("relevance_score", 0.0), reverse=True)
-        out = []
-        for r in ranked[:top_k]:
-            idx = r.get("index", 0)
-            if 0 <= idx < len(candidates):
-                out.append({**candidates[idx], "score": r.get("relevance_score")})
-        return out
+        try:
+            resp = httpx.post(
+                f"{self.api_base}/rerank",
+                json={"model": self._name, "query": query,
+                      "documents": [c.get("text", "") for c in candidates]},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+            ranked = sorted(results, key=lambda r: r.get("relevance_score", 0.0), reverse=True)
+            out = []
+            for r in ranked[:top_k]:
+                idx = r.get("index", 0)
+                if 0 <= idx < len(candidates):
+                    out.append({**candidates[idx], "score": r.get("relevance_score")})
+            return out
+        except Exception as e:
+            logging.getLogger(__name__).warning(
+                f"reranker unavailable, fallback to original order: {e}")
+            return candidates[:top_k]  # 原序回退
 
 
 class FakeReranker(Reranker):

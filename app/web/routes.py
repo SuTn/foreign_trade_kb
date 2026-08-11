@@ -22,6 +22,25 @@ from app.reply.generator import generate_reply, regenerate_reply
 
 router = APIRouter()
 
+WARMUP_TIMEOUT_SEC = 30.0  # 首次请求等待模型预热就绪的超时 (3.3)
+
+
+def _embedding(request: Request):
+    """返回进程级 embedding 实例 (lifespan 预热共享; 无 lifespan 时惰性创建)。"""
+    emb = getattr(request.app.state, "embedding", None)
+    if emb is None:
+        emb = get_embedding()
+        request.app.state.embedding = emb
+    return emb
+
+
+def _embedding_ready(request: Request) -> bool:
+    """等待模型预热完成 (有超时)。无 lifespan/无预热机制视为已就绪。"""
+    ready = getattr(request.app.state, "embedding_ready", None)
+    if ready is None:
+        return True
+    return ready.wait(WARMUP_TIMEOUT_SEC)
+
 
 def _build_store() -> SqliteStore:
     """进程级 sqlite 单例: 连接需跨线程共享 (TestClient 各请求可能在不同线程),
@@ -44,9 +63,14 @@ def _store(request: Request) -> SqliteStore:
 
 
 def _chroma_store(request: Request) -> ChromaStore:
-    """返回进程级 chroma 单例 (首次访问惰性创建, 复用 embedding_fn 便于测试替换)。"""
+    """返回进程级 chroma 单例 (首次访问惰性创建, 复用 embedding_fn 便于测试替换)。
+
+    模型预热未就绪时按 WARMUP_TIMEOUT_SEC 等待, 超时抛错由调用方降级。
+    """
     if not getattr(request.app.state, "chroma_store", None):
-        request.app.state.chroma_store = ChromaStore(embedding_fn=get_embedding().embed)
+        if not _embedding_ready(request):
+            raise RuntimeError("embedding 模型预热超时未就绪, 请稍后重试")
+        request.app.state.chroma_store = ChromaStore(embedding_fn=_embedding(request).embed)
     return request.app.state.chroma_store
 
 
@@ -229,9 +253,15 @@ async def knowledge_search(request: Request):
     p = await _reply_params(request)
     query = p.get("message") or ""
     store = _store(request)
-    vs = _chroma_store(request)
-    # 向量召回 + BM25 关键词召回, 合并去重
-    vec = vs.query_chunks(query, top_k=5)
+    degraded = None
+    vec = []
+    # 向量召回 + BM25 关键词召回, 合并去重; 嵌入失败降级为 BM25-only
+    try:
+        vs = _chroma_store(request)
+        vec = vs.query_chunks(query, top_k=5)
+    except Exception:
+        degraded = "向量检索不可用"
+        vec = []
     bm25 = store.search_fts("doc_chunks", query, limit=5)
     # FTS 外部内容表不含 doc_id, 需 join 回 doc_chunks
     doc_lookup = {}
@@ -247,8 +277,11 @@ async def knowledge_search(request: Request):
         if r["text"] in seen: continue
         seen.add(r["text"])
         merged.append({"source": "bm25", "doc_id": doc_lookup.get(r["text"]), "text": r["text"]})
+    if degraded:
+        merged.insert(0, {"source": "degraded", "doc_id": None, "text": degraded})
     return request.app.state.templates.TemplateResponse(
-        request, "knowledge_search.html", {"query": query, "results": merged})
+        request, "knowledge_search.html",
+        {"query": query, "results": merged, "degraded": degraded})
 
 
 async def _reply_params(request: Request) -> dict:
@@ -265,8 +298,9 @@ def _render_reply_result(request: Request, customer_id: str, chat_id: str,
     return request.app.state.templates.TemplateResponse(
         request, "reply_result.html",
         {"customer_id": customer_id, "chat_id": chat_id, "message": message,
-         "reply": result["reply"],
-         "sources": result.get("sources", []), "style": result.get("style", "default")},
+         "reply": result.get("reply", ""),
+         "sources": result.get("sources", []), "style": result.get("style", "default"),
+         "error": result.get("error")},
     )
 
 
@@ -274,10 +308,14 @@ def _render_reply_result(request: Request, customer_id: str, chat_id: str,
 async def reply(request: Request):
     p = await _reply_params(request)
     store = _store(request)
-    vs = _chroma_store(request)
-    pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
-    result = generate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
-                            style=p.get("style") or "default")
+    try:
+        vs = _chroma_store(request)
+        pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
+        result = generate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
+                                style=p.get("style") or "default")
+    except Exception as e:
+        result = {"reply": "", "sources": [], "style": p.get("style") or "default",
+                  "error": str(e)[:300]}
     return _render_reply_result(request, p["customer_id"], p["chat_id"], p["message"], result)
 
 
@@ -286,10 +324,14 @@ async def reply_regenerate(request: Request):
     """reply-assist: 为同一条消息重新生成获得不同候选回复。"""
     p = await _reply_params(request)
     store = _store(request)
-    vs = _chroma_store(request)
-    pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
-    result = regenerate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
-                              previous_style=p.get("style") or "default")
+    try:
+        vs = _chroma_store(request)
+        pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
+        result = regenerate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
+                                  previous_style=p.get("style") or "default")
+    except Exception as e:
+        result = {"reply": "", "sources": [], "style": p.get("style") or "default",
+                  "error": str(e)[:300]}
     return _render_reply_result(request, p["customer_id"], p["chat_id"], p["message"], result)
 
 

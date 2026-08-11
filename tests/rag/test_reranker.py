@@ -39,6 +39,21 @@ def test_ollama_reranker_parses_results(monkeypatch):
     assert ranked[0]["score"] == 0.9
 
 
+def test_ollama_reranker_network_failure_returns_original(monkeypatch):
+    """4.3: OllamaReranker 网络失败回退原序候选, 不抛异常。"""
+    import httpx
+    from app.rag.reranker import OllamaReranker
+
+    def boom_post(url, json, timeout):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(httpx, "post", boom_post)
+    r = OllamaReranker(model="m", api_base="http://localhost:11434/v1")
+    cands = [{"text": "a"}, {"text": "b"}]
+    ranked = r.rerank("q", cands, top_k=2)
+    assert [c["text"] for c in ranked] == ["a", "b"]
+
+
 def test_bge_reranker_manual_score_no_prepare_for_model(monkeypatch):
     """BgeReranker 用手动 tokenizer+model 打分, 不依赖 FlagEmbedding compute_score
     (其内部调用 prepare_for_model, transformers>=5 已移除)。"""

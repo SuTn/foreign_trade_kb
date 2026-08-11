@@ -327,6 +327,163 @@ def test_chat_page_group_renders_sender_name(tmp_data):
     assert "Sonya ·" in html
 
 
+def test_reply_llm_failure_degrades_with_error(tmp_data, monkeypatch):
+    """4.1: /api/reply LLM 失败返回可读降级 (200), 不抛 500。"""
+    from app.web import routes
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            raise RuntimeError("LLM 不可用")
+
+    class FakeRerank:
+        def rerank(self, q, c, top_k=8):
+            return c[:top_k]
+
+    class FakeEmbed:
+        def embed(self, text):
+            return [1.0] * 8
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    monkeypatch.setattr(routes, "get_reranker", lambda: FakeRerank())
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
+    assert r.status_code == 200
+    assert "LLM 不可用" in r.text
+
+
+def test_regenerate_failure_degrades_with_error(tmp_data, monkeypatch):
+    """4.1: /api/reply/regenerate 失败同样返回降级 (200), 不抛 500。"""
+    from app.web import routes
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            raise RuntimeError("LLM 超时")
+
+    class FakeRerank:
+        def rerank(self, q, c, top_k=8):
+            return c[:top_k]
+
+    class FakeEmbed:
+        def embed(self, text):
+            return [1.0] * 8
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    monkeypatch.setattr(routes, "get_reranker", lambda: FakeRerank())
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/api/reply/regenerate",
+                    data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
+    assert r.status_code == 200
+    assert "LLM 超时" in r.text
+
+
+def test_search_embedding_failure_degrades_to_bm25(tmp_data, monkeypatch):
+    """4.2: 嵌入失败降级为 BM25-only + '向量检索不可用' 标记。"""
+    from app.web import routes
+    from app.storage.sqlite_store import SqliteStore
+
+    class BoomEmbed:
+        def embed(self, text):
+            raise RuntimeError("embedding 模型不可用")
+
+    monkeypatch.setattr(routes, "get_embedding", lambda: BoomEmbed())
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?)",
+                       ("d1", "a.md", "md", "docreader", "done", 1))
+    store.conn.execute("INSERT INTO doc_chunks VALUES(?,?,?,?,?,?)",
+                       ("c1", "d1", 0, "LED 产品规格说明", "0", "c1"))
+    store.conn.execute("INSERT INTO doc_chunks_fts(rowid, text) VALUES((SELECT rowid FROM doc_chunks WHERE id='c1'), ?)",
+                       ("LED 产品规格说明",))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/api/knowledge/search", data={"message": "LED"})
+    assert r.status_code == 200
+    assert "向量检索不可用" in r.text
+    assert "LED 产品规格说明" in r.text  # BM25 结果仍返回
+
+
+def test_reply_degrades_when_embedding_warmup_times_out(tmp_data, monkeypatch):
+    """3.3: 模型预热未就绪超时 → 回复按降级返回 (200), 不抛 500。"""
+    import threading
+    from app.web import routes
+
+    class FakeRerank:
+        def rerank(self, q, c, top_k=8):
+            return c[:top_k]
+
+    monkeypatch.setattr(routes, "get_reranker", lambda: FakeRerank())
+    monkeypatch.setattr(routes, "WARMUP_TIMEOUT_SEC", 0.0)
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    client.app.state.embedding_ready = threading.Event()  # 永不置位 → 等待超时
+    r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
+    assert r.status_code == 200
+    assert "预热超时" in r.text
+
+
+def test_warmup_warms_embedding_and_reranker(monkeypatch):
+    """3.3: 后台预热线程触发 embedding/reranker 加载并置位 ready。"""
+    import threading
+    from app.web import routes
+    from app.web.app import _warmup_models
+
+    calls = []
+
+    class FakeEmbed:
+        def embed(self, text):
+            calls.append("embed")
+            return [1.0] * 8
+
+    class FakeRerank:
+        def rerank(self, q, c, top_k=8):
+            calls.append("rerank")
+            return c[:top_k]
+
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
+    monkeypatch.setattr(routes, "get_reranker", lambda: FakeRerank())
+    monkeypatch.setattr("app.web.app._warmup_enabled", lambda: True)
+    app = create_app()
+    app.state.embedding_ready = threading.Event()
+    _warmup_models(app)
+    assert calls == ["embed", "rerank"]
+    assert app.state.embedding_ready.is_set()
+    assert app.state.embedding is not None
+
+
+def test_lifespan_sets_embedding_ready(tmp_data, monkeypatch):
+    """3.3: lifespan 启动创建 embedding_ready 事件 (测试环境预热被跳过但事件置位)。"""
+    from app.web import routes
+
+    class FakeEmbed:
+        def embed(self, text):
+            return [1.0] * 8
+
+    class FakeRerank:
+        def rerank(self, q, c, top_k=8):
+            return c[:top_k]
+
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
+    monkeypatch.setattr(routes, "get_reranker", lambda: FakeRerank())
+    with TestClient(create_app()) as client:
+        assert hasattr(client.app.state, "embedding_ready")
+        assert client.app.state.embedding_ready.wait(5)
+
+
 def test_chat_page_single_keeps_customer_label(tmp_data):
     """单聊聊天页保持 '客户' 标签。"""
     from app.storage.sqlite_store import SqliteStore
