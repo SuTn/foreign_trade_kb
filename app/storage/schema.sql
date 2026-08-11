@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS wiki_pages(
   source_doc_ids TEXT, entity_type TEXT, updated_at INTEGER);
 CREATE TABLE IF NOT EXISTS wiki_links(from_page_id TEXT, to_page_id TEXT);
 CREATE TABLE IF NOT EXISTS wiki_log_entries(id TEXT PRIMARY KEY, page_id TEXT, action TEXT, ts INTEGER);
+CREATE TABLE IF NOT EXISTS backfill_requests(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, max_scrolls INTEGER,
+  requested_at INTEGER, done INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0);
 -- FTS5
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(body, content='messages', content_rowid='rowid');
 CREATE VIRTUAL TABLE IF NOT EXISTS doc_chunks_fts USING fts5(text, content='doc_chunks', content_rowid='rowid');

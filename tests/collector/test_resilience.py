@@ -236,3 +236,98 @@ def test_reconnect_rebuilds_browser_and_resets_state(tmp_data, monkeypatch):
     assert sc._matched_chats == set()
     assert sc.page is not None and sc.cdp is not None
     assert sc._pw is not None and sc._context is not None
+
+
+class NoScrollCDP:
+    async def scroll_conversation_up(self):
+        return False
+
+
+class BoomScrollCDP:
+    async def scroll_conversation_up(self):
+        raise RuntimeError("scroll failed")
+
+
+def _mem_store():
+    """内存 SQLite store: conn 含 backfill_requests 表 (含 attempts 列)。"""
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "CREATE TABLE backfill_requests(id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, "
+        "max_scrolls INTEGER, requested_at INTEGER, done INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0)")
+    conn.commit()
+    store = ReconnectableStore()
+    store.conn = conn
+    return store
+
+
+def _broken_conn_store():
+    """conn.execute 一律抛错, 模拟 backfill_requests 表缺失。"""
+    store = ReconnectableStore()
+    store.conn = type("C", (), {"execute": lambda self, q, p=None: (_ for _ in ()).throw(Exception("no such table"))})()
+    return store
+
+
+def _insert_backfill(store, chat_id="c1", max_scrolls=1, attempts=0):
+    store.conn.execute(
+        "INSERT INTO backfill_requests(chat_id, max_scrolls, requested_at, attempts) VALUES(?,?,?,?)",
+        (chat_id, max_scrolls, 0, attempts))
+    store.conn.commit()
+
+
+def test_drain_backfill_table_missing_no_error(tmp_data):
+    """backfill_requests 表缺失时轮询不抛错 (已探测则静默返回)。"""
+    scanner = Scanner(ScriptedCDP([{}]), _broken_conn_store(), NoopVector())
+    scanner._backfill_table_checked = True  # 跳过探测
+    asyncio.run(scanner._drain_backfill_requests())
+
+
+def test_drain_backfill_probe_missing_table_sets_checked(tmp_data):
+    """首次调用探测表存在性: 缺失则置 _backfill_table_checked 并静默返回。"""
+    scanner = Scanner(ScriptedCDP([{}]), _broken_conn_store(), NoopVector())
+    assert scanner._backfill_table_checked is False
+    asyncio.run(scanner._drain_backfill_requests())
+    assert scanner._backfill_table_checked is True
+
+
+def test_drain_backfill_success_marks_done(tmp_data):
+    """成功回溯: done 置 1, attempts 不变。"""
+    store = _mem_store()
+    _insert_backfill(store)
+    scanner = Scanner(NoScrollCDP(), store, NoopVector())
+    scanner._backfill_table_checked = True
+    asyncio.run(scanner._drain_backfill_requests())
+    r = store.conn.execute("SELECT done, attempts FROM backfill_requests").fetchone()
+    assert r["done"] == 1 and r["attempts"] == 0
+
+
+def test_drain_backfill_failure_increments_attempts(tmp_data):
+    """回溯失败: attempts+1, done 保持 0。"""
+    store = _mem_store()
+    _insert_backfill(store)
+    scanner = Scanner(BoomScrollCDP(), store, NoopVector())
+    scanner._backfill_table_checked = True
+    asyncio.run(scanner._drain_backfill_requests())
+    r = store.conn.execute("SELECT done, attempts FROM backfill_requests").fetchone()
+    assert r["done"] == 0 and r["attempts"] == 1
+
+
+def test_drain_backfill_skips_rows_at_attempts_limit(tmp_data):
+    """attempts>=3 的行不再被选取, 保持待处理状态。"""
+    store = _mem_store()
+    _insert_backfill(store, attempts=3)
+    scanner = Scanner(NoScrollCDP(), store, NoopVector())
+    scanner._backfill_table_checked = True
+    asyncio.run(scanner._drain_backfill_requests())
+    r = store.conn.execute("SELECT done, attempts FROM backfill_requests").fetchone()
+    assert r["done"] == 0 and r["attempts"] == 3
+
+
+def test_drain_backfill_no_debug_walk_side_effect(tmp_data):
+    """死代码块已删: drain 不写 debug_walk.json, 也不因未定义 data 抛错。"""
+    store = _mem_store()
+    scanner = Scanner(NoScrollCDP(), store, NoopVector())
+    scanner._backfill_table_checked = True
+    asyncio.run(scanner._drain_backfill_requests())
+    assert not (settings.data_dir / "debug_walk.json").exists()

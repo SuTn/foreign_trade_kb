@@ -40,6 +40,7 @@ class Scanner:
         self._cdp_failures = 0  # 连续致命 CDP 失败计数 (>=3 触发重建)
         self._pw = pw  # Playwright 实例 (重建时关闭旧实例)
         self._context = context  # 持久上下文 (重建时关闭旧实例)
+        self._backfill_table_checked = False  # backfill_requests 表存在性已探测
 
     async def fast_tick(self):
         """DOM 增量: hash 不变则跳过。心跳每个 tick 都写, 避免空闲时误判死。"""
@@ -440,32 +441,28 @@ class Scanner:
             worker.conn.close()
 
     async def _drain_backfill_requests(self):
-        """处理 Web 提交的按需历史回溯请求 (backfill_requests 表)。"""
+        """处理 Web 提交的按需历史回溯请求。表缺失静默跳过；失败 attempts+1 不标 done。"""
+        if not self._backfill_table_checked:
+            try:
+                self.store.conn.execute("SELECT 1 FROM backfill_requests LIMIT 1").fetchall()
+            except Exception:
+                self._backfill_table_checked = True
+                return
+            self._backfill_table_checked = True
         try:
             rows = self.store.conn.execute(
-                "SELECT id, chat_id, max_scrolls FROM backfill_requests WHERE done=0"
+                "SELECT id, chat_id, max_scrolls, attempts FROM backfill_requests WHERE done=0 AND attempts<3"
             ).fetchall()
         except Exception:
-            return  # 表不存在 (旧库) 则跳过
+            return
         for r in rows:
             try:
-                await self.backfill_history(
-                    chat_id=r["chat_id"], max_scrolls=r["max_scrolls"] or 10
-                )
+                await self.backfill_history(chat_id=r["chat_id"], max_scrolls=r["max_scrolls"] or 10)
+                self.store.conn.execute("UPDATE backfill_requests SET done=1 WHERE id=?", (r["id"],))
             except Exception:
-                pass
-            self.store.conn.execute(
-                "UPDATE backfill_requests SET done=1 WHERE id=?", (r["id"],)
-            )
+                self.store.conn.execute(
+                    "UPDATE backfill_requests SET attempts=attempts+1 WHERE id=?", (r["id"],))
         self.store.conn.commit()
-        try:
-            import json
-            (settings.data_dir / "debug_walk.json").write_text(
-                json.dumps(list((data.get("contacts") or {}).items())[:3] or [] +
-                           list(data.get("contact_keys") or [])[:3],
-                           ensure_ascii=False), encoding="utf-8")
-        except Exception:
-            pass
 
 def parse_dom_snapshot_safe(snap, chat_id=None):
     from app.collector.dom_snapshot import parse_dom_snapshot
