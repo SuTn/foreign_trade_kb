@@ -13,9 +13,9 @@
 
 ## 3. 采集器群聊识别与发送者解析
 
-- [ ] 3.1 `scanner._merge_idb_dom`：chat 以 `@g.us` 结尾 → 标记 group；解析入站发送者显示名（contacts → 群成员表 → DOM 显示名 → JID 回退），写入 `sender_name`
-- [ ] 3.2 `scanner._upsert_one`：`kind` 按群聊/单聊写入 `chats`（群聊用群名作 display_name）；`Message` 构造携带 `sender_name`
-- [ ] 3.3 补测试：群聊消息入库 kind=group、sender_name 正确；成员名缺失回退 JID；单聊行为不变（既有测试通过）
+- [x] 3.1 `scanner._merge_idb_dom`：chat 以 `@g.us` 结尾 → 标记 group；解析入站发送者显示名（contacts → 群成员表 → DOM 显示名 → JID 回退），写入 `sender_name`
+- [x] 3.2 `scanner._upsert_one`：`kind` 按群聊/单聊写入 `chats`（群聊用群名作 display_name）；`Message` 构造携带 `sender_name`
+- [x] 3.3 补测试：群聊消息入库 kind=group、sender_name 正确；成员名缺失回退 JID；单聊行为不变（既有测试通过）
 
 ## 4. 复合行净化（DOM 解析）
 

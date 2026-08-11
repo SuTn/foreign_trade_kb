@@ -288,7 +288,7 @@ git commit -m "feat: idb_walk 读取 group-metadata → groups 映射 (防御式
 - Consumes: Task 2 产出 `data["groups"]`；`Message`（Task 1）11 字段位置构造。
 - Produces: `_merge_idb_dom(data, dom_msgs) -> list[dict]` 每条记录新增 `sender_name: str|None`、`kind: "group"|"single"`；群聊 `chatId` = 群 JID（`@g.us`）。`_upsert_one(m)` 对 `@g.us` 会话写入 `chats.kind="group"`、群名作 `display_name`，`Message.sender_name` 随行入库。Task 5/6 依赖 `chats.kind` 与 `messages.sender_name`。
 
-- [ ] **Step 1: `_merge_idb_dom` 群聊识别 + 发送者解析**
+- [x] **Step 1: `_merge_idb_dom` 群聊识别 + 发送者解析**
 
 `app/collector/scanner.py` 第 104-133 行循环体整体替换为：
 
@@ -349,7 +349,7 @@ git commit -m "feat: idb_walk 读取 group-metadata → groups 映射 (防御式
             })
 ```
 
-- [ ] **Step 2: `_upsert_one` kind 按 @g.us 计算 + Message 携带 sender_name**
+- [x] **Step 2: `_upsert_one` kind 按 @g.us 计算 + Message 携带 sender_name**
 
 `app/collector/scanner.py` 第 172-177 行改为：
 
@@ -366,7 +366,7 @@ git commit -m "feat: idb_walk 读取 group-metadata → groups 映射 (防御式
 
 （顺带删除原来"当前采集流程仅同步单聊"的注释。）
 
-- [ ] **Step 3: 写失败测试**
+- [x] **Step 3: 写失败测试**
 
 追加到 `tests/collector/test_scanner.py`：
 
@@ -423,17 +423,17 @@ def test_upsert_group_writes_kind_group_and_sender_name(tmp_data):
     assert msg.sender_name == "Sonya"
 ```
 
-- [ ] **Step 4: 运行并确认失败**
+- [x] **Step 4: 运行并确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/collector/test_scanner.py -k "group" -v`
 Expected: 3 个新测试 FAIL；其余 scanner 测试（单聊 `kind="single"` 等）PASS。
 
-- [ ] **Step 5: 运行并确认通过**
+- [x] **Step 5: 运行并确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/collector/test_scanner.py`
 Expected: 全部 PASS（含既有单聊行为测试 `test_upsert_writes_chat_record` 仍断言 `kind == "single"`）。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add app/collector/scanner.py tests/collector/test_scanner.py
