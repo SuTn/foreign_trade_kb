@@ -41,7 +41,7 @@ base-ref: b5113428e1f06972729d92c2587ae34e7bb26ff8
 - Consumes: 现有 `Message` dataclass 全部 10 个字段（位置参数兼容性必须保留）。
 - Produces: `Message.sender_name: str | None = None`（**追加为最后一个字段，带默认值**，保证既有位置参数构造点不受影响）；`SqliteStore._row_to_msg`/`upsert_message` 读写新列；`schema.sql` messages 表含 `sender_name TEXT`。
 
-- [ ] **Step 1: 更新 schema**
+- [x] **Step 1: 更新 schema**
 
 `app/storage/schema.sql` 的 messages 建表语句改为：
 
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS messages(
   PRIMARY KEY(id, account_id));
 ```
 
-- [ ] **Step 2: 扩展 `Message` dataclass**
+- [x] **Step 2: 扩展 `Message` dataclass**
 
 `app/storage/interfaces.py` 第 10-14 行改为（字段顺序不变，`sender_name` 追加在最后并带默认值）：
 
@@ -66,7 +66,7 @@ class Message:
     sender_name: str | None = None
 ```
 
-- [ ] **Step 3: 幂等迁移 + 读写新列**
+- [x] **Step 3: 幂等迁移 + 读写新列**
 
 `app/storage/sqlite_store.py`：
 
@@ -100,7 +100,7 @@ class Message:
                        r["sender_name"])
 ```
 
-- [ ] **Step 4: 修正既有测试的 10 列 INSERT（schema 列数变化导致的回归）**
+- [x] **Step 4: 修正既有测试的 10 列 INSERT（schema 列数变化导致的回归）**
 
 `tests/web/test_routes.py` 第 12-15 行 `test_stats_endpoint` 的 executemany：
 
@@ -118,7 +118,7 @@ class Message:
     store.conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",("m1","me","ch1",0,"x",1000,"chat","hi",1,0,None))
 ```
 
-- [ ] **Step 5: 写失败测试**
+- [x] **Step 5: 写失败测试**
 
 追加到 `tests/storage/test_sqlite_store.py`：
 
@@ -146,17 +146,17 @@ def test_upsert_message_roundtrips_sender_name(tmp_data):
     assert rows[0].sender_name == "Sonya"
 ```
 
-- [ ] **Step 6: 运行并确认失败**
+- [x] **Step 6: 运行并确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/storage/test_sqlite_store.py`
 Expected: `test_upsert_message_roundtrips_sender_name` FAIL（`TypeError: Message.__init__() got an unexpected keyword argument 'sender_name'`）—— 因为 Task 1 代码尚未全部就位时先看失败。确认后继续实现即可（本任务代码已在前序步骤给出）。
 
-- [ ] **Step 7: 运行并确认通过**
+- [x] **Step 7: 运行并确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/storage/test_sqlite_store.py tests/web/test_routes.py`
 Expected: 全部 PASS（含修正后的 `test_stats_endpoint`/`test_home_shows_stats`）。
 
-- [ ] **Step 8: 提交**
+- [x] **Step 8: 提交**
 
 ```bash
 git add app/storage/schema.sql app/storage/interfaces.py app/storage/sqlite_store.py tests/web/test_routes.py tests/storage/test_sqlite_store.py
