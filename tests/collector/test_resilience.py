@@ -217,6 +217,14 @@ def test_is_cdp_fatal_matches_disconnect_keywords():
         assert not sc._is_cdp_fatal(Exception(msg)), msg
 
 
+def test_is_cdp_fatal_matches_browser_closed_keywords():
+    """Playwright 真实浏览器崩溃消息 (Target page, context or browser has been closed) 判致命。"""
+    sc = Scanner(None, None, None)
+    assert sc._is_cdp_fatal(Exception("Browser has been closed"))
+    assert sc._is_cdp_fatal(Exception("Target page, context or browser has been closed"))
+    assert sc._is_cdp_fatal(Exception("Browser has been disconnected"))
+
+
 def test_reconnect_rebuilds_browser_and_resets_state(tmp_data, monkeypatch):
     """重建: 关闭旧浏览器, 重建 pw/context/page/cdp, 重置会话状态。"""
     async def fake_launch():

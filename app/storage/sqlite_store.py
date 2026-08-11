@@ -29,6 +29,11 @@ class SqliteStore(StructuredStore):
             self.conn.commit()
         except sqlite3.OperationalError:
             pass  # 列已存在 (新库 schema.sql 已含) — 幂等
+        try:
+            self.conn.execute("ALTER TABLE backfill_requests ADD COLUMN attempts INTEGER DEFAULT 0")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass  # 列已存在 (新库 schema.sql 已含; 旧库由旧版 routes 建表缺列) — 幂等
 
     def upsert_chat(self, chat: Chat):
         # 显示名/类型缺省 (如纯 DOM 增量) 时保留已有值, 仅刷新同步时间

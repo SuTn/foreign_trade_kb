@@ -19,6 +19,20 @@ def test_old_schema_gets_avatar_path_column(tmp_data):
         assert "avatar_path" in cols
         store2.conn.close()
 
+def test_old_schema_gets_backfill_attempts_column(tmp_data):
+    """旧 schema 库 (backfill_requests 无 attempts 列, 由旧版 routes 建表) 打开后自动迁移出该列, 且幂等。"""
+    p = tmp_data / "old.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE backfill_requests(id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, "
+              "max_scrolls INTEGER, requested_at INTEGER, done INTEGER DEFAULT 0)")
+    c.commit(); c.close()
+    for _ in range(2):  # 同一旧库重复打开 → 迁移幂等
+        store2 = SqliteStore(p)
+        cols = [r[1] for r in store2.conn.execute("PRAGMA table_info(backfill_requests)").fetchall()]
+        assert "attempts" in cols
+        store2.conn.close()
+
+
 def test_old_schema_gets_sender_name_column(tmp_data):
     """旧库 (messages 无 sender_name) 打开后自动迁移出该列, 且幂等。"""
     p = tmp_data / "old.db"

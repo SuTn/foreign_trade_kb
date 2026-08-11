@@ -399,7 +399,7 @@ class Scanner:
         """判断异常是否属于 CDP/浏览器连接失效 (致命, 需重建)。宽匹配, 误判回退可重试。"""
         msg = str(e).lower()
         return any(k in msg for k in ("target closed", "connection", "session", "protocol error",
-                                      "page crashed", "context was destroyed", "browser has been disconnected"))
+                                      "page crashed", "context was destroyed", "has been closed", "disconnected"))
 
     async def _reconnect(self):
         """重建浏览器连接并重置会话状态。失败抛回主循环继续退避。"""
