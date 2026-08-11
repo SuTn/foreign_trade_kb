@@ -17,6 +17,6 @@ verification_report: docs/superpowers/reports/2026-08-11-collector-reliability-h
 branch_status: handled
 created_at: 2026-08-11
 verified_at: 2026-08-11
-archived: false
+archived: true
 handoff_context: openspec/changes/collector-reliability-hardening/.comet/handoff/design-context.json
 handoff_hash: 83bc286be4d4c8486fe5f90556147df1723830223136ecaa2e46bd98f7f387d2

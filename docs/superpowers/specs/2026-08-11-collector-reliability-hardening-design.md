@@ -2,6 +2,8 @@
 comet_change: collector-reliability-hardening
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-11-collector-reliability-hardening
+status: final
 ---
 
 # collector-reliability-hardening 技术设计
