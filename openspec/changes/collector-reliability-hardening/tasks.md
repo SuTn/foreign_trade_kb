@@ -34,8 +34,8 @@
 
 ## 6. 模型加载健壮性 (D7)
 
-- [ ] 6.1 新增 `_use_fp16()` helper（按 `torch.cuda.is_available()`），BgeEmbedding/BgeReranker 改用
-- [ ] 6.2 单测：CPU-only（mock cuda 不可用）时构造参数 use_fp16=False
+- [x] 6.1 新增 `_use_fp16()` helper（按 `torch.cuda.is_available()`），BgeEmbedding/BgeReranker 改用
+- [x] 6.2 单测：CPU-only（mock cuda 不可用）时构造参数 use_fp16=False
 
 ## 7. backfill 清理 (D9)
 

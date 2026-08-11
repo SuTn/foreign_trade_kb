@@ -747,7 +747,7 @@ git commit -m "fix: 上传状态机 processing→done/failed + 坏文件友好�
 **Interfaces:**
 - Produces: `app.llm.device_utils.use_fp16()`（或各文件内联 helper）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 # 追加 tests/llm/test_bge_embedding.py
@@ -765,12 +765,12 @@ def test_use_fp16_gpu_true(monkeypatch):
     assert use_fp16() is True
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/llm/test_bge_embedding.py -k "use_fp16" -v`
 Expected: FAIL（`app.llm.device_utils` 不存在）
 
-- [ ] **Step 3: 实现 device_utils**
+- [x] **Step 3: 实现 device_utils**
 
 创建 `app/llm/device_utils.py`：
 
@@ -801,12 +801,12 @@ from app.llm.device_utils import use_fp16
 BgeReranker._model_cache[key] = FlagReranker(key, use_fp16=use_fp16())
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/llm/test_bge_embedding.py tests/rag/test_reranker.py -v`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/llm/device_utils.py app/llm/bge_embedding.py app/rag/reranker.py tests/llm/test_bge_embedding.py
