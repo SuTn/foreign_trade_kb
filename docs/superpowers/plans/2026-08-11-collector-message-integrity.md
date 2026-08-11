@@ -175,7 +175,7 @@ git commit -m "feat: messages 表新增 sender_name 列 (幂等迁移) + Message
 - Consumes: `ReadOnlyCDP.eval_async_readonly(js)`（现有门面）、`settings.idb_stores`（默认已含 `"group-metadata"`）。
 - Produces: `walk_idb(cdp, account_id) -> dict` 返回值新增键 `groups: {g_jid: {"name": str|None, "members": {member_jid: name|None}}}`；`_read_store_js("group-metadata")` 返回只读 IIFE。后续 Task 3 依赖 `data["groups"]`。
 
-- [ ] **Step 1: `_read_store_js` 增加 group-metadata 映射**
+- [x] **Step 1: `_read_store_js` 增加 group-metadata 映射**
 
 `app/collector/idb_walk.py` 第 54 行的 `else:  # contact` 之前插入 `elif` 分支（防御式提取：群 JID 兼容对象/字符串、成员数组逐个取 jid+name、缺失字段为 null）：
 
@@ -194,7 +194,7 @@ git commit -m "feat: messages 表新增 sender_name 列 (幂等迁移) + Message
         )
 ```
 
-- [ ] **Step 2: `walk_idb` 放开 group-metadata 并构建 groups**
+- [x] **Step 2: `walk_idb` 放开 group-metadata 并构建 groups**
 
 `app/collector/idb_walk.py`：
 
@@ -218,7 +218,7 @@ git commit -m "feat: messages 表新增 sender_name 列 (幂等迁移) + Message
 
 4. 同步更新函数 docstring，说明返回值含 `groups: {g_jid: {name, members}}`。
 
-- [ ] **Step 3: 更新既有 FakeCDP 识别键**
+- [x] **Step 3: 更新既有 FakeCDP 识别键**
 
 `tests/collector/test_idb_walk.py` 第 13 行的元组改为：
 
@@ -228,7 +228,7 @@ git commit -m "feat: messages 表新增 sender_name 列 (幂等迁移) + Message
 
 （既有 `test_walk_idb_builds_chats_contacts_messages` 不受影响：group-metadata 无数据时返回空列表 → `groups` 为空。）
 
-- [ ] **Step 4: 写失败测试**
+- [x] **Step 4: 写失败测试**
 
 追加到 `tests/collector/test_idb_walk.py`：
 
@@ -258,17 +258,17 @@ async def test_walk_idb_group_metadata_missing_silently_empty(monkeypatch):
     assert data["groups"] == {}
 ```
 
-- [ ] **Step 5: 运行并确认失败**
+- [x] **Step 5: 运行并确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/collector/test_idb_walk.py -v`
 Expected: 两个新测试 FAIL（`AttributeError`/断言失败：walk 结果无 `groups` 键或为空），既有测试通过。
 
-- [ ] **Step 6: 运行并确认通过**
+- [x] **Step 6: 运行并确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/collector/test_idb_walk.py`
 Expected: 全部 PASS。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add app/collector/idb_walk.py tests/collector/test_idb_walk.py
@@ -652,7 +652,7 @@ def test_merge_idb_from_me_is_authoritative_over_dom_tail():
     assert merged[0]["fromMe"] is True  # IDB 权威覆盖
 ```
 
-- [ ] **Step 5: 运行并确认失败**
+- [x] **Step 5: 运行并确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/collector/test_dom_snapshot.py tests/collector/test_scanner.py -k "quote or media or from_me_is" -v`
 Expected: 新测试 FAIL（引用文本仍在 body / 媒体行未识别 / fromMe 未覆盖）。
@@ -662,7 +662,7 @@ Expected: 新测试 FAIL（引用文本仍在 body / 媒体行未识别 / fromMe
 Run: `.venv/Scripts/python.exe -m pytest -q tests/collector/test_dom_snapshot.py tests/collector/test_scanner.py tests/integration/test_readonly_constraint.py`
 Expected: 全部 PASS（既有 `test_parse_ignores_non_conv_msg_rows` 中 testid 为 `album-x` 不匹配白名单 → 仍被忽略；只读约束扫描仍通过）。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add app/config.py app/collector/dom_snapshot.py tests/collector/test_dom_snapshot.py tests/collector/test_scanner.py

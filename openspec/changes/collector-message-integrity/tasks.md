@@ -8,8 +8,8 @@
 
 ## 2. IDB 群聊元数据读取
 
-- [ ] 2.1 `idb_walk.py` 放开 `group-metadata` store，页面 JS 提取群 JID/群名/参与者（jid+name，防御式读取）；walk 结果新增 `groups: {g_jid: {name, members}}`
-- [ ] 2.2 补测试：合成 group-metadata 结构 → walk 输出 groups 映射正确；store 缺失/异常时静默降级
+- [x] 2.1 `idb_walk.py` 放开 `group-metadata` store，页面 JS 提取群 JID/群名/参与者（jid+name，防御式读取）；walk 结果新增 `groups: {g_jid: {name, members}}`
+- [x] 2.2 补测试：合成 group-metadata 结构 → walk 输出 groups 映射正确；store 缺失/异常时静默降级
 
 ## 3. 采集器群聊识别与发送者解析
 
