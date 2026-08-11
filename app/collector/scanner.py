@@ -18,6 +18,13 @@ def is_alive(path: Path, timeout: float | None = None) -> bool:
     if not s: return False
     return (time.time() - s.get("last_heartbeat", 0)) < timeout
 
+def _msg_vector_key(chat_id: str, msg_id: str, ts: int) -> str:
+    """per-message 向量键; msg_id 缺失时回退 (chatId, day)。"""
+    if msg_id:
+        return f"{chat_id}:{msg_id}"
+    day = time.strftime("%Y-%m-%d", time.gmtime(ts)) if ts else "unknown"
+    return f"{chat_id}:{day}"
+
 class Scanner:
     def __init__(self, cdp, store, vector_store, account_id="me", page=None, llm=None, pw=None, context=None):
         self.cdp = cdp
@@ -242,10 +249,11 @@ class Scanner:
             except Exception:
                 pass  # 匹配失败不阻塞入库, 下次进程重启会重试
             self._matched_chats.add(chat_id)
-        # 异步向量化 (chatId, day 分组) — 失败不阻塞
+        # 异步向量化 (per-message 键, chatId/day 分组) — 失败不阻塞
         try:
-            day = time.strftime("%Y-%m-%d", time.gmtime(msg.ts)) if msg.ts else "unknown"
-            self.vector_store.upsert_message_vector(f"{msg.chat_id}:{day}", msg.body or "", {"chat_id": msg.chat_id, "day": day})
+            key = _msg_vector_key(msg.chat_id, msg.id, msg.ts)
+            self.vector_store.upsert_message_vector(key, msg.body or "",
+                {"chat_id": msg.chat_id, "day": time.strftime("%Y-%m-%d", time.gmtime(msg.ts)) if msg.ts else "unknown"})
         except Exception:
             pass  # 下次 tick 重试
         return True
@@ -336,6 +344,12 @@ class Scanner:
             try:
                 await self.fast_tick()
                 if time.time() - last_slow >= settings.slow_tick_sec:
+                    if not getattr(self, "_vectors_cleared", False):
+                        try:
+                            self.vector_store.clear_message_vectors()
+                        except Exception:
+                            pass  # 清理失败不阻塞主循环, 下次重试
+                        self._vectors_cleared = True
                     try:
                         await self.slow_tick()
                     except Exception:

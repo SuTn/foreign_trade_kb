@@ -13,6 +13,12 @@ class ChromaStore(VectorStore):
     def upsert_message_vector(self, key, text, metadata):
         self.msg_col.upsert(ids=[key], embeddings=[self.embedding_fn(text)], documents=[text], metadatas=[metadata])
 
+    def clear_message_vectors(self):
+        """一次性清空 message_vectors 集合 (保留 knowledge_chunks)。"""
+        ids = self.msg_col.get(include=[])["ids"]
+        if ids:
+            self.msg_col.delete(ids=ids)
+
     def upsert_chunks(self, chunks):
         self.chunk_col.upsert(
             ids=[c["id"] for c in chunks],

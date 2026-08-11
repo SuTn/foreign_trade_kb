@@ -131,6 +131,80 @@ def test_run_once_transient_between_fatals_resets_count(tmp_data):
     assert reconnects[0] == 0
 
 
+def test_message_vector_key_is_per_message():
+    """同会话同日多条消息使用独立向量键, 互不覆盖; 无 msg_id 回退 (chatId, day)。"""
+    from app.collector.scanner import _msg_vector_key
+    assert _msg_vector_key("c1", "m1", 1700000000) != _msg_vector_key("c1", "m2", 1700000000)
+    assert _msg_vector_key("c1", "m1", 1700000000).startswith("c1:")
+    assert _msg_vector_key("c1", "m1", 1700000000) == "c1:m1"
+    assert _msg_vector_key("c1", "", 1700000000) == _msg_vector_key("c1", None, 1700000000)
+    assert _msg_vector_key("c1", None, 1700000000) == f"c1:{__import__('time').strftime('%Y-%m-%d', __import__('time').gmtime(1700000000))}"
+    assert _msg_vector_key("c1", None, 0) == "c1:unknown"
+
+
+def test_upsert_uses_per_message_vector_key(tmp_data):
+    """_upsert_one 向量键改为 per-message; metadata 保持 chat_id/day。"""
+    from app.collector.scanner import Scanner
+    seen = []
+
+    class RecVector:
+        def upsert_message_vector(self, key, text, metadata):
+            seen.append((key, text, metadata))
+
+    class RecStore:
+        def upsert_chat(self, c):
+            pass
+        def upsert_message(self, m):
+            pass
+
+    sc = Scanner(None, RecStore(), RecVector())
+    sc._upsert_one({"chatId": "c1", "id": "m1", "fromMe": False, "body": "hello",
+                    "timestamp": 1700000000, "type": "chat", "body_present": True})
+    assert seen and seen[0][0] == "c1:m1"
+    assert seen[0][2] == {"chat_id": "c1", "day": "2023-11-14"}
+
+
+def test_clear_message_vectors_only_msg_col(tmp_data):
+    from app.storage.chroma_store import ChromaStore
+    vs = ChromaStore(embedding_fn=lambda t: [0.0] * 8)
+    vs.upsert_message_vector("k1", "msg", {"chat_id": "c1"})
+    vs.upsert_chunks([{"id": "ch1", "text": "chunk", "metadata": {"doc_id": "d1"}}])
+    vs.clear_message_vectors()
+    assert vs.msg_col.count() == 0
+    assert vs.chunk_col.count() == 1
+
+
+def test_run_clears_message_vectors_once(tmp_data, monkeypatch):
+    """run() 首次慢 tick 前一次性清理 message_vectors, 幂等不重复执行。"""
+    from app.collector.scanner import Scanner
+    clears = [0]
+
+    class RecChroma:
+        def clear_message_vectors(self):
+            clears[0] += 1
+
+    class Cdp:
+        def __init__(self, n):
+            self.n = n
+        async def capture_snapshot(self):
+            self.n -= 1
+            return {}
+
+    real_sleep = asyncio.sleep
+
+    async def counting_sleep(delay):
+        raise _StopLoop()
+
+    monkeypatch.setattr("app.collector.scanner.asyncio.sleep", counting_sleep)
+    sc = Scanner(Cdp(1), ReconnectableStore(), RecChroma())
+    try:
+        asyncio.run(sc.run())
+    except _StopLoop:
+        pass
+    assert clears[0] == 1
+    assert sc._vectors_cleared
+
+
 def test_is_cdp_fatal_matches_disconnect_keywords():
     sc = Scanner(None, None, None)
     fatal = ("Target closed: page crashed", "connection reset", "Session closed.",
