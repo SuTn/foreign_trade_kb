@@ -109,7 +109,7 @@ def _parse_row(i, ad, children, ntype, node_value, text_value, testid, pre_value
     if media_prefix:
         msg_type = media_prefix.rstrip("-")
         if not body:
-            body = MEDIA_MARKERS[media_prefix]  # 无正文: 媒体标记占位
+            body = MEDIA_MARKERS.get(media_prefix) or media_prefix  # 无正文: 媒体标记占位 (未知前缀回退为前缀本身)
     else:
         msg_type = "chat"
     return {

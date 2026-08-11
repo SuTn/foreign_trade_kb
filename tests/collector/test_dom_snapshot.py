@@ -1,5 +1,6 @@
 # tests/collector/test_dom_snapshot.py
 from app.collector.dom_snapshot import parse_dom_snapshot, _parse_pre_plain_text
+from app.config import settings
 
 
 def _snapshot():
@@ -175,3 +176,15 @@ def test_parse_media_row_marker_placeholder():
     m = msgs[0]
     assert m["type"] == "image-album"
     assert m["body"] == "[相册]"
+
+
+def test_parse_media_custom_prefix_falls_back_to_prefix(monkeypatch):
+    """可配置媒体前缀 (不在默认白名单, 如 sticker-) 无正文 → body 回退为前缀本身, 不抛 KeyError。"""
+    monkeypatch.setattr(settings, "dom_media_row_prefixes", ["image-album-", "sticker-"])
+    snap = _media_snapshot(False)
+    snap["strings"][3] = "sticker-ABC123"
+    msgs = parse_dom_snapshot(snap)
+    assert len(msgs) == 1
+    m = msgs[0]
+    assert m["type"] == "sticker"
+    assert m["body"] == "sticker-"

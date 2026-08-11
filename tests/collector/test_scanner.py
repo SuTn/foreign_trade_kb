@@ -440,6 +440,40 @@ def test_drain_profile_updates_failure_does_not_block(tmp_data, monkeypatch):
     assert sc._profile_pending == set()  # 失败项已消费, 不无限重试
 
 
+def test_merge_group_sender_lid_normalized_to_phone():
+    """群成员表按手机号 JID 建键, 消息 from 为 @lid → 归一后解析成员名。"""
+    sc = Scanner(None, None, None)
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hello", "body_present": True}]
+    data = _group_data(
+        messages=[{"id": "false_120363123456789@g.us_ABC123", "t": 1710000000,
+                   "from": "123456789@lid", "to": "120363123456789@g.us",
+                   "type": "chat", "fromMe": False}],
+        lid_to_phone={"123456789@lid": "8615976909619@c.us"},
+        groups={"120363123456789@g.us": {"name": "海外采购群",
+                                         "members": {"8615976909619@c.us": "Sonya"}}},
+    )
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["sender_name"] == "Sonya"
+
+
+def test_merge_group_sender_phone_normalized_to_lid():
+    """群成员表按 LID 建键, 消息 from 为手机号 JID → 反向归一后解析成员名。"""
+    sc = Scanner(None, None, None)
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hello", "body_present": True}]
+    data = _group_data(
+        messages=[{"id": "false_120363123456789@g.us_ABC123", "t": 1710000000,
+                   "from": "8615976909619@c.us", "to": "120363123456789@g.us",
+                   "type": "chat", "fromMe": False}],
+        lid_to_phone={"123456789@lid": "8615976909619@c.us"},
+        groups={"120363123456789@g.us": {"name": "海外采购群",
+                                         "members": {"123456789@lid": "Sonya"}}},
+    )
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["sender_name"] == "Sonya"
+
+
 def test_merge_idb_from_me_is_authoritative_over_dom_tail():
     """fromMe 冲突时 IDB 发送者==自身账号为权威 (覆盖 DOM tail-in 信号)。"""
     sc = Scanner(None, None, None)

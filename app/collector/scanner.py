@@ -102,6 +102,20 @@ class Scanner:
         lids = data.get("lid_to_phone", {})
         phone_by_lid = data.get("phone_by_lid", {})
         groups = data.get("groups", {})
+        # 反向: phone_jid → lid_jid, 供发送者名归一 (成员表可能以任一形态建键)
+        lid_by_phone = {}
+        for _lid, _phone in lids.items():
+            lid_by_phone.setdefault(_phone, _lid)
+
+        def _jid_forms(jid):
+            """LID/手机号 JID 归一候选形态: 原始 + phone_by_lid + lids(lid→phone) + 反向(phone→lid),
+            与 chat 路径的 phone_by_lid/lids 翻译一致。"""
+            forms = [jid]
+            for f in (phone_by_lid.get(jid), lids.get(jid), lid_by_phone.get(jid)):
+                if f and f not in forms:
+                    forms.append(f)
+            return forms
+
         merged = []
         for dom in dom_msgs:
             rec = idb_by_hex.get(dom.get("id"))
@@ -135,13 +149,21 @@ class Scanner:
             if not name:
                 name = dom_sender_name
             # 入站发送者显示名: contacts → 群成员表 → DOM 显示名 → JID 回退
+            # 发送者 JID 先经 LID/手机号归一 (与 chat 路径一致), 再对归一与原始形态双查
             sender_name = None
             if rec and not from_me:
                 sender_jid = rec.get("from")
                 if sender_jid:
-                    sender_name = data["contacts"].get(sender_jid)
+                    for f in _jid_forms(sender_jid):
+                        sender_name = data["contacts"].get(f)
+                        if sender_name:
+                            break
                 if not sender_name and chat and groups.get(chat):
-                    sender_name = groups[chat]["members"].get(sender_jid)
+                    members = groups[chat]["members"]
+                    for f in _jid_forms(sender_jid):
+                        sender_name = members.get(f)
+                        if sender_name:
+                            break
             if not sender_name and not from_me:
                 sender_name = dom.get("from")
             if not sender_name and rec and not from_me:

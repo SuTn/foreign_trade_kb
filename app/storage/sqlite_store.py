@@ -43,7 +43,8 @@ class SqliteStore(StructuredStore):
         self.conn.execute(
             "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,account_id) DO UPDATE SET "
             "from_me=excluded.from_me, sender_jid=excluded.sender_jid, ts=excluded.ts, type=excluded.type, "
-            "body=COALESCE(excluded.body, body), body_present=excluded.body_present, sender_name=excluded.sender_name",
+            "body=COALESCE(excluded.body, body), body_present=excluded.body_present, "
+            "sender_name=COALESCE(excluded.sender_name, sender_name)",
             (msg.id, msg.account_id, msg.chat_id, int(msg.from_me), msg.sender_jid,
              msg.ts, msg.type, msg.body, int(msg.body_present), msg.ingested_at, msg.sender_name))
         if msg.body:

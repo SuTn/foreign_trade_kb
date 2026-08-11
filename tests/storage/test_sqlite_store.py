@@ -42,6 +42,17 @@ def test_upsert_message_roundtrips_sender_name(tmp_data):
     assert rows[0].sender_name == "Sonya"
 
 
+def test_upsert_message_keeps_sender_name_when_none(tmp_data):
+    s = SqliteStore()
+    s.upsert_message(Message("m1", "a1", "c1", False, "x@w", 1000, "chat", "hello", True,
+                             int(time.time()), "Sonya"))
+    # 慢同步先写入名字后, DOM-only tick 的 sender_name=None 不得覆盖原名字
+    s.upsert_message(Message("m1", "a1", "c1", False, "x@w", 1000, "chat", "hello", True,
+                             int(time.time()), None))
+    rows = s.list_messages("c1")
+    assert rows[0].sender_name == "Sonya"
+
+
 def test_upsert_message_idempotent(tmp_data):
     s = SqliteStore()
     m = Message("m1", "a1", "c1", False, "x@w", 1000, "chat", "hello", True, int(time.time()))
