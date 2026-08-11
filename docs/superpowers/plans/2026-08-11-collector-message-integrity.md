@@ -771,7 +771,7 @@ git commit -m "feat: 画像摘要群聊按发送者标注 (sender_name: body), �
 - Consumes: `chats.kind`（Task 3）、`Message.sender_name`（Task 1）。
 - Produces: `customer_chat_messages` 的 TemplateResponse 上下文新增 `kind: str|None`；模板对 `kind == "group"` 渲染 `成员名 · 时间`（我方 `我`），否则保持 `我/客户 · 时间`。
 
-- [ ] **Step 1: route 传入 kind**
+- [x] **Step 1: route 传入 kind**
 
 `app/web/routes.py` 第 118-126 行，在取 `msgs` 之后、`return` 之前插入 kind 查询，并把 `kind` 加入上下文：
 
@@ -796,7 +796,7 @@ git commit -m "feat: 画像摘要群聊按发送者标注 (sender_name: body), �
     )
 ```
 
-- [ ] **Step 2: 模板按 kind 展示发送者**
+- [x] **Step 2: 模板按 kind 展示发送者**
 
 `app/web/templates/chat_messages.html` 第 18 行替换为：
 
@@ -804,7 +804,7 @@ git commit -m "feat: 画像摘要群聊按发送者标注 (sender_name: body), �
       <div class="chat-meta">{% if kind == 'group' %}{{ '我' if m.from_me else (m.sender_name or '未知') }} · {{ m.ts }}{% else %}{{ '我' if m.from_me else '客户' }} · {{ m.ts }}{% endif %}</div>
 ```
 
-- [ ] **Step 3: 写失败测试**
+- [x] **Step 3: 写失败测试**
 
 追加到 `tests/web/test_routes.py`：
 
@@ -841,17 +841,17 @@ def test_chat_page_single_keeps_customer_label(tmp_data):
     assert "客户 ·" in html
 ```
 
-- [ ] **Step 4: 运行并确认失败**
+- [x] **Step 4: 运行并确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/web/test_routes.py -k "group_renders or single_keeps" -v`
 Expected: 两个新测试 FAIL（模板未渲染发送者名 / 上下文无 kind）。
 
-- [ ] **Step 5: 运行并确认通过**
+- [x] **Step 5: 运行并确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest -q tests/web/test_routes.py`
 Expected: 全部 PASS（含既有 `test_chat_messages_pagination` —— 未建 chats 行 → kind=None → 单聊样式）。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add app/web/routes.py app/web/templates/chat_messages.html tests/web/test_routes.py
