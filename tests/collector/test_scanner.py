@@ -438,3 +438,26 @@ def test_drain_profile_updates_failure_does_not_block(tmp_data, monkeypatch):
     sc._profile_pending.add(("cust1", "c1"))
     asyncio.run(sc._drain_profile_updates())  # 不应抛异常
     assert sc._profile_pending == set()  # 失败项已消费, 不无限重试
+
+
+def test_merge_idb_from_me_is_authoritative_over_dom_tail():
+    """fromMe 冲突时 IDB 发送者==自身账号为权威 (覆盖 DOM tail-in 信号)。"""
+    sc = Scanner(None, None, None)
+    data = {
+        "chats": {}, "contacts": {}, "groups": {},
+        "lid_to_phone": {}, "phone_by_lid": {},
+        "messages": [
+            # 首条入站消息确立 our_jid (=to)
+            {"id": "false_8615976909619@c.us_ABC000", "t": 1700000000,
+             "from": "8615976909619@c.us", "to": "8618963126542@c.us",
+             "type": "chat", "fromMe": False},
+            # 出站消息: from == our_jid
+            {"id": "false_8615976909619@c.us_ABC123", "t": 1710000000,
+             "from": "8618963126542@c.us", "to": "8615976909619@c.us",
+             "type": "chat", "fromMe": True},
+        ],
+    }
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hi", "body_present": True}]  # DOM tail-in 说 fromMe=False
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["fromMe"] is True  # IDB 权威覆盖

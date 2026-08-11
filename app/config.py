@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # DOM 选择器 (集中配置, 便于 WhatsApp Web 变更时修补)
     dom_message_row_selector: str = "[data-id]"
     dom_conversation_header_selector: str = 'header[data-testid="conversation-header"]'
+    # 媒体消息行 testid 前缀白名单 (可配置; 未知 testid 保持忽略)
+    dom_media_row_prefixes: list[str] = ["image-album-", "image-", "video-", "ptt-",
+                                         "document-", "audio-", "location-"]
 
     # LLM / Embedding
     llm_provider: str = "anthropic"  # anthropic | openai (openai 走 OpenAI 兼容接口)

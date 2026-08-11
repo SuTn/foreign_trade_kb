@@ -11,6 +11,14 @@ CDP 结构: {documents: [{nodes: {parentIndex, nodeType, nodeValue, textValue, a
 import re
 import datetime as _dt
 
+from app.config import settings
+
+# 媒体行 testid 前缀 → 无正文时的占位标记
+MEDIA_MARKERS = {
+    "image-album-": "[相册]", "image-": "[图片]", "video-": "[视频]",
+    "ptt-": "[语音]", "document-": "[文档]", "audio-": "[音频]", "location-": "[位置]",
+}
+
 
 def parse_dom_snapshot(snapshot: dict, active_chat_id: str | None = None) -> list[dict]:
     """返回 [{id, message_id, chatId, fromMe, from, timestamp, type, body, body_present}]。
@@ -43,6 +51,7 @@ def parse_dom_snapshot(snapshot: dict, active_chat_id: str | None = None) -> lis
     testid = {}
     pre_values = {}  # node -> data-pre-plain-text 值
     row_idx = []
+    media_prefixes = tuple(settings.dom_media_row_prefixes)
     for i, p in enumerate(parent):
         if 0 <= p < n:
             children[p].append(i)
@@ -52,7 +61,7 @@ def parse_dom_snapshot(snapshot: dict, active_chat_id: str | None = None) -> lis
         ad = attr_dict(i)
         tid = ad.get("data-testid", "")
         testid[i] = tid
-        if tid.startswith("conv-msg-") and ad.get("data-id"):
+        if (tid.startswith("conv-msg-") or tid.startswith(media_prefixes)) and ad.get("data-id"):
             row_idx.append((i, ad))
         if "data-pre-plain-text" in ad:
             pre_values[i] = ad["data-pre-plain-text"]
@@ -67,10 +76,13 @@ def parse_dom_snapshot(snapshot: dict, active_chat_id: str | None = None) -> lis
 
 
 def _parse_row(i, ad, children, ntype, node_value, text_value, testid, pre_values, strings, chat_id) -> dict | None:
-    """提取单条消息行字段。"""
+    """提取单条消息行字段。跳过引用容器 (message-quote/quoted-*); 媒体行占位。"""
     data_id = ad.get("data-id", "")
     if not data_id:
         return None
+    row_tid = ad.get("data-testid", "")
+    media_prefix = next((p for p in settings.dom_media_row_prefixes
+                         if row_tid.startswith(p)), None)
     from_me, pre = False, ""
     body_parts = []
     stack = list(reversed(children[i])) if i < len(children) else []
@@ -79,6 +91,8 @@ def _parse_row(i, ad, children, ntype, node_value, text_value, testid, pre_value
         if cur >= len(children):
             continue
         tid = testid.get(cur, "")
+        if tid.startswith("message-quote") or tid.startswith("quoted-"):
+            continue  # 引用容器整块跳过, 不含本人正文 (testid 漂移时自然回退到收集全部)
         if tid == "tail-out":
             from_me = True
         elif tid == "tail-in":
@@ -92,10 +106,16 @@ def _parse_row(i, ad, children, ntype, node_value, text_value, testid, pre_value
 
     ts, sender = _parse_pre_plain_text(pre)
     body = "".join(body_parts)
+    if media_prefix:
+        msg_type = media_prefix.rstrip("-")
+        if not body:
+            body = MEDIA_MARKERS[media_prefix]  # 无正文: 媒体标记占位
+    else:
+        msg_type = "chat"
     return {
         "id": data_id, "message_id": data_id, "chatId": chat_id,
         "fromMe": bool(from_me), "from": sender, "timestamp": ts,
-        "type": "chat", "body": body, "body_present": bool(body),
+        "type": msg_type, "body": body, "body_present": bool(body),
     }
 
 

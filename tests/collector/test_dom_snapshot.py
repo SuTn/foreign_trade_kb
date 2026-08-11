@@ -91,3 +91,87 @@ def test_parse_pre_plain_text_formats():
     assert slash[1] == "Alice"
     assert slash[0] > 0
     assert _parse_pre_plain_text("") == (0, None)
+
+
+def test_parse_excludes_quote_container():
+    """引用容器 (message-quote) 内文本不进入 body, 只留本人正文。"""
+    snap = {
+        "strings": [
+            "data-id", "data-testid", "data-pre-plain-text",
+            "conv-msg-ABC123", "ABC123", "message-quote", "selectable-text",
+            "[13:57, 2025年10月28日] Alice: ", "这是回复的旧内容", "这是新消息正文",
+        ],
+        "documents": [{
+            "nodes": {
+                "parentIndex": [-1, 0, 1, 1, 1, 2, 3, 5, 4],
+                "nodeType": [1, 1, 1, 1, 1, 1, 3, 3, 3],
+                "nodeName": [-1] * 9,
+                "nodeValue": [-1, -1, -1, -1, -1, -1, 7, 8, 9],
+                "textValue": [-1] * 9,
+                "attributes": [[], [0, 4, 1, 3], [1, 5], [2, 7], [1, 6], [1, 6], [], [], []],
+            }
+        }],
+    }
+    msgs = parse_dom_snapshot(snap)
+    assert len(msgs) == 1
+    m = msgs[0]
+    assert m["body"] == "这是新消息正文"
+    assert "这是回复的旧内容" not in m["body"]
+    assert m["from"] == "Alice"
+
+
+def _media_snapshot(with_caption=True):
+    """image-album 行: node2=pre 元素, node3=caption (可省略)。"""
+    if with_caption:
+        return {
+            "strings": [
+                "data-id", "data-testid", "data-pre-plain-text",
+                "image-album-ABC123", "ABC123", "selectable-text",
+                "[13:57, 2025年10月28日] Alice: ", "假期照片",
+            ],
+            "documents": [{
+                "nodes": {
+                    "parentIndex": [-1, 0, 1, 1, 2, 3],
+                    "nodeType": [1, 1, 1, 1, 3, 3],
+                    "nodeName": [-1] * 6,
+                    "nodeValue": [-1, -1, -1, -1, 6, 7],
+                    "textValue": [-1] * 6,
+                    "attributes": [[], [0, 4, 1, 3], [2, 6], [1, 5], [], []],
+                }
+            }],
+        }
+    return {
+        "strings": [
+            "data-id", "data-testid", "data-pre-plain-text",
+            "image-album-ABC123", "ABC123", "selectable-text",
+            "[13:57, 2025年10月28日] Alice: ",
+        ],
+        "documents": [{
+            "nodes": {
+                "parentIndex": [-1, 0, 1, 1, 2],
+                "nodeType": [1, 1, 1, 1, 3],
+                "nodeName": [-1] * 5,
+                "nodeValue": [-1, -1, -1, -1, 6],
+                "textValue": [-1] * 5,
+                "attributes": [[], [0, 4, 1, 3], [2, 6], [], []],
+            }
+        }],
+    }
+
+
+def test_parse_media_row_with_caption():
+    """相册行带说明文字 → body=说明, type=image-album。"""
+    msgs = parse_dom_snapshot(_media_snapshot(True))
+    assert len(msgs) == 1
+    m = msgs[0]
+    assert m["type"] == "image-album"
+    assert m["body"] == "假期照片"
+    assert m["body_present"] is True
+
+
+def test_parse_media_row_marker_placeholder():
+    """相册行无正文 → 媒体标记 [相册] 占位。"""
+    msgs = parse_dom_snapshot(_media_snapshot(False))
+    m = msgs[0]
+    assert m["type"] == "image-album"
+    assert m["body"] == "[相册]"
