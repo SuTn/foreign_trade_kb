@@ -426,7 +426,7 @@ git commit -m "fix: 消息向量 per-message 键 + 旧向量一次性清理"
 - Consumes: `SqliteStore`、`ChromaStore`、`get_embedding`、`get_reranker`
 - Produces: `app.state.sqlite_store`、`app.state.chroma_store`、`app.state.embedding_ready`（asyncio.Event）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 # 追加 tests/web/test_app.py
@@ -443,12 +443,12 @@ def test_app_state_singletons(monkeypatch):
         assert r.status_code == 200
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv\Scripts\python -m pytest tests/web/test_app.py -v`
 Expected: FAIL（`app.state.sqlite_store` 不存在）
 
-- [ ] **Step 3: 实现 lifespan 单例**
+- [x] **Step 3: 实现 lifespan 单例**
 
 修改 `app/web/app.py`：
 
@@ -492,7 +492,7 @@ def create_app() -> FastAPI:
     return app
 ```
 
-- [ ] **Step 4: 实现路由读取单例**
+- [x] **Step 4: 实现路由读取单例**
 
 修改 `app/web/routes.py`：
 
@@ -503,12 +503,12 @@ def _store(request: Request) -> SqliteStore:
 
 将所有 `_store()` 调用改为 `_store(request)`（在路由函数签名中已有 `request` 的）；对无 request 参数的端点（`knowledge_delete`、`collector_backfill`、`upload`、`export_v` 等），改为 `Request` 参数或 `request.app.state`。删除每接口 `ChromaStore(embedding_fn=...)` 新建，改读 `request.app.state.chroma_store`。
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `.venv\Scripts\python -m pytest tests/web/ -v`
 Expected: PASS
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add app/web/app.py app/web/routes.py tests/web/test_app.py

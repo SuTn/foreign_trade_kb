@@ -15,8 +15,8 @@
 
 ## 3. Web 存储单例 (D4/D8)
 
-- [ ] 3.1 `create_app()` 加 lifespan 持有 `app.state.sqlite_store`/`app.state.chroma_store`，退出时关闭
-- [ ] 3.2 路由全部改为读 `request.app.state.*` 单例，删除每请求 `_store()`/`ChromaStore(...)` 新建
+- [x] 3.1 `create_app()` 加 lifespan 持有 `app.state.sqlite_store`/`app.state.chroma_store`，退出时关闭
+- [x] 3.2 路由全部改为读 `request.app.state.*` 单例，删除每请求 `_store()`/`ChromaStore(...)` 新建
 - [ ] 3.3 embedding/reranker 在 lifespan 后台线程预热；首次接口调用未就绪时有超时降级
 
 ## 4. 接口错误降级 (D5)
