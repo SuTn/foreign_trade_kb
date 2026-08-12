@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>数据清理</h1>
+<p class="muted">删除不可恢复! 仅清理聊天消息 (含向量), 画像与知识库不受影响。</p>
+<div class="two-col">
+  <section class="result-card">
+    <h2>按会话清理</h2>
+    <form hx-post="/api/cleanup"
+          hx-confirm="确认删除该会话全部消息? 删除不可恢复!"
+          hx-target="#cleanup-result" hx-swap="innerHTML">
+      <input type="hidden" name="mode" value="chat">
+      <input class="input" name="chat_id" placeholder="chat_id" style="width:100%">
+      <button class="btn btn-danger" type="submit" style="margin-top:8px">删除该会话消息</button>
+    </form>
+  </section>
+  <section class="result-card">
+    <h2>按天数清理</h2>
+    <form hx-post="/api/cleanup"
+          hx-confirm="确认删除 N 天前的全部消息? 删除不可恢复!"
+          hx-target="#cleanup-result" hx-swap="innerHTML">
+      <input type="hidden" name="mode" value="days">
+      <input class="input" name="days" type="number" min="1" placeholder="天数 (删除该天数前的消息)" style="width:100%">
+      <button class="btn btn-danger" type="submit" style="margin-top:8px">删除 N 天前消息</button>
+    </form>
+  </section>
+</div>
+<div id="cleanup-result"></div>
+{% endblock %}

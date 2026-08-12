@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Request, File, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.config import settings
 from app.collector.scanner import read_status, is_alive
@@ -166,6 +166,67 @@ async def api_search(request: Request, q: str = ""):
 async def search_page(request: Request):
     """D1: 全局搜索页 (htmx 驱动 /api/search)。"""
     return request.app.state.templates.TemplateResponse(request, "search.html", {})
+
+
+async def _cleanup_params(request: Request) -> dict:
+    """从 JSON body 或表单解析 {mode, chat_id, days} (htmx 表单默认 form-encoded)。"""
+    if request.headers.get("content-type", "").startswith("application/json"):
+        body = await request.json()
+    else:
+        body = await request.form()
+    return {"mode": (body.get("mode") or "").strip(),
+            "chat_id": body.get("chat_id"),
+            "days": body.get("days")}
+
+
+@router.post("/api/cleanup")
+async def cleanup(request: Request):
+    """D2: 手动清理聊天消息。body: {mode: chat|days, chat_id?, days?}。
+    删除 messages + 重建 FTS + 对应 chat 消息向量; 保留画像与知识库。"""
+    body = await _cleanup_params(request)
+    mode = body["mode"]
+    store = _store(request)
+    if mode == "chat":
+        chat_id = (body.get("chat_id") or "").strip()
+        if not chat_id:
+            return JSONResponse({"error": "chat 模式需提供 chat_id"}, status_code=400)
+        try:
+            res = store.delete_messages_by_chat(chat_id)
+        except Exception as e:
+            return {"error": f"清理失败: {e}"}
+        chat_ids = res["affected_chats"]
+    elif mode == "days":
+        days_raw = body.get("days")
+        if days_raw is None or str(days_raw).strip() == "":
+            return JSONResponse({"error": "days 模式需提供天数"}, status_code=400)
+        try:
+            days = int(days_raw)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "days 必须为正整数"}, status_code=400)
+        if days <= 0:
+            return JSONResponse({"error": "days 必须为正整数"}, status_code=400)
+        cutoff = int(time.time()) - days * 86400
+        try:
+            res = store.delete_messages_before(cutoff)
+        except Exception as e:
+            return {"error": f"清理失败: {e}"}
+        chat_ids = res["affected_chats"]
+    else:
+        return JSONResponse({"error": "mode 必须是 chat 或 days"}, status_code=400)
+    try:
+        vs = _chroma_store(request)
+        for cid in chat_ids:
+            vs.delete_message_vectors(cid)
+    except Exception as e:
+        return {"deleted_rows": res["deleted_rows"], "affected_chats": chat_ids,
+                "error": f"消息已删除但向量清理失败: {e}"}
+    return {"deleted_rows": res["deleted_rows"], "affected_chats": chat_ids}
+
+
+@router.get("/cleanup")
+async def cleanup_page(request: Request):
+    """D2: 数据清理管理页 (chat / days 两种模式, 删除前确认)。"""
+    return request.app.state.templates.TemplateResponse(request, "cleanup.html", {})
 
 
 @router.get("/api/stats")
