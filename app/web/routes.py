@@ -185,7 +185,8 @@ async def customer_chat_messages(customer_id: str, chat_id: str, request: Reques
     return request.app.state.templates.TemplateResponse(
         request, "chat_messages.html",
         {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs,
-         "older_ts": older_ts, "partial": partial, "kind": kind},
+         "older_ts": older_ts, "partial": partial, "kind": kind,
+         "session_id": store.find_or_create_reply_session(customer_id, chat_id)},
     )
 
 

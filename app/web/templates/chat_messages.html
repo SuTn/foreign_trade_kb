@@ -19,7 +19,7 @@
       <div class="chat-text">{{ m.body or '(无正文)' }}</div>
       <div id="reply-{{ m.id }}">
         <button class="btn btn-sm" hx-post="/api/reply"
-                hx-vals='{"customer_id": "{{ customer_id }}", "chat_id": "{{ chat_id }}", "message": "{{ (m.body or '')|replace('"', '&quot;') }}" }'
+                hx-vals='{"customer_id": "{{ customer_id }}", "chat_id": "{{ chat_id }}", "message": "{{ (m.body or '')|replace('"', '&quot;') }}", "session_id": "{{ session_id }}" }'
                 hx-target="#reply-{{ m.id }}" hx-swap="innerHTML">生成回复</button>
       </div>
     </div>

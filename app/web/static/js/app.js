@@ -39,3 +39,29 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!h.querySelector("img")) { h.appendChild(placeholderAvatar(h.getAttribute("data-name"), h.getAttribute("data-avatar-class"))); }
   });
 });
+// reply-workflow-optimization: 一键复制 (事件委托, 兼容 htmx 动态插入的 DOM)
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest ? e.target.closest("[data-copy]") : null;
+  if (!btn) return;
+  var target = document.getElementById(btn.getAttribute("data-copy"));
+  if (!target) return;
+  var text = (target.value !== undefined) ? target.value : target.textContent;
+  function copied() {
+    var old = btn.textContent;
+    btn.textContent = "已复制";
+    setTimeout(function () { btn.textContent = old; }, 1200);
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(copied);
+  } else {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    copied();
+  }
+});
