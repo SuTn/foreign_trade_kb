@@ -290,8 +290,9 @@ def test_knowledge_search_returns_results(tmp_data, monkeypatch):
 
 
 def test_reply_accepts_form_and_regenerate(tmp_data, monkeypatch):
-    """reply-assist: /api/reply 支持表单, /api/reply/regenerate 返回不同风格候选。"""
+    """reply-assist: /api/reply 提交任务, 轮询 done 后 /api/reply/regenerate 返回不同风格候选。"""
     from app.web import routes
+    from tests.conftest import reply_task_id, wait_reply_done
 
     class FakeLLM:
         def generate(self, s, u, max_tokens=1024):
@@ -314,14 +315,17 @@ def test_reply_accepts_form_and_regenerate(tmp_data, monkeypatch):
     store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
                        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.commit()
-    client = TestClient(create_app())
-    r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
-    assert r.status_code == 200
-    assert "建议回复内容" in r.text
-    r2 = client.post("/api/reply/regenerate",
-                     data={"customer_id": "cust1", "chat_id": "c1", "message": "hi", "style": "default"})
-    assert r2.status_code == 200
-    assert "concise" in r2.text  # regenerate 切到下一风格
+    with TestClient(create_app()) as client:
+        r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
+        assert r.status_code == 200
+        assert "正在生成回复" in r.text
+        done = wait_reply_done(client, reply_task_id(r.text))
+        assert "建议回复内容" in done.text
+        r2 = client.post("/api/reply/regenerate",
+                         data={"customer_id": "cust1", "chat_id": "c1", "message": "hi", "style": "default"})
+        assert r2.status_code == 200
+        done2 = wait_reply_done(client, reply_task_id(r2.text))
+        assert "concise" in done2.text  # regenerate 切到下一风格
 
 
 def test_home_shows_stats(tmp_data):
@@ -357,8 +361,9 @@ def test_chat_page_group_renders_sender_name(tmp_data):
 
 
 def test_reply_llm_failure_degrades_with_error(tmp_data, monkeypatch):
-    """4.1: /api/reply LLM 失败返回可读降级 (200), 不抛 500。"""
+    """4.1: /api/reply LLM 失败 → 任务 failed, 轮询返回可读错误 (200), 不抛 500。"""
     from app.web import routes
+    from tests.conftest import reply_task_id, wait_reply_done
 
     class FakeLLM:
         def generate(self, s, u, max_tokens=1024):
@@ -380,15 +385,17 @@ def test_reply_llm_failure_degrades_with_error(tmp_data, monkeypatch):
     store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
                        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.commit()
-    client = TestClient(create_app())
-    r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
-    assert r.status_code == 200
-    assert "LLM 不可用" in r.text
+    with TestClient(create_app()) as client:
+        r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
+        assert r.status_code == 200
+        done = wait_reply_done(client, reply_task_id(r.text))
+        assert "LLM 不可用" in done.text
 
 
 def test_regenerate_failure_degrades_with_error(tmp_data, monkeypatch):
     """4.1: /api/reply/regenerate 失败同样返回降级 (200), 不抛 500。"""
     from app.web import routes
+    from tests.conftest import reply_task_id, wait_reply_done
 
     class FakeLLM:
         def generate(self, s, u, max_tokens=1024):
@@ -410,11 +417,12 @@ def test_regenerate_failure_degrades_with_error(tmp_data, monkeypatch):
     store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
                        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.commit()
-    client = TestClient(create_app())
-    r = client.post("/api/reply/regenerate",
-                    data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
-    assert r.status_code == 200
-    assert "LLM 超时" in r.text
+    with TestClient(create_app()) as client:
+        r = client.post("/api/reply/regenerate",
+                        data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
+        assert r.status_code == 200
+        done = wait_reply_done(client, reply_task_id(r.text))
+        assert "LLM 超时" in done.text
 
 
 def test_search_embedding_failure_degrades_to_bm25(tmp_data, monkeypatch):
@@ -443,9 +451,10 @@ def test_search_embedding_failure_degrades_to_bm25(tmp_data, monkeypatch):
 
 
 def test_reply_degrades_when_embedding_warmup_times_out(tmp_data, monkeypatch):
-    """3.3: 模型预热未就绪超时 → 回复按降级返回 (200), 不抛 500。"""
+    """3.3: 模型预热未就绪超时 → 回复任务 failed (200), 不抛 500。"""
     import threading
     from app.web import routes
+    from tests.conftest import reply_task_id, wait_reply_done
 
     class FakeRerank:
         def rerank(self, q, c, top_k=8):
@@ -458,11 +467,12 @@ def test_reply_degrades_when_embedding_warmup_times_out(tmp_data, monkeypatch):
     store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
                        ("cust1", "Alice", "10086", None, None, 0, None))
     store.conn.commit()
-    client = TestClient(create_app())
-    client.app.state.embedding_ready = threading.Event()  # 永不置位 → 等待超时
-    r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
-    assert r.status_code == 200
-    assert "预热超时" in r.text
+    with TestClient(create_app()) as client:
+        client.app.state.embedding_ready = threading.Event()  # 永不置位 → worker 超时置 failed
+        r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
+        assert r.status_code == 200
+        done = wait_reply_done(client, reply_task_id(r.text))
+        assert "预热超时" in done.text
 
 
 def test_warmup_warms_embedding_and_reranker(monkeypatch):
@@ -527,4 +537,42 @@ def test_chat_page_single_keeps_customer_label(tmp_data):
     client = TestClient(create_app())
     html = client.get("/customers/cust1/chat/c1").text
     assert "客户 ·" in html
+
+
+def test_reply_session_history_passed_on_second_generate(tmp_data, monkeypatch):
+    """3.6: 同一 chat 二次生成时, 首次 user+assistant 出现在第二次 prompt。"""
+    from app.web import routes
+    from tests.conftest import reply_task_id, wait_reply_done
+
+    prompts = []
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            prompts.append(s)
+            return "第一轮回复"
+
+    class FakeRerank:
+        def rerank(self, q, c, top_k=8):
+            return c[:top_k]
+
+    class FakeEmbed:
+        def embed(self, text):
+            return [1.0] * 8
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    monkeypatch.setattr(routes, "get_reranker", lambda: FakeRerank())
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    with TestClient(create_app()) as client:
+        r1 = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "第一问"})
+        wait_reply_done(client, reply_task_id(r1.text))
+        r2 = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "第二问"})
+        wait_reply_done(client, reply_task_id(r2.text))
+    assert len(prompts) == 2
+    assert "第一问" in prompts[1]     # 历史 user 进入上下文
+    assert "第一轮回复" in prompts[1]  # 历史 assistant 进入上下文
 
