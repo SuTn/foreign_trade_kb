@@ -7,7 +7,7 @@ subagent_dispatch: confirmed
 tdd_mode: tdd
 review_mode: standard
 isolation: branch
-verify_mode: null
+verify_mode: full
 auto_transition: true
 base_ref: 84cafaf13f20e7f46ef25f5159aedfc350c6cac6
 design_doc: docs/superpowers/specs/2026-08-12-batch2-search-cleanup-monitor-design.md

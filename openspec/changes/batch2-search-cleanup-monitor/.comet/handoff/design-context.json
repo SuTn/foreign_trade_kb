@@ -1,0 +1,16 @@
+{
+  "change": "batch2-search-cleanup-monitor",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "fa59c2642c9ff593d91bc415d6b571473187fd2ade99c099225bd8810af3d02e",
+  "files": [
+    { "path": "openspec/changes/batch2-search-cleanup-monitor/proposal.md", "sha256": "f932070fc507dbc4d5172a2da5304ffd89c80cbf1c3874ce7fc5e9bdffdd4c60" },
+    { "path": "openspec/changes/batch2-search-cleanup-monitor/design.md", "sha256": "cc1b7b69b52c433e3a284eed07ceca0b2edcf62edfc751217f46f7860b8e580f" },
+    { "path": "openspec/changes/batch2-search-cleanup-monitor/tasks.md", "sha256": "712538cb4fcb5d1eccbe9d07f1e59f2580bee0811fe4e58c6ae053474dec41a5" },
+    { "path": "openspec/changes/batch2-search-cleanup-monitor/specs/knowledge-base/spec.md", "sha256": "0345a8fc7b1f29ef0738438c222ee92b272fec6c6698a967f4310601ec7282f0" },
+    { "path": "openspec/changes/batch2-search-cleanup-monitor/specs/web-app/spec.md", "sha256": "54f5ba9c86df134ff088718d93755227e69ce8cbc97770928e00febbbc8356f6" },
+    { "path": "openspec/changes/batch2-search-cleanup-monitor/specs/whatsapp-sync/spec.md", "sha256": "faf0aa584e51d3950b98c1c1f0481bacf6025ebf8aaba04bb76967452486d636" }
+  ]
+}
