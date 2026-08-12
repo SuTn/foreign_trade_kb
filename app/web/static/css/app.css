@@ -474,3 +474,15 @@ table.data-table {
 .muted {
   color: var(--muted);
 }
+
+/* ---- Collector banner (batch2) ---- */
+#collector-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #dc2626;
+  color: #fff;
+  text-align: center;
+  padding: 8px 16px;
+  font-weight: 600;
+}

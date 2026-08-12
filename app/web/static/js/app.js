@@ -65,3 +65,24 @@ document.addEventListener("click", function (e) {
     copied();
   }
 });
+// batch2-search-cleanup-monitor: 采集器异常横幅 (D3, 自适应 15s/5s 轮询)
+(function () {
+  var banner = document.getElementById("collector-banner");
+  if (!banner) return;
+  var NORMAL_MS = 15000;
+  var FAST_MS = 5000;
+  function check() {
+    fetch("/api/collector/status")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var down = !d.alive;
+        banner.hidden = !down;
+        timer = setTimeout(check, down ? FAST_MS : NORMAL_MS);
+      })
+      .catch(function () {
+        banner.hidden = false;
+        timer = setTimeout(check, FAST_MS);
+      });
+  }
+  var timer = setTimeout(check, 0);
+})();
