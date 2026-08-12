@@ -376,7 +376,7 @@ git commit -m "feat: VectorStore.delete_message_vectors 抽象 + ChromaStore met
   - `_search_knowledge(store, query, limit=20) -> list[dict]`（键 `doc_id/text`）
   - `GET /api/search?q=`：默认返回 `{query, customers[], messages[], knowledge[], profiles[]}`（异常时含 `error`）；带 `HX-Request` 头返回 `search_results.html` 渲染片段
 
-- [ ] **Step 1: 写失败测试 `tests/web/test_search.py`**
+- [x] **Step 1: 写失败测试 `tests/web/test_search.py`**
 
 ```python
 from fastapi.testclient import TestClient
@@ -438,12 +438,12 @@ def test_api_search_degrades_on_error(tmp_data, monkeypatch):
     assert j["customers"] == []
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/web/test_search.py -v`
 Expected: 全部 FAIL（`404: Not Found`，`/api/search` 未实现）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/web/routes.py` 在 `collector_status` 端点之后、`/api/stats` 之前追加：
 
@@ -489,7 +489,7 @@ async def api_search(request: Request, q: str = ""):
     return result
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/web/test_search.py -v`
 Expected: 4 passed。
@@ -499,7 +499,7 @@ Expected: 4 passed。
 Run: `pytest tests/web/test_routes.py::test_knowledge_search_returns_results tests/web/test_routes.py::test_search_embedding_failure_degrades_to_bm25 -v`
 Expected: 2 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/routes.py tests/web/test_search.py

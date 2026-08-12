@@ -3,8 +3,8 @@
 ## 1. 全局搜索
 
 - [x] 1.1 `SqliteStore` 增加客户检索（名称/电话/公司/国家 LIKE）与画像字段检索方法
-- [ ] 1.2 `SqliteStore.search_fts` 结果映射：消息 FTS 行 join 回 messages 取 chat_id/body/ts；知识库 FTS join 回 doc_chunks 取 doc_id
-- [ ] 1.3 新增 `GET /api/search?q=` 聚合四源返回分组结果
+- [x] 1.2 `SqliteStore.search_fts` 结果映射：消息 FTS 行 join 回 messages 取 chat_id/body/ts；知识库 FTS join 回 doc_chunks 取 doc_id
+- [x] 1.3 新增 `GET /api/search?q=` 聚合四源返回分组结果
 - [ ] 1.4 新增 `/search` 页模板（分组展示，空查询友好提示）
 - [ ] 1.5 单测：四源各自命中与空查询行为
 
