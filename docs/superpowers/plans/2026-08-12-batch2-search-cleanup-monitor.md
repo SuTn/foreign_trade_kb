@@ -304,7 +304,7 @@ git commit -m "feat: SqliteStore 清理方法 (按 chat_id / 按 ts 删消息 + 
   - `VectorStore.delete_message_vectors(chat_id: str) -> None`（抽象）
   - `ChromaStore.delete_message_vectors(chat_id: str) -> None`（`msg_col.delete(where={"chat_id": chat_id})`）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `tests/storage/test_chroma_store.py` 末尾追加：
 
@@ -327,12 +327,12 @@ def test_chroma_store_implements_vector_store(tmp_data):
     assert isinstance(s, VectorStore)
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/storage/test_chroma_store.py tests/storage/test_interfaces.py -v`
 Expected: `test_delete_message_vectors_by_chat` FAIL（`AttributeError: 'ChromaStore' object has no attribute 'delete_message_vectors'`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 (1) `app/storage/interfaces.py` 的 `VectorStore` 类追加抽象方法（`delete_chunks` 之后）：
 
@@ -349,12 +349,12 @@ Expected: `test_delete_message_vectors_by_chat` FAIL（`AttributeError: 'ChromaS
         self.msg_col.delete(where={"chat_id": chat_id})
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/storage/test_chroma_store.py tests/storage/test_interfaces.py -v`
 Expected: 全部 PASS（含既有 `test_delete_chunks_by_doc`、`test_vector_store_is_abstract`）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/storage/interfaces.py app/storage/chroma_store.py tests/storage/test_chroma_store.py tests/storage/test_interfaces.py

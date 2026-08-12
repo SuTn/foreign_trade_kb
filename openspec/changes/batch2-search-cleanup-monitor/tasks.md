@@ -10,7 +10,7 @@
 
 ## 2. 手动数据清理
 
-- [ ] 2.1 `VectorStore.delete_message_vectors(chat_id)`（Chroma metadata 过滤）+ 接口声明
+- [x] 2.1 `VectorStore.delete_message_vectors(chat_id)`（Chroma metadata 过滤）+ 接口声明
 - [x] 2.2 `SqliteStore` 删除方法：按 chat_id 或按 ts 范围删 messages + FTS rebuild
 - [ ] 2.3 新增 `POST /api/cleanup`（mode: chat|days，前端确认后调用）
 - [ ] 2.4 管理入口：模板页/按钮触发清理
