@@ -1,0 +1,15 @@
+{
+  "change": "reply-workflow-optimization",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "70a7874c62f1a987259c0c2080eab4a668055c7561a7d65d3fc80ba8db4e8f49",
+  "files": [
+    { "path": "openspec/changes/reply-workflow-optimization/proposal.md", "sha256": "3dd3849020324e3dfec10cee2861d71fa11e019a7f9bf88f4f204ddd5fddb1e4" },
+    { "path": "openspec/changes/reply-workflow-optimization/design.md", "sha256": "2ec1cc6707ccfbea337fa309320c8dadea92b758f71798da8021ec5fedd5821d" },
+    { "path": "openspec/changes/reply-workflow-optimization/tasks.md", "sha256": "ba46494b1693d1a20fe6d9383f2a0336757c8e3a45d753f27d2a7e7b4a9f87bf" },
+    { "path": "openspec/changes/reply-workflow-optimization/specs/reply-assist/spec.md", "sha256": "9c27a15d44cb6c681737dc696bb3ee52b736388898158542506bca8d14ac6a84" },
+    { "path": "openspec/changes/reply-workflow-optimization/specs/web-app/spec.md", "sha256": "e3a39960169079643aa6501f6cb8a40fac07f13e6b4a0fa5b9244e4659fcd13f" }
+  ]
+}

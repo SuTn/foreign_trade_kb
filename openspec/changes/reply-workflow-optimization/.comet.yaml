@@ -7,7 +7,7 @@ subagent_dispatch: confirmed
 tdd_mode: tdd
 review_mode: standard
 isolation: branch
-verify_mode: null
+verify_mode: full
 auto_transition: true
 base_ref: 20d4cfce05acbcf8ce2a5416bb7a3b0f3e80bfe0
 design_doc: docs/superpowers/specs/2026-08-12-reply-workflow-optimization-design.md
