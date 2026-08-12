@@ -2,6 +2,8 @@
 comet_change: reply-workflow-optimization
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-12-reply-workflow-optimization
+status: final
 ---
 
 # reply-workflow-optimization Design Doc

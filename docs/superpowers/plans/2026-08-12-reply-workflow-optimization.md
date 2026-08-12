@@ -1,3 +1,7 @@
+---
+archived-with: 2026-08-12-reply-workflow-optimization
+status: final
+---
 ﻿---
 change: reply-workflow-optimization
 design-doc: docs/superpowers/specs/2026-08-12-reply-workflow-optimization-design.md
