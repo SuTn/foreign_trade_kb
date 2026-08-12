@@ -7,8 +7,8 @@
 
 ## 当前任务
 
-- plan task: Task 7 — 前端模板与一键复制
-- openspec task: §2.5 前端 / §3.5 / §4
+- plan task: Task 8 — 既有 reply 测试迁移 + 会话集成测试
+- openspec task: §2.6 / §3.6
 - 阶段: implementing
 - 实现提交: pending
 - RED/GREEN 证据: pending
@@ -20,6 +20,7 @@
 - Task 2: complete (8e89373)
 - Task 3: complete (cd518d7)
 - conftest helper: complete (05e22ed)
-- Task 5: complete (eb00294, routes 异步端点 + polling 模板)
-- Task 4: complete (03304db, reply worker)
-- Task 6: complete (edc703f, lifespan worker + D7 清理 + llm 单例; 偏差: CloudLLM 走 routes 名字供 monkeypatch, reply_result.html 预加 data-copy)
+- Task 5: complete (eb00294)
+- Task 4: complete (03304db)
+- Task 6: complete (edc703f)
+- Task 7: complete (275f30b, 前端轮询 + 复制 + session_id 透传, test_reply_async 6 passed; Starlette 1.6 TemplateResponse 签名适配)

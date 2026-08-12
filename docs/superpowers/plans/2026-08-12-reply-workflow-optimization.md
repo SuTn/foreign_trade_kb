@@ -1053,7 +1053,7 @@ git commit -m "feat: lifespan 启动 reply worker + 遗留任务清理 + app.sta
   - `chat_messages.html`：生成回复按钮 `hx-vals` 携带 `session_id`
   - `app.js`：document 级 click 事件委托处理 `[data-copy]`
 
-- [ ] **Step 1: 写失败测试（HTML 渲染断言，追加到 `tests/web/test_reply_async.py`）**
+- [x] **Step 1: 写失败测试（HTML 渲染断言，追加到 `tests/web/test_reply_async.py`）**
 
 ```python
 def test_reply_polling_template_has_every_1s(tmp_data):
@@ -1121,12 +1121,12 @@ def test_chat_page_passes_session_id(tmp_data):
     assert "session_id" in html  # 生成回复按钮 hx-vals 透传
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/web/test_reply_async.py -v`
 Expected: 3 个新用例 FAIL（模板缺 `reply_polling.html`、`reply_result.html` 缺 data-copy、chat 页缺 session_id）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 (1) 新建 `app/web/templates/reply_polling.html`：
 
@@ -1212,12 +1212,12 @@ document.addEventListener("click", function (e) {
 });
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/web/test_reply_async.py -v`
 Expected: 6 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/templates/reply_polling.html app/web/templates/reply_result.html app/web/templates/chat_messages.html app/web/static/js/app.js app/web/routes.py tests/web/test_reply_async.py
