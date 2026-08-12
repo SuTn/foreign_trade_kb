@@ -4,7 +4,7 @@
   <p class="muted">{{ error }}</p>
   {% else %}
   <p><strong>建议回复</strong> <span class="tag">风格: {{ style }}</span></p>
-  <textarea class="input" rows="4" style="width:100%">{{ reply }}</textarea>
+  <textarea class="input" rows="4" style="width:100%" data-copy>{{ reply }}</textarea>
   <button class="btn" hx-post="/api/reply/regenerate"
           hx-vals='{"customer_id": "{{ customer_id }}", "chat_id": "{{ chat_id }}", "message": "{{ message|default('', true) }}", "style": "{{ style }}" }'
           hx-target="closest div" hx-swap="innerHTML">重新生成</button>

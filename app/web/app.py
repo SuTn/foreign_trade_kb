@@ -10,7 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
+from app.web import routes
 from app.web.routes import router, _build_store
+from app.web.worker import worker_loop
 
 
 def _hf_model_cached(model_name: str) -> bool:
@@ -59,9 +61,12 @@ def _warmup_models(app: FastAPI):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Web 进程级单例: 启动时持有 sqlite store, 关闭时释放连接。
+    """Web 进程级单例: 持有 sqlite store / llm 单例, 启动 reply worker, 关闭时释放连接。
 
-    chroma store 由 routes 首次访问时惰性创建并缓存 (embedding_fn 需走 routes 的
+    D3: app.state.llm 为进程级 CloudLLM 单例 (worker 与路由复用, client 懒加载)。
+    D7: 启动时清理遗留 pending/running 任务为 failed (进程重启残留)。
+    D1: 常驻 daemon worker 线程消费 reply_tasks。
+    chroma store 由 routes/worker 首次访问时惰性创建并缓存 (embedding_fn 需走 routes 的
     get_embedding 以便测试 monkeypatch), 此处仅预置占位 None。
     embedding/reranker 在后台线程预热 (3.3), 不阻塞启动。
     """
@@ -70,7 +75,11 @@ async def lifespan(app: FastAPI):
     app.state.chroma_store = None
     app.state.embedding = None
     app.state.reranker = None
+    app.state.llm = routes.CloudLLM()  # D3 单例; 走 routes 名字以便测试 monkeypatch 替换
     app.state.embedding_ready = threading.Event()
+    store.mark_legacy_reply_tasks_failed()  # D7 (worker 起跑前清理)
+    app.state.reply_worker = threading.Thread(target=worker_loop, args=(app,), daemon=True)
+    app.state.reply_worker.start()
     threading.Thread(target=_warmup_models, args=(app,), daemon=True).start()
     try:
         yield
