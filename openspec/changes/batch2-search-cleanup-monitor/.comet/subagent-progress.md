@@ -7,8 +7,8 @@
 
 ## 当前任务
 
-- plan task: Task 5 — /search 全局搜索页
-- openspec task: §1.4 / §1.5 页面部分
+- plan task: Task 6 — POST /api/cleanup + /cleanup 管理页
+- openspec task: §2.3 / §2.4 / §2.5 部分
 - 阶段: implementing
 - 实现提交: pending
 - review 轮次: 0
@@ -18,4 +18,5 @@
 - Task 1: complete (6487ce9, 搜索方法)
 - Task 2: complete (e01f2f1, 清理方法)
 - Task 3: complete (b752fda, delete_message_vectors)
-- Task 4: complete (f9b5b2b, /api/search 聚合 + search_results.html, tests/web/test_search 4 passed)
+- Task 4: complete (f9b5b2b, /api/search 聚合)
+- Task 5: complete (adb9de1, /search 页, tests/web/test_search 5 passed)

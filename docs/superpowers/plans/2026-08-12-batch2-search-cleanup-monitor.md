@@ -535,12 +535,12 @@ def test_search_page_renders(tmp_data):
     assert '<a href="/search">搜索</a>' in html
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/web/test_search.py::test_search_page_renders -v`
 Expected: FAIL（`404: Not Found` 或断言失败，模板不存在、导航无链接）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 (1) 新建 `app/web/templates/search.html`：
 
@@ -630,12 +630,12 @@ async def search_page(request: Request):
   <a href="/">首页</a><a href="/customers">客户</a><a href="/knowledge">知识库</a><a href="/search">搜索</a>
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/web/test_search.py -v`
 Expected: 5 passed（既有 4 个 + 页面 1 个）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/templates/search.html app/web/templates/search_results.html app/web/routes.py app/web/templates/base.html tests/web/test_search.py
