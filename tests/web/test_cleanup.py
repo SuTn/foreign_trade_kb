@@ -76,6 +76,9 @@ def test_cleanup_empty_json_body_400(tmp_data):
     client = TestClient(create_app())
     assert client.post("/api/cleanup", content=b"", headers={"Content-Type": "application/json"}).status_code == 400
     assert client.post("/api/cleanup", content=b"{not-json", headers={"Content-Type": "application/json"}).status_code == 400
+    assert client.post("/api/cleanup", json=None).status_code == 400
+    assert client.post("/api/cleanup", json=[1, 2]).status_code == 400
+    assert client.post("/api/cleanup", json="abc").status_code == 400
 
 
 def test_cleanup_degrades_when_vector_delete_fails(tmp_data, monkeypatch):

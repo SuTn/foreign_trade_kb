@@ -175,6 +175,8 @@ async def _cleanup_params(request: Request) -> dict:
             body = await request.json()
         except Exception:
             body = {}
+        if not isinstance(body, dict):
+            body = {}
     else:
         body = await request.form()
     return {"mode": (body.get("mode") or "").strip(),
