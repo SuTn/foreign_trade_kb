@@ -13,7 +13,7 @@
 - [x] 2.3 `POST /api/reply` 改为插入任务返回 `task_id`；后台线程执行 RAG + LLM，独立 SQLite 连接
 - [x] 2.4 新增 `GET /api/reply/status/{task_id}` 返回任务状态（pending/running/done/failed + result/error）
 - [x] 2.5 `reply_result.html` 提交任务后 HTMX 轮询状态直至 done，失败展示错误
-- [ ] 2.6 单测：异步任务状态流转（pending→running→done/failed）+ 状态查询接口
+- [x] 2.6 单测：异步任务状态流转（pending→running→done/failed）+ 状态查询接口
 
 ## 3. 多轮对话
 
@@ -22,13 +22,13 @@
 - [x] 3.3 `POST /api/reply` 支持 `session_id` 参数：无则新建会话，有则读取历史
 - [x] 3.4 `generate_reply` 将会话历史作为上下文传给 LLM（增强 REPLY_SYSTEM）
 - [x] 3.5 前端 `chat_messages.html` 维护 `session_id` 并随回复请求透传；`regenerate` 沿用同一会话
-- [ ] 3.6 单测：会话历史持久化 + 上下文传递（历史出现在 prompt）
+- [x] 3.6 单测：会话历史持久化 + 上下文传递（历史出现在 prompt）
 
 ## 4. 一键复制
 
 - [x] 4.1 `reply_result.html` 加「复制」按钮
 - [x] 4.2 `app.js` 实现 `navigator.clipboard.writeText()` 复制逻辑（含 `execCommand` 回退）
-- [ ] 4.3 前端测试/走读确认按钮在 done 结果上可用
+- [x] 4.3 前端测试/走读确认按钮在 done 结果上可用
 
 ## 5. 回归验证
 

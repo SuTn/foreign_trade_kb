@@ -7,11 +7,10 @@
 
 ## 当前任务
 
-- plan task: Task 8 — 既有 reply 测试迁移 + 会话集成测试
-- openspec task: §2.6 / §3.6
-- 阶段: implementing
+- plan task: Task 9 — 回归验证
+- openspec task: §5
+- 阶段: verifying
 - 实现提交: pending
-- RED/GREEN 证据: pending
 - review 轮次: 0
 
 ## 已完成
@@ -23,4 +22,5 @@
 - Task 5: complete (eb00294)
 - Task 4: complete (03304db)
 - Task 6: complete (edc703f)
-- Task 7: complete (275f30b, 前端轮询 + 复制 + session_id 透传, test_reply_async 6 passed; Starlette 1.6 TemplateResponse 签名适配)
+- Task 7: complete (275f30b)
+- Task 8: complete (35d9fc6, 4 旧测试迁移 + 会话集成, 全量 176 passed)

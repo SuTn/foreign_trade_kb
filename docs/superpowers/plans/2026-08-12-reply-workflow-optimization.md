@@ -1239,7 +1239,7 @@ git commit -m "feat: 前端轮询片段 + 一键复制 + session_id 透传"
 
 > 说明：`tests/web/test_reply_async.py` 已在 Task 5/6/7 中引用 `reply_task_id` / `wait_reply_done`。为满足各任务自包含，helper 需在 Task 5 Step 1 之前就已存在——**本任务 Step 1 的 conftest 修改应作为 Task 5 的前置提交提前落地**；若按顺序执行，把本任务 Step 1 放到 Task 5 之前完成即可。
 
-- [ ] **Step 1: 在 `tests/conftest.py` 追加 helper**
+- [x] **Step 1: 在 `tests/conftest.py` 追加 helper**
 
 ```python
 import re
@@ -1264,7 +1264,7 @@ def wait_reply_done(client, task_id, timeout=8.0):
     raise AssertionError(f"task {task_id} 未在 {timeout}s 内完成")
 ```
 
-- [ ] **Step 2: 写迁移测试（替换 `tests/web/test_routes.py` 中第 292-325 行、第 359-417 行、第 445-465 行的 4 个既有测试）**
+- [x] **Step 2: 写迁移测试（替换 `tests/web/test_routes.py` 中第 292-325 行、第 359-417 行、第 445-465 行的 4 个既有测试）**
 
 替换后内容如下（4 个测试整体替换）：
 
@@ -1398,7 +1398,7 @@ def test_reply_degrades_when_embedding_warmup_times_out(tmp_data, monkeypatch):
         assert "预热超时" in done.text
 ```
 
-- [ ] **Step 3: 写会话上下文集成测试（追加到 `tests/web/test_routes.py` 末尾）**
+- [x] **Step 3: 写会话上下文集成测试（追加到 `tests/web/test_routes.py` 末尾）**
 
 ```python
 def test_reply_session_history_passed_on_second_generate(tmp_data, monkeypatch):
@@ -1439,12 +1439,12 @@ def test_reply_session_history_passed_on_second_generate(tmp_data, monkeypatch):
     assert "第一轮回复" in prompts[1]  # 历史 assistant 进入上下文
 ```
 
-- [ ] **Step 4: 运行迁移 + 新增测试确认通过**
+- [x] **Step 4: 运行迁移 + 新增测试确认通过**
 
 Run: `pytest tests/web/test_routes.py -v`
 Expected: 全部通过（含 5 个 reply 相关测试 + 其余回归）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add tests/conftest.py tests/web/test_routes.py
