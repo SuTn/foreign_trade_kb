@@ -73,7 +73,7 @@ base-ref: 20d4cfce05acbcf8ce2a5416bb7a3b0f3e80bfe0
 - Consumes: `app/llm/interfaces.py` 的 `LLM` 抽象接口；`app/config.py` 的 `settings.llm_provider / llm_model / llm_api_base / llm_api_key`。
 - Produces: `CloudLLM(provider, model, api_base, api_key)` 构造函数签名不变；新增私有 `_get_client()`（`_client` 懒加载 + `_lock`），`generate(system, user, max_tokens=1024) -> str` 签名不变。后续 Task 4/6 依赖 `app.state.llm` 复用此实例。
 
-- [ ] **Step 1: 写失败测试 `tests/llm/test_cloud_llm.py`**
+- [x] **Step 1: 写失败测试 `tests/llm/test_cloud_llm.py`**
 
 ```python
 # tests/llm/test_cloud_llm.py
@@ -129,12 +129,12 @@ def test_concurrent_first_call_builds_once(monkeypatch):
     assert len(builds) == 1
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/llm/test_cloud_llm.py -v`
 Expected: 两个用例均 FAIL（当前每次 `generate` 都新建 client，`len(builds) == 1` 断言失败）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/llm/cloud_llm.py` 全文替换为：
 
@@ -205,12 +205,12 @@ class CloudLLM(LLM):
             return resp.choices[0].message.content
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/llm/test_cloud_llm.py -v`
 Expected: 2 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/llm/cloud_llm.py tests/llm/test_cloud_llm.py
