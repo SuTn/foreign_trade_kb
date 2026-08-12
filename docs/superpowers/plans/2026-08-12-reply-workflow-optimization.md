@@ -713,7 +713,7 @@ git commit -m "feat: 常驻串行 reply worker (独立连接, mode 语义, 异�
   - `POST /api/reply/regenerate`：next_style 计算 → 插入任务（mode=regenerate）→ 返回轮询片段
   - `GET /api/reply/status/{task_id}`：pending/running → 轮询片段；done → reply_result.html；failed → 错误片段
 
-- [ ] **Step 1: 写失败测试（新建 `tests/web/test_reply_async.py` 提交侧部分）**
+- [x] **Step 1: 写失败测试（新建 `tests/web/test_reply_async.py` 提交侧部分）**
 
 ```python
 # tests/web/test_reply_async.py
@@ -743,12 +743,12 @@ def test_reply_post_returns_polling_fragment_and_pending_task(tmp_data):
     assert "正在生成回复" in r2.text
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/web/test_reply_async.py -v`
 Expected: FAIL（当前 POST 同步执行，响应不含 task_id / 无 status 端点 404）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/web/routes.py` 修改点：
 
@@ -890,12 +890,12 @@ async def reply_status(request: Request, task_id: str):
                                 task["message"], result, session_id=task["session_id"])
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/web/test_reply_async.py -v`
 Expected: 1 passed（提交侧，无需 worker）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/routes.py tests/web/test_reply_async.py

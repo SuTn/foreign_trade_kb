@@ -16,6 +16,8 @@
 
 ## 已完成
 
-- Task 1: complete (commit ad90986, CloudLLM client 懒加载复用)
-- Task 2: complete (commit 8e89373, 三表 + Store 方法; 方案A修复 rowid tie-break)
-- Task 3: complete (commit cd518d7, 回复生成支持会话历史上下文, tests/reply 4 passed)
+- Task 1: complete (ad90986, CloudLLM client 复用)
+- Task 2: complete (8e89373, 三表 + Store 方法)
+- Task 3: complete (cd518d7, 会话历史上下文)
+- conftest helper: complete (05e22ed, reply_task_id / wait_reply_done)
+- Task 5: complete (eb00294, routes 异步端点 + reply_polling.html 模板; tests/web/test_reply_async.py 1 passed; 4 个旧同步测试待 Task 8 迁移)
