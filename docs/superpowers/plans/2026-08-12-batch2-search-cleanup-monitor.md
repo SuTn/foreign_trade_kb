@@ -659,7 +659,7 @@ git commit -m "feat: /search 全局搜索页 (htmx keyup delay 300ms 分组渲�
   - `POST /api/cleanup`：400 校验 + 删除 + 向量清理；成功返回 `{"deleted_rows", "affected_chats"}`；向量失败返回 `{"deleted_rows", "affected_chats", "error"}`
   - `GET /cleanup` → `cleanup.html`（chat/days 两表单 + `hx-confirm` 确认）
 
-- [ ] **Step 1: 写失败测试 `tests/web/test_cleanup.py`**
+- [x] **Step 1: 写失败测试 `tests/web/test_cleanup.py`**
 
 ```python
 import time
@@ -758,12 +758,12 @@ def test_cleanup_page_renders(tmp_data):
     assert '<a href="/cleanup">清理</a>' in html
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/web/test_cleanup.py -v`
 Expected: 全部 FAIL（`404: Not Found`，`/api/cleanup` 与 `/cleanup` 未实现）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 (1) `app/web/routes.py` 第 8 行改导入：
 
@@ -874,7 +874,7 @@ async def cleanup_page(request: Request):
   <a href="/">首页</a><a href="/customers">客户</a><a href="/knowledge">知识库</a><a href="/search">搜索</a><a href="/cleanup">清理</a>
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/web/test_cleanup.py -v`
 Expected: 5 passed。
@@ -884,7 +884,7 @@ Expected: 5 passed。
 Run: `pytest tests/storage/test_sqlite_store.py tests/storage/test_chroma_store.py -q`
 Expected: 全部通过。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/routes.py app/web/templates/cleanup.html app/web/templates/base.html tests/web/test_cleanup.py
