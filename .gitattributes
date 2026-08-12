@@ -1,0 +1,3 @@
+# Comet state files must stay LF — the comet scripts validate with grep/awk
+# and CRLF breaks schema validation (values gain a trailing \r).
+openspec/**/.comet.yaml text eol=lf
