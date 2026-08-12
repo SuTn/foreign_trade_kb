@@ -7,8 +7,8 @@
 
 ## 当前任务
 
-- plan task: Task 2 — SqliteStore 清理方法（按 chat_id / 按 ts + FTS rebuild）
-- openspec task: §2.2 / §2.5 部分
+- plan task: Task 3 — VectorStore.delete_message_vectors（抽象 + Chroma 实现）
+- openspec task: §2.1
 - 阶段: implementing
 - 实现提交: pending
 - review 轮次: 0
@@ -16,3 +16,4 @@
 ## 已完成
 
 - Task 1: complete (6487ce9, 搜索方法, tests/storage 23 passed)
+- Task 2: complete (e01f2f1, 清理方法, tests/storage 26 passed)

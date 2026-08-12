@@ -199,7 +199,7 @@ git commit -m "feat: SqliteStore 全局搜索方法 (客户/画像 LIKE 转义 +
   - `delete_messages_before(cutoff_ts: int) -> dict`（返回同上，`affected_chats` 为该时间前涉及的全部 DISTINCT chat_id）
   - `_rebuild_messages_fts() -> None`
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/storage/test_sqlite_store.py` 末尾）
+- [x] **Step 1: 写失败测试**（追加到 `tests/storage/test_sqlite_store.py` 末尾）
 
 ```python
 # ---- batch2-search-cleanup-monitor: 手动清理 (tasks 2.2 / 2.5) ----
@@ -242,12 +242,12 @@ def test_delete_messages_keeps_profiles_and_documents(tmp_data):
     assert s.conn.execute("SELECT COUNT(*) FROM doc_chunks").fetchone()[0] == 1  # chunk 保留
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/storage/test_sqlite_store.py -v`
 Expected: 3 个新用例 FAIL（`AttributeError: 'SqliteStore' object has no attribute 'delete_messages_by_chat'`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 在 `app/storage/sqlite_store.py` 的 `delete_document` 之后（`# ---- reply-workflow-optimization` 注释之前）追加：
 
@@ -277,12 +277,12 @@ Expected: 3 个新用例 FAIL（`AttributeError: 'SqliteStore' object has no att
         return {"deleted_rows": deleted, "affected_chats": chat_ids}
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/storage/test_sqlite_store.py -v`
 Expected: 既有用例 + 新增 3 个全部 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/storage/sqlite_store.py tests/storage/test_sqlite_store.py
