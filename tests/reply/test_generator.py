@@ -54,3 +54,23 @@ def test_regenerate_produces_different_style(tmp_data):
     r2 = regenerate_reply(pipe, "cust1", "c1", "hi", previous_style=r1["style"])
     assert r2["style"] != r1["style"]
     assert styles[1] != styles[0]  # 第二次提示词不同
+
+
+def test_generate_reply_includes_session_history(tmp_data):
+    """3.4/3.6: 会话历史作为额外 system 上下文传入 LLM。"""
+    seen = {}
+
+    class CapturingLLM(LLM):
+        def generate(self, s, u, max_tokens=1024):
+            seen["system"] = s
+            return "回复"
+
+    store = SqliteStore()
+    vs = ChromaStore(embedding_fn=fake_embed)
+    pipe = RagPipeline(store, vs, FakeReranker(), CapturingLLM())
+    history = [{"role": "user", "content": "LED价格?"},
+               {"role": "assistant", "content": "报价$5"}]
+    generate_reply(pipe, "cust1", "c1", "何时到货?", history=history)
+    assert "本次会话最近对话历史" in seen["system"]
+    assert "LED价格" in seen["system"]
+    assert "报价$5" in seen["system"]
