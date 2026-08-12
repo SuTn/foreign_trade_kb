@@ -1,0 +1,60 @@
+# tests/storage/test_reply_store.py
+import time
+import sqlite3
+from app.storage.sqlite_store import SqliteStore
+
+
+def test_create_and_query_reply_task(tmp_data):
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    assert isinstance(sid, str) and sid
+    assert store.find_or_create_reply_session("cust1", "c1") == sid  # find-or-create 幂等
+    task_id = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate")
+    t = store.get_reply_task(task_id)
+    assert t["status"] == "pending"
+    assert t["mode"] == "generate"
+    assert t["session_id"] == sid
+    store.create_reply_task("cust1", "c1", "hi2", "concise", sid, "regenerate")
+    assert store.next_pending_reply_task()["id"] == task_id  # 最早 pending 优先
+
+
+def test_reply_task_status_transitions(tmp_data):
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate")
+    store.update_reply_task(tid, status="running")
+    assert store.get_reply_task(tid)["status"] == "running"
+    store.update_reply_task(tid, status="done", result='{"reply": "x"}')
+    assert store.get_reply_task(tid)["result"] == '{"reply": "x"}'
+    assert store.next_pending_reply_task() is None
+
+
+def test_session_history_roundtrip_and_limit(tmp_data):
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    store.append_session_message(sid, "user", "m1")
+    store.append_session_message(sid, "assistant", "a1")
+    store.append_session_message(sid, "user", "m2")
+    hist = store.get_session_history(sid, limit=10)
+    assert [h["role"] for h in hist] == ["user", "assistant", "user"]
+    # 超限取最新 10 条 (按 ts 控制唯一顺序)
+    now = int(time.time())
+    for i in range(12):
+        store.conn.execute("INSERT INTO reply_session_messages VALUES(?,?,?,?,?)",
+                           (f"x{i}", sid, "user", f"m{i}", now + 1 + i))
+    store.conn.commit()
+    hist2 = store.get_session_history(sid, limit=10)
+    assert len(hist2) == 10
+    assert hist2[0]["content"] == "m2"   # 最新 10 条, 正序
+    assert hist2[-1]["content"] == "m11"
+
+
+def test_legacy_tasks_marked_failed(tmp_data):
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate")
+    store.conn.execute("UPDATE reply_tasks SET status='running' WHERE id=?", (tid,))
+    store.conn.commit()
+    store.mark_legacy_reply_tasks_failed()
+    assert store.get_reply_task(tid)["status"] == "failed"
+    assert "清理" in store.get_reply_task(tid)["error"]

@@ -1,5 +1,5 @@
 # app/storage/sqlite_store.py
-import sqlite3, time, json
+import sqlite3, time, json, uuid
 from pathlib import Path
 from app.storage.interfaces import (StructuredStore, Chat, Message, ProfileField, WikiPage)
 from app.config import settings
@@ -149,6 +149,70 @@ class SqliteStore(StructuredStore):
         cur = self.conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
         self.conn.commit()
         return cur.rowcount > 0
+
+    # ---- reply-workflow-optimization: 回复任务 (D1/D7) ----
+    def create_reply_task(self, customer_id, chat_id, message, style, session_id, mode):
+        task_id = uuid.uuid4().hex
+        now = int(time.time())
+        self.conn.execute(
+            "INSERT INTO reply_tasks VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (task_id, customer_id, chat_id, message, style, session_id, mode,
+             "pending", None, None, now, now))
+        self.conn.commit()
+        return task_id
+
+    def get_reply_task(self, task_id):
+        r = self.conn.execute("SELECT * FROM reply_tasks WHERE id=?", (task_id,)).fetchone()
+        return dict(r) if r else None
+
+    def next_pending_reply_task(self):
+        r = self.conn.execute(
+            "SELECT * FROM reply_tasks WHERE status='pending' "
+            "ORDER BY created_at ASC, rowid ASC LIMIT 1").fetchone()
+        return dict(r) if r else None
+
+    def update_reply_task(self, task_id, *, status=None, result=None, error=None):
+        self.conn.execute(
+            "UPDATE reply_tasks SET status=COALESCE(?,status), result=COALESCE(?,result), "
+            "error=COALESCE(?,error), updated_at=? WHERE id=?",
+            (status, result, error, int(time.time()), task_id))
+        self.conn.commit()
+
+    def mark_legacy_reply_tasks_failed(self):
+        self.conn.execute(
+            "UPDATE reply_tasks SET status='failed', "
+            "error='进程重启遗留任务已清理', updated_at=? "
+            "WHERE status IN ('pending','running')", (int(time.time()),))
+        self.conn.commit()
+
+    # ---- reply-workflow-optimization: 多轮会话 (D4) ----
+    def find_or_create_reply_session(self, customer_id, chat_id):
+        r = self.conn.execute(
+            "SELECT id FROM reply_sessions WHERE customer_id=? AND chat_id=?",
+            (customer_id, chat_id)).fetchone()
+        if r:
+            return r["id"]
+        sid = uuid.uuid4().hex
+        now = int(time.time())
+        self.conn.execute("INSERT INTO reply_sessions VALUES(?,?,?,?,?)",
+                          (sid, customer_id, chat_id, now, now))
+        self.conn.commit()
+        return sid
+
+    def append_session_message(self, session_id, role, content):
+        now = int(time.time())
+        self.conn.execute("INSERT INTO reply_session_messages VALUES(?,?,?,?,?)",
+                          (uuid.uuid4().hex, session_id, role, content, now))
+        self.conn.commit()
+
+    def get_session_history(self, session_id, limit=10):
+        rows = self.conn.execute(
+            "SELECT role, content, ts, rowid FROM ("
+            "  SELECT role, content, ts, rowid FROM reply_session_messages WHERE session_id=? "
+            "  ORDER BY ts DESC, rowid DESC LIMIT ?) "
+            "ORDER BY ts ASC, rowid ASC",
+            (session_id, limit)).fetchall()
+        return [{"role": r["role"], "content": r["content"]} for r in rows]
 
     def _row_to_msg(self, r):
         return Message(r["id"], r["account_id"], r["chat_id"], bool(r["from_me"]), r["sender_jid"],

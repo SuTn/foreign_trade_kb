@@ -37,3 +37,15 @@ CREATE TABLE IF NOT EXISTS backfill_requests(
 -- FTS5
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(body, content='messages', content_rowid='rowid');
 CREATE VIRTUAL TABLE IF NOT EXISTS doc_chunks_fts USING fts5(text, content='doc_chunks', content_rowid='rowid');
+-- 回复异步化 (reply-workflow-optimization): 任务表 / 会话表
+-- mode: generate=主生成(追加会话历史) | regenerate=重生成(只读历史不追加)
+CREATE TABLE IF NOT EXISTS reply_tasks(
+  id TEXT PRIMARY KEY, customer_id TEXT, chat_id TEXT, message TEXT, style TEXT,
+  session_id TEXT, mode TEXT, status TEXT, result TEXT, error TEXT, created_at INTEGER, updated_at INTEGER);
+CREATE TABLE IF NOT EXISTS reply_sessions(
+  id TEXT PRIMARY KEY, customer_id TEXT, chat_id TEXT, created_at INTEGER, updated_at INTEGER);
+CREATE TABLE IF NOT EXISTS reply_session_messages(
+  id TEXT PRIMARY KEY, session_id TEXT, role TEXT, content TEXT, ts INTEGER);
+CREATE INDEX IF NOT EXISTS idx_reply_tasks_status ON reply_tasks(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_reply_sessions_cust_chat ON reply_sessions(customer_id, chat_id);
+CREATE INDEX IF NOT EXISTS idx_reply_sess_msgs ON reply_session_messages(session_id, ts);
