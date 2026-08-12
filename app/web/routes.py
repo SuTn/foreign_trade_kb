@@ -162,6 +162,12 @@ async def api_search(request: Request, q: str = ""):
     return result
 
 
+@router.get("/search")
+async def search_page(request: Request):
+    """D1: 全局搜索页 (htmx 驱动 /api/search)。"""
+    return request.app.state.templates.TemplateResponse(request, "search.html", {})
+
+
 @router.get("/api/stats")
 async def stats(request: Request):
     st = _build_stats(_store(request))

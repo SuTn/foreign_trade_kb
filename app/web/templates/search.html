@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>全局搜索</h1>
+<input class="input" id="global-q" name="q" type="search"
+       placeholder="搜索客户 / 消息 / 知识库 / 画像…" autocomplete="off"
+       hx-get="/api/search"
+       hx-trigger="keyup changed delay:300ms, search"
+       hx-target="#search-results"
+       hx-swap="innerHTML">
+<div id="search-results">
+  <p class="muted">输入关键词开始搜索。</p>
+</div>
+{% endblock %}

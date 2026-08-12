@@ -55,3 +55,11 @@ def test_api_search_degrades_on_error(tmp_data, monkeypatch):
     j = TestClient(create_app()).get("/api/search", params={"q": "LED"}).json()
     assert "error" in j
     assert j["customers"] == []
+
+
+def test_search_page_renders(tmp_data):
+    html = TestClient(create_app()).get("/search").text
+    assert 'hx-get="/api/search"' in html
+    assert "keyup changed delay:300ms" in html
+    assert 'id="search-results"' in html
+    assert '<a href="/search">搜索</a>' in html
