@@ -1,6 +1,7 @@
 # app/web/routes.py
 import time, uuid, tempfile
 import sqlite3
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Request, File, Form
@@ -18,7 +19,7 @@ from app.knowledge.parser import parse_document
 from app.knowledge.rag_index import RagIndex
 from app.knowledge.wiki_index import WikiIndex
 from app.knowledge.wiki_export import export_vault
-from app.reply.generator import generate_reply, regenerate_reply
+from app.reply.generator import generate_reply, regenerate_reply, NEXT_STYLE
 
 router = APIRouter()
 
@@ -34,9 +35,9 @@ def _embedding(request: Request):
     return emb
 
 
-def _embedding_ready(request: Request) -> bool:
+def _embedding_ready(app) -> bool:
     """等待模型预热完成 (有超时)。无 lifespan/无预热机制视为已就绪。"""
-    ready = getattr(request.app.state, "embedding_ready", None)
+    ready = getattr(app.state, "embedding_ready", None)
     if ready is None:
         return True
     return ready.wait(WARMUP_TIMEOUT_SEC)
@@ -62,16 +63,22 @@ def _store(request: Request) -> SqliteStore:
     return request.app.state.sqlite_store
 
 
-def _chroma_store(request: Request) -> ChromaStore:
+def _get_chroma_store(app) -> ChromaStore:
     """返回进程级 chroma 单例 (首次访问惰性创建, 复用 embedding_fn 便于测试替换)。
 
     模型预热未就绪时按 WARMUP_TIMEOUT_SEC 等待, 超时抛错由调用方降级。
+    request 无关: worker 线程同样经此访问共享 chroma (审计 H)。
     """
-    if not getattr(request.app.state, "chroma_store", None):
-        if not _embedding_ready(request):
+    if not getattr(app.state, "chroma_store", None):
+        if not _embedding_ready(app):
             raise RuntimeError("embedding 模型预热超时未就绪, 请稍后重试")
-        request.app.state.chroma_store = ChromaStore(embedding_fn=_embedding(request).embed)
-    return request.app.state.chroma_store
+        emb = getattr(app.state, "embedding", None) or get_embedding()
+        app.state.chroma_store = ChromaStore(embedding_fn=emb.embed)
+    return app.state.chroma_store
+
+
+def _chroma_store(request: Request) -> ChromaStore:
+    return _get_chroma_store(request.app)
 
 
 def _build_stats(store) -> dict:
@@ -285,54 +292,80 @@ async def knowledge_search(request: Request):
 
 
 async def _reply_params(request: Request) -> dict:
-    """从 JSON body 或表单解析 {customer_id, chat_id, message, style}。"""
+    """从 JSON body 或表单解析 {customer_id, chat_id, message, style, session_id}。"""
     if request.headers.get("content-type", "").startswith("application/json"):
         body = await request.json()
     else:
         body = await request.form()
-    return {k: (body.get(k) or "") for k in ("customer_id", "chat_id", "message", "style")}
+    return {k: (body.get(k) or "") for k in ("customer_id", "chat_id", "message", "style", "session_id")}
 
 
 def _render_reply_result(request: Request, customer_id: str, chat_id: str,
-                         message: str, result: dict):
+                         message: str, result: dict, session_id: str | None = None):
     return request.app.state.templates.TemplateResponse(
         request, "reply_result.html",
         {"customer_id": customer_id, "chat_id": chat_id, "message": message,
          "reply": result.get("reply", ""),
          "sources": result.get("sources", []), "style": result.get("style", "default"),
-         "error": result.get("error")},
+         "session_id": session_id, "error": result.get("error")},
     )
+
+
+async def _reply_session(request: Request, customer_id: str, chat_id: str,
+                         session_id: str | None = None) -> str:
+    """D4: 每 chat 一个会话; 显式 session_id 存在则沿用, 否则按 customer_id+chat_id find-or-create。"""
+    store = _store(request)
+    if session_id:
+        row = store.conn.execute("SELECT id FROM reply_sessions WHERE id=?", (session_id,)).fetchone()
+        if row:
+            return session_id
+    return store.find_or_create_reply_session(customer_id, chat_id)
 
 
 @router.post("/api/reply")
 async def reply(request: Request):
     p = await _reply_params(request)
     store = _store(request)
-    try:
-        vs = _chroma_store(request)
-        pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
-        result = generate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
-                                style=p.get("style") or "default")
-    except Exception as e:
-        result = {"reply": "", "sources": [], "style": p.get("style") or "default",
-                  "error": str(e)[:300]}
-    return _render_reply_result(request, p["customer_id"], p["chat_id"], p["message"], result)
+    session_id = await _reply_session(request, p["customer_id"], p["chat_id"], p.get("session_id"))
+    task_id = store.create_reply_task(p["customer_id"], p["chat_id"], p["message"],
+                                      p.get("style") or "default", session_id, mode="generate")
+    return request.app.state.templates.TemplateResponse(
+        request, "reply_polling.html", {"task_id": task_id})
 
 
 @router.post("/api/reply/regenerate")
 async def reply_regenerate(request: Request):
-    """reply-assist: 为同一条消息重新生成获得不同候选回复。"""
+    """reply-assist: 重生成任务 (mode=regenerate, worker 不追加会话历史)。"""
     p = await _reply_params(request)
     store = _store(request)
-    try:
-        vs = _chroma_store(request)
-        pipe = RagPipeline(store, vs, get_reranker(), CloudLLM())
-        result = regenerate_reply(pipe, p["customer_id"], p["chat_id"], p["message"],
-                                  previous_style=p.get("style") or "default")
-    except Exception as e:
-        result = {"reply": "", "sources": [], "style": p.get("style") or "default",
-                  "error": str(e)[:300]}
-    return _render_reply_result(request, p["customer_id"], p["chat_id"], p["message"], result)
+    session_id = await _reply_session(request, p["customer_id"], p["chat_id"], p.get("session_id"))
+    next_style = NEXT_STYLE.get(p.get("style") or "default", "default")
+    task_id = store.create_reply_task(p["customer_id"], p["chat_id"], p["message"],
+                                      next_style, session_id, mode="regenerate")
+    return request.app.state.templates.TemplateResponse(
+        request, "reply_polling.html", {"task_id": task_id})
+
+
+@router.get("/api/reply/status/{task_id}")
+async def reply_status(request: Request, task_id: str):
+    """D2: 轮询端点。pending/running → 处理中片段(继续轮询);
+    done → 完整结果(停止轮询); failed → 错误片段。"""
+    store = _store(request)
+    task = store.get_reply_task(task_id)
+    if task is None:
+        return HTMLResponse('<p class="muted">任务不存在或已过期</p>')
+    if task["status"] in ("pending", "running"):
+        return request.app.state.templates.TemplateResponse(
+            request, "reply_polling.html", {"task_id": task_id})
+    if task["status"] == "failed":
+        return _render_reply_result(request, task["customer_id"], task["chat_id"],
+                                    task["message"],
+                                    {"reply": "", "sources": [], "style": task["style"],
+                                     "error": task["error"]},
+                                    session_id=task["session_id"])
+    result = json.loads(task["result"] or "{}")
+    return _render_reply_result(request, task["customer_id"], task["chat_id"],
+                                task["message"], result, session_id=task["session_id"])
 
 
 @router.post("/api/knowledge/upload")
