@@ -7,8 +7,8 @@
 
 ## 当前任务
 
-- plan task: Task 2 — schema 三表 + SqliteStore 任务/会话方法
-- openspec task: §2.1/2.2、§3.1/3.2
+- plan task: Task 3 — generator 会话历史上下文
+- openspec task: §3.4
 - 阶段: implementing
 - 实现提交: pending
 - RED/GREEN 证据: pending
@@ -16,4 +16,5 @@
 
 ## 已完成
 
-- Task 1: complete (commit ad90986, CloudLLM client 懒加载复用, 2 passed + tests/llm 10 passed, review_mode=standard 无 per-task reviewer, 定向勾选验证通过)
+- Task 1: complete (commit ad90986, CloudLLM client 懒加载复用, tests/llm 10 passed)
+- Task 2: complete (commit 8e89373, reply_tasks/reply_sessions 表与 SqliteStore 方法, tests/storage 20 passed; 计划缺陷按方案A修复: SQL 投影 id→rowid tie-break, 测试 ts=now+1+i)

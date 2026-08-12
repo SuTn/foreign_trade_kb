@@ -239,7 +239,7 @@ git commit -m "feat: CloudLLM client 懒加载复用 (threading.Lock 防并发�
   - `append_session_message(session_id: str, role: str, content: str) -> None`
   - `get_session_history(session_id: str, limit: int = 10) -> list[dict]`（最近 limit 条，正序返回）
 
-- [ ] **Step 1: 写失败测试 `tests/storage/test_reply_store.py`**
+- [x] **Step 1: 写失败测试 `tests/storage/test_reply_store.py`**
 
 ```python
 # tests/storage/test_reply_store.py
@@ -302,12 +302,12 @@ def test_legacy_tasks_marked_failed(tmp_data):
     assert "清理" in store.get_reply_task(tid)["error"]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/storage/test_reply_store.py -v`
 Expected: 全部 FAIL（`no such table: reply_sessions` / `'SqliteStore' object has no attribute 'find_or_create_reply_session'`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/storage/schema.sql` 末尾追加：
 
@@ -394,12 +394,12 @@ CREATE INDEX IF NOT EXISTS idx_reply_sess_msgs ON reply_session_messages(session
         return [{"role": r["role"], "content": r["content"]} for r in rows]
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/storage/test_reply_store.py -v`
 Expected: 4 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/storage/schema.sql app/storage/sqlite_store.py tests/storage/test_reply_store.py

@@ -8,8 +8,8 @@
 
 ## 2. 回复异步化
 
-- [ ] 2.1 `schema.sql` 新增 `reply_tasks` 表（id, customer_id, chat_id, message, style, status, result, error, created_at, updated_at）
-- [ ] 2.2 `SqliteStore` 增加任务创建/更新/查询方法
+- [x] 2.1 `schema.sql` 新增 `reply_tasks` 表（id, customer_id, chat_id, message, style, status, result, error, created_at, updated_at）
+- [x] 2.2 `SqliteStore` 增加任务创建/更新/查询方法
 - [ ] 2.3 `POST /api/reply` 改为插入任务返回 `task_id`；后台线程执行 RAG + LLM，独立 SQLite 连接
 - [ ] 2.4 新增 `GET /api/reply/status/{task_id}` 返回任务状态（pending/running/done/failed + result/error）
 - [ ] 2.5 `reply_result.html` 提交任务后 HTMX 轮询状态直至 done，失败展示错误
@@ -17,8 +17,8 @@
 
 ## 3. 多轮对话
 
-- [ ] 3.1 `schema.sql` 新增 `reply_sessions`、`reply_session_messages` 表
-- [ ] 3.2 `SqliteStore` 增加会话创建/消息追加/历史读取方法
+- [x] 3.1 `schema.sql` 新增 `reply_sessions`、`reply_session_messages` 表
+- [x] 3.2 `SqliteStore` 增加会话创建/消息追加/历史读取方法
 - [ ] 3.3 `POST /api/reply` 支持 `session_id` 参数：无则新建会话，有则读取历史
 - [ ] 3.4 `generate_reply` 将会话历史作为上下文传给 LLM（增强 REPLY_SYSTEM）
 - [ ] 3.5 前端 `chat_messages.html` 维护 `session_id` 并随回复请求透传；`regenerate` 沿用同一会话
