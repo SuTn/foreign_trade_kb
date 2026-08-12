@@ -39,6 +39,10 @@ class ChromaStore(VectorStore):
         """删除某文档的全部向量 chunk。"""
         self.chunk_col.delete(where={"doc_id": doc_id})
 
+    def delete_message_vectors(self, chat_id):
+        """按 chat_id 删除全部消息向量 (metadata 过滤, D2)。"""
+        self.msg_col.delete(where={"chat_id": chat_id})
+
     def _fmt(self, r):
         return [{"id": i, "text": d, "metadata": m, "distance": dist}
                 for i, d, m, dist in zip(r["ids"][0], r["documents"][0], r["metadatas"][0], r["distances"][0])]
