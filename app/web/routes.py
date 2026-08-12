@@ -314,10 +314,12 @@ def _render_reply_result(request: Request, customer_id: str, chat_id: str,
 
 async def _reply_session(request: Request, customer_id: str, chat_id: str,
                          session_id: str | None = None) -> str:
-    """D4: 每 chat 一个会话; 显式 session_id 存在则沿用, 否则按 customer_id+chat_id find-or-create。"""
+    """D4: 每 chat 一个会话; 显式 session_id 存在且归属该 chat 则沿用, 否则按 customer_id+chat_id find-or-create。"""
     store = _store(request)
     if session_id:
-        row = store.conn.execute("SELECT id FROM reply_sessions WHERE id=?", (session_id,)).fetchone()
+        row = store.conn.execute(
+            "SELECT id FROM reply_sessions WHERE id=? AND customer_id=? AND chat_id=?",
+            (session_id, customer_id, chat_id)).fetchone()
         if row:
             return session_id
     return store.find_or_create_reply_session(customer_id, chat_id)

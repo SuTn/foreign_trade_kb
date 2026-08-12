@@ -194,9 +194,17 @@ class SqliteStore(StructuredStore):
             return r["id"]
         sid = uuid.uuid4().hex
         now = int(time.time())
-        self.conn.execute("INSERT INTO reply_sessions VALUES(?,?,?,?,?)",
-                          (sid, customer_id, chat_id, now, now))
-        self.conn.commit()
+        try:
+            self.conn.execute("INSERT INTO reply_sessions VALUES(?,?,?,?,?)",
+                              (sid, customer_id, chat_id, now, now))
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            r = self.conn.execute(
+                "SELECT id FROM reply_sessions WHERE customer_id=? AND chat_id=?",
+                (customer_id, chat_id)).fetchone()
+            if r:
+                return r["id"]
+            raise
         return sid
 
     def append_session_message(self, session_id, role, content):

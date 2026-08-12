@@ -48,4 +48,5 @@ CREATE TABLE IF NOT EXISTS reply_session_messages(
   id TEXT PRIMARY KEY, session_id TEXT, role TEXT, content TEXT, ts INTEGER);
 CREATE INDEX IF NOT EXISTS idx_reply_tasks_status ON reply_tasks(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_reply_sessions_cust_chat ON reply_sessions(customer_id, chat_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reply_sessions_cust_chat_uniq ON reply_sessions(customer_id, chat_id);
 CREATE INDEX IF NOT EXISTS idx_reply_sess_msgs ON reply_session_messages(session_id, ts);
