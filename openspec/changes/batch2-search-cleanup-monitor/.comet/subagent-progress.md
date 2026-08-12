@@ -7,8 +7,8 @@
 
 ## 阶段
 
-- 阶段: final-review
+- 阶段: final-review (complete)
 - 所有 plan task (1-8) 已勾选
-- 实现提交: 6487ce9, e01f2f1, b752fda, f9b5b2b, adb9de1, 4d76fb2, 8377682
-- 全量测试: 195 passed, compileall 0, 审计清单通过
-- review 轮次: 0
+- 最终审查: APPROVE_WITH_IMPORTANT → 3 轮同族修复 (7a25a49/f7b701c/70fd0af) → 复查 RESOLVED
+- 全量测试: 196 passed, compileall 0
+- review 轮次: 3 (同族 cleanup 500 问题, 用户确认修复)
