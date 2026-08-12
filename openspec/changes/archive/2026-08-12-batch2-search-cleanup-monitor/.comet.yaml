@@ -17,6 +17,6 @@ verification_report: docs/superpowers/reports/2026-08-12-batch2-search-cleanup-m
 branch_status: handled
 created_at: 2026-08-12
 verified_at: 2026-08-12
-archived: false
+archived: true
 handoff_context: openspec/changes/batch2-search-cleanup-monitor/.comet/handoff/design-context.json
 handoff_hash: fa59c2642c9ff593d91bc415d6b571473187fd2ade99c099225bd8810af3d02e

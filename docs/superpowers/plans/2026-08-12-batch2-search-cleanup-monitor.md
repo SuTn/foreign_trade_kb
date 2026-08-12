@@ -1,3 +1,7 @@
+---
+archived-with: 2026-08-12-batch2-search-cleanup-monitor
+status: final
+---
 ﻿---
 change: batch2-search-cleanup-monitor
 design-doc: docs/superpowers/specs/2026-08-12-batch2-search-cleanup-monitor-design.md

@@ -138,3 +138,12 @@ TBD - created by archiving change whatsapp-customer-kb. Update Purpose after arc
 - **WHEN** 检索过程中重排器不可用或调用失败
 - **THEN** 系统 SHALL 以未重排的召回结果返回，并提示重排不可用，不返回 500
 
+### Requirement: 全局搜索覆盖知识库
+
+系统 SHALL 在全局搜索中检索知识库文档片段并返回匹配结果。
+
+#### Scenario: 知识库片段命中
+
+- **WHEN** 用户发起全局搜索且关键字命中知识库文档片段
+- **THEN** 系统 SHALL 返回命中的文档片段及所属文档
+

@@ -2,6 +2,8 @@
 comet_change: batch2-search-cleanup-monitor
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-12-batch2-search-cleanup-monitor
+status: final
 ---
 
 # batch2-search-cleanup-monitor Design Doc
