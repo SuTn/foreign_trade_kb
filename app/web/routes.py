@@ -179,8 +179,12 @@ async def _cleanup_params(request: Request) -> dict:
             body = {}
     else:
         body = await request.form()
-    return {"mode": (body.get("mode") or "").strip(),
-            "chat_id": body.get("chat_id"),
+
+    def _safe_str(v):
+        return v if isinstance(v, str) else ""
+
+    return {"mode": _safe_str(body.get("mode")).strip(),
+            "chat_id": _safe_str(body.get("chat_id")).strip(),
             "days": body.get("days")}
 
 
