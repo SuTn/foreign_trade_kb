@@ -5,19 +5,10 @@
 - tdd_mode: tdd
 - base-ref: 84cafaf13f20e7f46ef25f5159aedfc350c6cac6
 
-## 当前任务
+## 阶段
 
-- plan task: Task 8 — 回归验证
-- openspec task: §4
-- 阶段: verifying
+- 阶段: final-review
+- 所有 plan task (1-8) 已勾选
+- 实现提交: 6487ce9, e01f2f1, b752fda, f9b5b2b, adb9de1, 4d76fb2, 8377682
+- 全量测试: 195 passed, compileall 0, 审计清单通过
 - review 轮次: 0
-
-## 已完成
-
-- Task 1: complete (6487ce9)
-- Task 2: complete (e01f2f1)
-- Task 3: complete (b752fda)
-- Task 4: complete (f9b5b2b)
-- Task 5: complete (adb9de1)
-- Task 6: complete (4d76fb2)
-- Task 7: complete (8377682, 采集器横幅, tests/web 47 passed)

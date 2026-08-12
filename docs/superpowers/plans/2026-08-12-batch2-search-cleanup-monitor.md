@@ -1014,24 +1014,24 @@ git commit -m "feat: 采集器异常全局横幅 (base.html 容器 + app.js 自�
 
 **Files:** 无（纯验证）
 
-- [ ] **Step 1: 全量测试**
+- [x] **Step 1: 全量测试**
 
 Run: `pytest -q`
 Expected: 全部通过（新增 + 既有）。
 
-- [ ] **Step 2: 语法编译检查**
+- [x] **Step 2: 语法编译检查**
 
 Run: `python -m compileall -q app`
 Expected: 无输出（退出码 0）。
 
-- [ ] **Step 3: 代码走读（tasks 4.3）**
+- [x] **Step 3: 代码走读（tasks 4.3）**
 
 逐项核对：
 1. 清理只动 messages / messages_fts / 消息向量，`profiles` / `documents` / `doc_chunks` 无 DELETE 语句（`rg -n "DELETE FROM (profiles|documents|doc_chunks)" app/storage app/web/routes.py` 应无命中）。
 2. 搜索四源各自正确：`/api/search` 默认 JSON、`HX-Request` 返回片段；`%`/`_` 已转义。
 3. 横幅轮询无泄漏：`app.js` 使用单条 `setTimeout` 链（上一轮完成才排下一轮），无 `setInterval` 累积；`base.html` 全局容器仅一份。
 
-- [ ] **Step 4: 提交（如有走读修正，合并进本次）**
+- [x] **Step 4: 提交（如有走读修正，合并进本次）**
 
 ```bash
 git add -A
