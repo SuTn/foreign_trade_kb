@@ -182,6 +182,30 @@ class SqliteStore(StructuredStore):
         self.conn.commit()
         return cur.rowcount > 0
 
+    # ---- batch2-search-cleanup-monitor: 手动清理 (D2) ----
+    def _rebuild_messages_fts(self):
+        """messages 外部内容表: 删内容后重建 FTS 索引 (参照 delete_document 的 rebuild 模式)。"""
+        self.conn.execute("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")
+
+    def delete_messages_by_chat(self, chat_id: str) -> dict:
+        """删除某会话全部消息 + 重建 messages FTS。返回 {deleted_rows, affected_chats}。"""
+        cur = self.conn.execute("DELETE FROM messages WHERE chat_id=?", (chat_id,))
+        deleted = cur.rowcount
+        self._rebuild_messages_fts()
+        self.conn.commit()
+        return {"deleted_rows": deleted, "affected_chats": [chat_id] if deleted else []}
+
+    def delete_messages_before(self, cutoff_ts: int) -> dict:
+        """删除 ts < cutoff_ts 的全部消息 + 重建 FTS。返回 {deleted_rows, affected_chats}。"""
+        rows = self.conn.execute(
+            "SELECT DISTINCT chat_id FROM messages WHERE ts < ?", (cutoff_ts,)).fetchall()
+        chat_ids = [r["chat_id"] for r in rows]
+        cur = self.conn.execute("DELETE FROM messages WHERE ts < ?", (cutoff_ts,))
+        deleted = cur.rowcount
+        self._rebuild_messages_fts()
+        self.conn.commit()
+        return {"deleted_rows": deleted, "affected_chats": chat_ids}
+
     # ---- reply-workflow-optimization: 回复任务 (D1/D7) ----
     def create_reply_task(self, customer_id, chat_id, message, style, session_id, mode):
         task_id = uuid.uuid4().hex

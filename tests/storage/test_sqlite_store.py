@@ -171,3 +171,43 @@ def test_fts_search_returns_rowid(tmp_data):
     assert "rowid" in res[0]
     row = s.conn.execute("SELECT rowid FROM messages WHERE id='m1'").fetchone()
     assert res[0]["rowid"] == row["rowid"]
+
+
+# ---- batch2-search-cleanup-monitor: 手动清理 (tasks 2.2 / 2.5) ----
+def test_delete_messages_by_chat_and_fts_rebuild(tmp_data):
+    s = SqliteStore()
+    s.upsert_message(Message("m1", "a1", "c1", False, "x", 1, "chat", "invoice c1", True, 1))
+    s.upsert_message(Message("m2", "a1", "c1", False, "x", 2, "chat", "order c1", True, 2))
+    s.upsert_message(Message("m3", "a1", "c2", False, "y", 3, "chat", "invoice c2", True, 3))
+    res = s.delete_messages_by_chat("c1")
+    assert res == {"deleted_rows": 2, "affected_chats": ["c1"]}
+    assert s.list_messages("c1") == []
+    assert len(s.list_messages("c2")) == 1  # 其他会话不受影响
+    assert s.search_fts("messages", "order", 10) == []        # FTS 已重建, 删除内容不可搜
+    assert len(s.search_fts("messages", "invoice", 10)) == 1  # 仅剩 c2
+    assert s.delete_messages_by_chat("nope") == {"deleted_rows": 0, "affected_chats": []}
+
+
+def test_delete_messages_before_cutoff(tmp_data):
+    s = SqliteStore()
+    s.upsert_message(Message("m1", "a1", "c1", False, "x", 100, "chat", "old c1", True, 1))
+    s.upsert_message(Message("m2", "a1", "c1", False, "x", 200, "chat", "new c1", True, 2))
+    s.upsert_message(Message("m3", "a1", "c2", False, "y", 150, "chat", "old c2", True, 3))
+    res = s.delete_messages_before(180)
+    assert res["deleted_rows"] == 2
+    assert sorted(res["affected_chats"]) == ["c1", "c2"]
+    assert [m.body for m in s.list_messages("c1")] == ["new c1"]
+    assert s.list_messages("c2") == []
+    assert s.search_fts("messages", "old", 10) == []
+
+
+def test_delete_messages_keeps_profiles_and_documents(tmp_data):
+    s = SqliteStore()
+    s.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?)", ("d1", "a.md", "md", "docreader", "done", 1))
+    s.conn.execute("INSERT INTO doc_chunks VALUES(?,?,?,?,?,?)", ("ch1", "d1", 0, "LED spec", "0", "ch1"))
+    s.upsert_profile_field("c1", "country", "USA", "auto")
+    s.upsert_message(Message("m1", "a1", "c1", False, "x", 1, "chat", "hi", True, 1))
+    s.delete_messages_by_chat("c1")
+    assert len(s.get_profile("c1")) == 1  # 画像保留
+    assert s.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1   # 文档保留
+    assert s.conn.execute("SELECT COUNT(*) FROM doc_chunks").fetchone()[0] == 1  # chunk 保留
