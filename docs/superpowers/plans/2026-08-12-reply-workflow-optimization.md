@@ -421,7 +421,7 @@ git commit -m "feat: reply_tasks/reply_sessions 表与 SqliteStore 任务/会话
   - `generate_reply(pipeline, customer_id, chat_id, incoming_message, style="default", history=None) -> dict`（history 拼入 system，缺省 None 保持既有行为）
   - `regenerate_reply(..., previous_style="default", history=None)` 签名兼容（新加可选 history）
 
-- [ ] **Step 1: 写失败测试（追加到 `tests/reply/test_generator.py` 末尾）**
+- [x] **Step 1: 写失败测试（追加到 `tests/reply/test_generator.py` 末尾）**
 
 ```python
 def test_generate_reply_includes_session_history(tmp_data):
@@ -444,12 +444,12 @@ def test_generate_reply_includes_session_history(tmp_data):
     assert "报价$5" in seen["system"]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/reply/test_generator.py::test_generate_reply_includes_session_history -v`
 Expected: FAIL（history 参数未实现，`AssertionError: "本次会话最近对话历史" not in ...`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/reply/generator.py` 全文替换为：
 
@@ -501,12 +501,12 @@ def regenerate_reply(pipeline: RagPipeline, customer_id: str, chat_id: str,
                           style=next_style, history=history)
 ```
 
-- [ ] **Step 4: 运行测试确认通过（含既有 3 个）**
+- [x] **Step 4: 运行测试确认通过（含既有 3 个）**
 
 Run: `pytest tests/reply/test_generator.py -v`
 Expected: 4 passed（既有 3 个 + 新增 1 个）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/reply/generator.py tests/reply/test_generator.py

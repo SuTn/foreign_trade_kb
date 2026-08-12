@@ -7,8 +7,8 @@
 
 ## 当前任务
 
-- plan task: Task 3 — generator 会话历史上下文
-- openspec task: §3.4
+- plan task: Task 4 — 常驻串行 reply worker
+- openspec task: §2.3 worker 侧
 - 阶段: implementing
 - 实现提交: pending
 - RED/GREEN 证据: pending
@@ -16,5 +16,6 @@
 
 ## 已完成
 
-- Task 1: complete (commit ad90986, CloudLLM client 懒加载复用, tests/llm 10 passed)
-- Task 2: complete (commit 8e89373, reply_tasks/reply_sessions 表与 SqliteStore 方法, tests/storage 20 passed; 计划缺陷按方案A修复: SQL 投影 id→rowid tie-break, 测试 ts=now+1+i)
+- Task 1: complete (commit ad90986, CloudLLM client 懒加载复用)
+- Task 2: complete (commit 8e89373, 三表 + Store 方法; 方案A修复 rowid tie-break)
+- Task 3: complete (commit cd518d7, 回复生成支持会话历史上下文, tests/reply 4 passed)

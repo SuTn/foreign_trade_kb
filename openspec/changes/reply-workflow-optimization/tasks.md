@@ -20,7 +20,7 @@
 - [x] 3.1 `schema.sql` 新增 `reply_sessions`、`reply_session_messages` 表
 - [x] 3.2 `SqliteStore` 增加会话创建/消息追加/历史读取方法
 - [ ] 3.3 `POST /api/reply` 支持 `session_id` 参数：无则新建会话，有则读取历史
-- [ ] 3.4 `generate_reply` 将会话历史作为上下文传给 LLM（增强 REPLY_SYSTEM）
+- [x] 3.4 `generate_reply` 将会话历史作为上下文传给 LLM（增强 REPLY_SYSTEM）
 - [ ] 3.5 前端 `chat_messages.html` 维护 `session_id` 并随回复请求透传；`regenerate` 沿用同一会话
 - [ ] 3.6 单测：会话历史持久化 + 上下文传递（历史出现在 prompt）
 
