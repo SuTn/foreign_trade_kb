@@ -1,4 +1,4 @@
----
+﻿---
 change: batch2-search-cleanup-monitor
 design-doc: docs/superpowers/specs/2026-08-12-batch2-search-cleanup-monitor-design.md
 base-ref: 84cafaf13f20e7f46ef25f5159aedfc350c6cac6
@@ -83,7 +83,7 @@ base-ref: 84cafaf13f20e7f46ef25f5159aedfc350c6cac6
   - `SqliteStore.search_fts(table, query, limit)` 返回 dict 中**新增 `rowid` 键**（向后兼容，既有 `r["text"]` 仍可用）
   - `SqliteStore._escape_like(term: str) -> str`
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/storage/test_sqlite_store.py` 末尾）
+- [x] **Step 1: 写失败测试**（追加到 `tests/storage/test_sqlite_store.py` 末尾）
 
 ```python
 # ---- batch2-search-cleanup-monitor: 全局搜索 (tasks 1.1 / 1.5) ----
@@ -123,12 +123,12 @@ def test_fts_search_returns_rowid(tmp_data):
     assert res[0]["rowid"] == row["rowid"]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/storage/test_sqlite_store.py -v`
 Expected: 3 个新用例 FAIL（`'SqliteStore' object has no attribute 'search_customers'` / `search_profiles`；`test_fts_search_returns_rowid` 断言 `"rowid" in res[0]` 失败，因 `SELECT *` 不含 rowid）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 (1) `app/storage/sqlite_store.py` 的 `search_fts`（第 98 行）把 `SELECT *` 改为 `SELECT rowid, *`：
 
@@ -172,12 +172,12 @@ Expected: 3 个新用例 FAIL（`'SqliteStore' object has no attribute 'search_c
         return [dict(r) for r in rows]
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/storage/test_sqlite_store.py -v`
 Expected: 既有用例 + 新增 3 个全部 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/storage/sqlite_store.py tests/storage/test_sqlite_store.py
