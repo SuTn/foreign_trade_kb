@@ -907,7 +907,7 @@ git commit -m "feat: POST /api/cleanup 手动清理 (chat/days 校验 + 向量�
   - base.html `<div id="collector-banner" class="collector-banner" hidden>采集器异常</div>`
   - app.js 递归 setTimeout 轮询：在线 15000ms / 离线 5000ms；`alive=false` 显示横幅、恢复隐藏；fetch 异常也显示横幅 + 5s 快查
 
-- [ ] **Step 1: 写失败测试 `tests/web/test_banner.py`**
+- [x] **Step 1: 写失败测试 `tests/web/test_banner.py`**
 
 ```python
 from fastapi.testclient import TestClient
@@ -922,12 +922,12 @@ def test_collector_banner_renders_in_base(tmp_data):
     assert "采集器异常" in html
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/web/test_banner.py -v`
 Expected: FAIL（base.html 无 `collector-banner`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 (1) `app/web/templates/base.html` 全文替换为：
 
@@ -991,7 +991,7 @@ Expected: FAIL（base.html 无 `collector-banner`）。
 })();
 ```
 
-- [ ] **Step 4: 运行测试 + JS 走读（tasks 3.3）**
+- [x] **Step 4: 运行测试 + JS 走读（tasks 3.3）**
 
 Run: `pytest tests/web/test_banner.py -v`
 Expected: PASS。
@@ -1001,7 +1001,7 @@ JS 走读确认轮询逻辑（应命中 4 处：容器 id、端点、两个间�
 Run: `rg -n "collector-banner|api/collector/status|15000|5000" app/web/static/js/app.js`
 Expected: 4 行匹配。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/templates/base.html app/web/static/css/app.css app/web/static/js/app.js tests/web/test_banner.py

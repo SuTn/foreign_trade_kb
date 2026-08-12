@@ -7,17 +7,17 @@
 
 ## 当前任务
 
-- plan task: Task 7 — 采集器异常全局横幅
-- openspec task: §3.1 / §3.2 / §3.3
-- 阶段: implementing
-- 实现提交: pending
+- plan task: Task 8 — 回归验证
+- openspec task: §4
+- 阶段: verifying
 - review 轮次: 0
 
 ## 已完成
 
-- Task 1: complete (6487ce9, 搜索方法)
-- Task 2: complete (e01f2f1, 清理方法)
-- Task 3: complete (b752fda, delete_message_vectors)
-- Task 4: complete (f9b5b2b, /api/search 聚合)
-- Task 5: complete (adb9de1, /search 页)
-- Task 6: complete (4d76fb2, /api/cleanup + 管理页, test_cleanup 5 passed)
+- Task 1: complete (6487ce9)
+- Task 2: complete (e01f2f1)
+- Task 3: complete (b752fda)
+- Task 4: complete (f9b5b2b)
+- Task 5: complete (adb9de1)
+- Task 6: complete (4d76fb2)
+- Task 7: complete (8377682, 采集器横幅, tests/web 47 passed)

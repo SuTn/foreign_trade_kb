@@ -18,9 +18,9 @@
 
 ## 3. 采集器异常横幅
 
-- [ ] 3.1 `base.html` 加全局横幅容器
-- [ ] 3.2 `app.js` 定时轮询 `/api/collector/status`，alive=false 显示红色横幅
-- [ ] 3.3 前端测试/走读确认横幅逻辑
+- [x] 3.1 `base.html` 加全局横幅容器
+- [x] 3.2 `app.js` 定时轮询 `/api/collector/status`，alive=false 显示红色横幅
+- [x] 3.3 前端测试/走读确认横幅逻辑
 
 ## 4. 回归验证
 
