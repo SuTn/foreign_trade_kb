@@ -1,0 +1,50 @@
+{% if query == '' %}
+<p class="muted">输入关键词开始搜索。</p>
+{% elif error %}
+<p class="empty">{{ error }}</p>
+{% else %}
+<section>
+  <h2>客户 ({{ customers|length }})</h2>
+  {% for c in customers %}
+  <div class="result-card">
+    <a href="/customers/{{ c['id'] }}">{{ c['display_name'] or c['id'] }}</a>
+    <div class="muted">{{ c['phone'] or '' }} · {{ c['company'] or '' }} · {{ c['country'] or '' }}</div>
+  </div>
+  {% else %}
+  <p class="muted">无客户命中</p>
+  {% endfor %}
+</section>
+<section>
+  <h2>消息 ({{ messages|length }})</h2>
+  {% for m in messages %}
+  <div class="result-card">
+    <div class="muted">chat={{ m['chat_id'] }} · ts={{ m['ts'] }}</div>
+    <p>{{ (m['body'] or '')[:200] }}</p>
+  </div>
+  {% else %}
+  <p class="muted">无消息命中</p>
+  {% endfor %}
+</section>
+<section>
+  <h2>知识库 ({{ knowledge|length }})</h2>
+  {% for k in knowledge %}
+  <div class="result-card">
+    <div class="muted">doc={{ k['doc_id'] or '-' }}</div>
+    <p>{{ (k['text'] or '')[:200] }}</p>
+  </div>
+  {% else %}
+  <p class="muted">无知识库命中</p>
+  {% endfor %}
+</section>
+<section>
+  <h2>画像 ({{ profiles|length }})</h2>
+  {% for p in profiles %}
+  <div class="result-card">
+    <div class="muted">customer={{ p['customer_id'] }} · {{ p['field'] }}</div>
+    <p>{{ p['value'] }}</p>
+  </div>
+  {% else %}
+  <p class="muted">无画像命中</p>
+  {% endfor %}
+</section>
+{% endif %}

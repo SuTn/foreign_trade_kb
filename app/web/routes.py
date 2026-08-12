@@ -121,6 +121,47 @@ async def collector_status():
     return {"status": s, "alive": is_alive(settings.status_path)}
 
 
+def _search_messages(store, query, limit=20):
+    """D1: 消息 FTS 行 join 回 messages 取 chat_id/body/ts (search_fts 已含 rowid)。"""
+    out = []
+    for r in store.search_fts("messages", query, limit):
+        row = store.conn.execute(
+            "SELECT chat_id, ts, body FROM messages WHERE rowid=?", (r["rowid"],)).fetchone()
+        if row:
+            out.append({"chat_id": row["chat_id"], "ts": row["ts"], "body": row["body"]})
+    return out
+
+
+def _search_knowledge(store, query, limit=20):
+    """D1: 知识库 FTS join 回 doc_chunks 取 doc_id (参照 knowledge_search 的 doc_lookup)。"""
+    doc_lookup = {}
+    for r in store.conn.execute("SELECT rowid, doc_id FROM doc_chunks").fetchall():
+        doc_lookup[r["rowid"]] = r["doc_id"]
+    out = []
+    for r in store.search_fts("doc_chunks", query, limit):
+        out.append({"doc_id": doc_lookup.get(r["rowid"]), "text": r["text"]})
+    return out
+
+
+@router.get("/api/search")
+async def api_search(request: Request, q: str = ""):
+    """D1: 全局搜索聚合四源 → JSON 分组; htmx 请求 (HX-Request) 返回渲染片段。"""
+    query = (q or "").strip()
+    store = _store(request)
+    result = {"query": query, "customers": [], "messages": [], "knowledge": [], "profiles": []}
+    try:
+        if query:
+            result["customers"] = store.search_customers(query)
+            result["messages"] = _search_messages(store, query)
+            result["knowledge"] = _search_knowledge(store, query)
+            result["profiles"] = store.search_profiles(query)
+    except Exception as e:
+        result["error"] = f"搜索失败: {e}"
+    if request.headers.get("HX-Request"):
+        return request.app.state.templates.TemplateResponse(request, "search_results.html", result)
+    return result
+
+
 @router.get("/api/stats")
 async def stats(request: Request):
     st = _build_stats(_store(request))
