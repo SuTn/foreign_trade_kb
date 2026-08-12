@@ -914,7 +914,7 @@ git commit -m "feat: /api/reply 与 /api/reply/regenerate 异步化 + /api/reply
 - Consumes: Task 4 `worker_loop`；Task 2 `mark_legacy_reply_tasks_failed`；`CloudLLM`（app/llm/cloud_llm.py，Task 1 已改）。
 - Produces: lifespan 启动时设置 `app.state.llm`（D3 单例）、调用 `mark_legacy_reply_tasks_failed()`（D7）、启动 `app.state.reply_worker` daemon 线程。
 
-- [ ] **Step 1: 写失败测试（追加到 `tests/web/test_reply_async.py`）**
+- [x] **Step 1: 写失败测试（追加到 `tests/web/test_reply_async.py`）**
 
 ```python
 def test_stale_tasks_marked_failed_on_startup(tmp_data):
@@ -966,12 +966,12 @@ def test_reply_full_lifecycle(tmp_data, monkeypatch):
         assert "data-copy" in done.text
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/web/test_reply_async.py -v`
 Expected: `test_stale_tasks_marked_failed_on_startup` FAIL（`AttributeError: 'State' object has no attribute 'llm'`，且遗留任务未被清理）；`test_reply_full_lifecycle` FAIL（worker 未启动，轮询永不 done）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/web/app.py` 修改：
 
@@ -1018,7 +1018,7 @@ async def lifespan(app: FastAPI):
             pass
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `pytest tests/web/test_reply_async.py -v`
 Expected: 3 passed（提交侧 + 遗留清理 + 完整链路）。
@@ -1028,7 +1028,7 @@ Expected: 3 passed（提交侧 + 遗留清理 + 完整链路）。
 Run: `pytest tests/reply/ tests/storage/test_reply_store.py tests/llm/test_cloud_llm.py -q`
 Expected: 全部通过。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/app.py tests/web/test_reply_async.py

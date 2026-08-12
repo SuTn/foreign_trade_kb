@@ -7,8 +7,8 @@
 
 ## 当前任务
 
-- plan task: Task 6 — lifespan 启动 worker + D7 清理 + app.state.llm
-- openspec task: §2.5 后端 / §2 遗留清理 / D3
+- plan task: Task 7 — 前端模板与一键复制
+- openspec task: §2.5 前端 / §3.5 / §4
 - 阶段: implementing
 - 实现提交: pending
 - RED/GREEN 证据: pending
@@ -21,4 +21,5 @@
 - Task 3: complete (cd518d7)
 - conftest helper: complete (05e22ed)
 - Task 5: complete (eb00294, routes 异步端点 + polling 模板)
-- Task 4: complete (03304db, 常驻串行 reply worker, tests/reply/test_worker.py 3 passed; 4 旧同步测试待 Task 8 迁移)
+- Task 4: complete (03304db, reply worker)
+- Task 6: complete (edc703f, lifespan worker + D7 清理 + llm 单例; 偏差: CloudLLM 走 routes 名字供 monkeypatch, reply_result.html 预加 data-copy)
