@@ -95,7 +95,39 @@ class SqliteStore(StructuredStore):
         if not toks:
             return []
         expr = " OR ".join(f'"{t}"' for t in toks)
-        rows = self.conn.execute(f"SELECT * FROM {fts} WHERE {col} MATCH ? LIMIT ?", (expr, limit)).fetchall()
+        rows = self.conn.execute(f"SELECT rowid, * FROM {fts} WHERE {col} MATCH ? LIMIT ?", (expr, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    @staticmethod
+    def _escape_like(term: str) -> str:
+        """转义 LIKE 通配符 %/_ (D1: 防用户输入误匹配)。"""
+        return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+    def search_customers(self, query: str, limit: int = 20) -> list[dict]:
+        """按 名称/电话/公司/国家 LIKE 检索客户 (D1)。空查询返回 []。"""
+        q = query.strip()
+        if not q:
+            return []
+        esc = f"%{self._escape_like(q)}%"
+        rows = self.conn.execute(
+            "SELECT id, display_name, phone, company, country FROM customers "
+            "WHERE display_name LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\' "
+            "OR company LIKE ? ESCAPE '\\' OR country LIKE ? ESCAPE '\\' "
+            "ORDER BY created_at DESC LIMIT ?",
+            (esc, esc, esc, esc, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def search_profiles(self, query: str, limit: int = 20) -> list[dict]:
+        """按 field/value LIKE 检索画像 (D1), 附带 customer_id。空查询返回 []。"""
+        q = query.strip()
+        if not q:
+            return []
+        esc = f"%{self._escape_like(q)}%"
+        rows = self.conn.execute(
+            "SELECT customer_id, field, value FROM profiles "
+            "WHERE field LIKE ? ESCAPE '\\' OR value LIKE ? ESCAPE '\\' "
+            "ORDER BY updated_at DESC LIMIT ?",
+            (esc, esc, limit)).fetchall()
         return [dict(r) for r in rows]
 
     def upsert_wiki_page(self, page: WikiPage):

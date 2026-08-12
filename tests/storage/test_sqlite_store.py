@@ -134,3 +134,40 @@ def test_delete_document_removes_chunks_and_wiki_ref(tmp_data):
     assert json.loads(w2) == ["d2"]
     # 再次删除不存在文档 → False
     assert s.delete_document("nope") is False
+
+
+# ---- batch2-search-cleanup-monitor: 全局搜索 (tasks 1.1 / 1.5) ----
+def test_search_customers_matches_fields_and_escapes(tmp_data):
+    s = SqliteStore()
+    s.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                   ("c1", "Alice", "10086", "ACME", "USA", 0, None))
+    s.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                   ("c2", "Bob", "10086-2", "Beta", "Canada", 1, None))
+    s.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                   ("c3", "100%", "0", "X", "Y", 2, None))
+    s.conn.commit()
+    assert [c["id"] for c in s.search_customers("ACME")] == ["c1"]
+    assert [c["id"] for c in s.search_customers("10086")] == ["c2", "c1"]  # phone 命中, created_at DESC
+    assert [c["id"] for c in s.search_customers("%")] == ["c3"]  # % 转义为字面量, 不匹配全部
+    assert s.search_customers("_") == []  # _ 转义, 不匹配任意单字符
+    assert s.search_customers("") == []
+
+
+def test_search_profiles_matches_field_and_value(tmp_data):
+    s = SqliteStore()
+    s.upsert_profile_field("c1", "country", "USA", "auto")
+    s.upsert_profile_field("c1", "company", "ACME", "auto")
+    s.upsert_profile_field("c2", "country", "China", "auto")
+    assert [r["customer_id"] for r in s.search_profiles("USA")] == ["c1"]
+    assert [r["customer_id"] for r in s.search_profiles("company")] == ["c1"]  # field 命中
+    assert s.search_profiles("") == []
+
+
+def test_fts_search_returns_rowid(tmp_data):
+    s = SqliteStore()
+    s.upsert_message(Message("m1", "a1", "c1", False, "x", 1, "chat", "invoice for order", True, 1))
+    res = s.search_fts("messages", "invoice", 10)
+    assert len(res) == 1
+    assert "rowid" in res[0]
+    row = s.conn.execute("SELECT rowid FROM messages WHERE id='m1'").fetchone()
+    assert res[0]["rowid"] == row["rowid"]
