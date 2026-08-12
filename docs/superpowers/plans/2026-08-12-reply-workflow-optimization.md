@@ -1459,17 +1459,17 @@ git commit -m "test: reply 测试迁移为提交→轮询→断言, 新增会话
 
 **Interfaces:** 无。
 
-- [ ] **Step 1: 全量测试**
+- [x] **Step 1: 全量测试**
 
 Run: `pytest -q`
 Expected: 全部通过（含迁移后 4 个既有 reply 测试、Task 1-8 全部新增测试）。
 
-- [ ] **Step 2: 字节码编译检查**
+- [x] **Step 2: 字节码编译检查**
 
 Run: `python -m compileall -q app`
 Expected: 无输出（exit 0）。
 
-- [ ] **Step 3: 代码走读（审计清单）**
+- [x] **Step 3: 代码走读（审计清单）**
 
 逐项确认（用 grep 验证，无残留）：
 - **审计 A（共享 llm）**：`grep -rn "CloudLLM(" app/web/routes.py` —— routes 内不应再有 `CloudLLM()` 每请求新建（`/api/knowledge/upload` 的 Wiki 索引处可保留，属独立用途）；`app.state.llm` 在 lifespan 建立。
@@ -1482,7 +1482,7 @@ Expected: 无输出（exit 0）。
 
 Run: `git status` —— 确认仅本 change 相关文件改动。
 
-- [ ] **Step 4: 提交（如有测试代码调整）**
+- [x] **Step 4: 提交（如有测试代码调整）**
 
 若 Step 1 有失败需修复，修复后：
 
