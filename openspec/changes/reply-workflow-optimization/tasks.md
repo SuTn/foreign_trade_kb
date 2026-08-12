@@ -10,7 +10,7 @@
 
 - [x] 2.1 `schema.sql` 新增 `reply_tasks` 表（id, customer_id, chat_id, message, style, status, result, error, created_at, updated_at）
 - [x] 2.2 `SqliteStore` 增加任务创建/更新/查询方法
-- [ ] 2.3 `POST /api/reply` 改为插入任务返回 `task_id`；后台线程执行 RAG + LLM，独立 SQLite 连接
+- [x] 2.3 `POST /api/reply` 改为插入任务返回 `task_id`；后台线程执行 RAG + LLM，独立 SQLite 连接
 - [x] 2.4 新增 `GET /api/reply/status/{task_id}` 返回任务状态（pending/running/done/failed + result/error）
 - [ ] 2.5 `reply_result.html` 提交任务后 HTMX 轮询状态直至 done，失败展示错误
 - [ ] 2.6 单测：异步任务状态流转（pending→running→done/failed）+ 状态查询接口

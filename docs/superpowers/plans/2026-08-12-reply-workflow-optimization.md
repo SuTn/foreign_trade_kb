@@ -530,7 +530,7 @@ git commit -m "feat: 回复生成支持会话历史上下文 (history 拼入 sys
 
 > **执行顺序说明：** worker.py 顶部 import 了 Task 5 才新增的 `routes._get_chroma_store`。本任务与 Task 5 紧耦合：**先完成 Task 5 的 routes 提取，再回到本任务跑测试**；两个任务可合并为一次提交，或按 Task 5 → Task 4 顺序各自提交。
 
-- [ ] **Step 1: 写失败测试 `tests/reply/test_worker.py`**
+- [x] **Step 1: 写失败测试 `tests/reply/test_worker.py`**
 
 ```python
 # tests/reply/test_worker.py
@@ -608,12 +608,12 @@ def test_execute_failure_marks_failed(tmp_data):
     assert "LLM 挂了" in t["error"]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/reply/test_worker.py -v`
 Expected: FAIL（`ModuleNotFoundError: No module named 'app.web.worker'`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/web/worker.py` 新建：
 
@@ -683,12 +683,12 @@ def worker_loop(app: FastAPI) -> None:
             time.sleep(POLL_INTERVAL_SEC)
 ```
 
-- [ ] **Step 4: 运行测试确认通过（需 Task 5 先完成 routes 提取）**
+- [x] **Step 4: 运行测试确认通过（需 Task 5 先完成 routes 提取）**
 
 Run: `pytest tests/reply/test_worker.py -v`
 Expected: 3 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/worker.py tests/reply/test_worker.py
