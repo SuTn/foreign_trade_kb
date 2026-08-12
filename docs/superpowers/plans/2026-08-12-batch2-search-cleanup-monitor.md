@@ -524,7 +524,7 @@ git commit -m "feat: GET /api/search 四源聚合 (JSON 分组 + htmx 内容协�
   - `search_results.html`：四分组渲染 + 空查询友好提示 + 错误提示
   - base.html 导航 `搜索` 链接（后续 Task 7 会在同一导航行再追加 `清理`）
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/web/test_search.py`）
+- [x] **Step 1: 写失败测试**（追加到 `tests/web/test_search.py`）
 
 ```python
 def test_search_page_renders(tmp_data):
