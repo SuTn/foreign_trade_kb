@@ -171,7 +171,10 @@ async def search_page(request: Request):
 async def _cleanup_params(request: Request) -> dict:
     """从 JSON body 或表单解析 {mode, chat_id, days} (htmx 表单默认 form-encoded)。"""
     if request.headers.get("content-type", "").startswith("application/json"):
-        body = await request.json()
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
     else:
         body = await request.form()
     return {"mode": (body.get("mode") or "").strip(),
@@ -199,11 +202,13 @@ async def cleanup(request: Request):
         days_raw = body.get("days")
         if days_raw is None or str(days_raw).strip() == "":
             return JSONResponse({"error": "days 模式需提供天数"}, status_code=400)
+        if isinstance(days_raw, bool) or not isinstance(days_raw, (int, float, str)):
+            return JSONResponse({"error": "days 必须为正整数"}, status_code=400)
         try:
             days = int(days_raw)
         except (TypeError, ValueError):
             return JSONResponse({"error": "days 必须为正整数"}, status_code=400)
-        if days <= 0:
+        if days <= 0 or float(days_raw) != days:
             return JSONResponse({"error": "days 必须为正整数"}, status_code=400)
         cutoff = int(time.time()) - days * 86400
         try:

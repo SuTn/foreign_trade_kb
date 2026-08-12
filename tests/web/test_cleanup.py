@@ -67,6 +67,15 @@ def test_cleanup_validation_400(tmp_data):
     assert client.post("/api/cleanup", json={"mode": "days", "days": -3}).status_code == 400
     assert client.post("/api/cleanup", json={"mode": "days", "days": "abc"}).status_code == 400
     assert client.post("/api/cleanup", json={"mode": "weird"}).status_code == 400
+    assert client.post("/api/cleanup", json={"mode": "days", "days": 2.5}).status_code == 400
+    assert client.post("/api/cleanup", json={"mode": "days", "days": True}).status_code == 400
+
+
+def test_cleanup_empty_json_body_400(tmp_data):
+    """空/非法 JSON body 应降级为 400 而非 500 (清理不返回 500 约束)。"""
+    client = TestClient(create_app())
+    assert client.post("/api/cleanup", content=b"", headers={"Content-Type": "application/json"}).status_code == 400
+    assert client.post("/api/cleanup", content=b"{not-json", headers={"Content-Type": "application/json"}).status_code == 400
 
 
 def test_cleanup_degrades_when_vector_delete_fails(tmp_data, monkeypatch):
