@@ -40,3 +40,11 @@ def test_status_passthrough_scan_when_present(tmp_data):
     client = TestClient(create_app())
     j = client.get("/api/collector/status").json()
     assert j["scan"] == {"running": True, "current": 5, "total": 40, "ingested": 120}
+
+
+def test_home_renders_scan_button_and_status_area(tmp_data):
+    html = TestClient(create_app()).get("/").text
+    assert "立即全量扫描" in html
+    assert 'id="scan-control"' in html
+    assert 'id="scan-progress"' in html
+    assert 'id="scan-modal"' in html
