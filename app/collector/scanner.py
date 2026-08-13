@@ -300,10 +300,11 @@ class Scanner:
         except Exception:
             pass  # 静默跳过, 下次扫描重试
 
-    async def scan_all_chats(self, max_chats: int | None = None, settle: float | None = None) -> int:
+    async def scan_all_chats(self, max_chats: int | None = None, settle: float | None = None,
+                             on_progress=None) -> int:
         """自动扫描全部会话: 逐个打开会话读取可见正文入库 (供首次知识构建/周期校准)。
         依赖 Playwright page 原生可信 click; 注意会把未读消息标记为已读。
-        返回新入库消息数。"""
+        on_progress(current, total, ingested): 每处理一个会话回调一次 (D4)。"""
         if self.page is None:
             return 0
         max_chats = max_chats or settings.auto_scan_max_chats
@@ -316,6 +317,8 @@ class Scanner:
                 "[data-testid='chat-list'] div[role='row']", "els => els.length")
         except Exception:
             return 0
+        if on_progress:
+            on_progress(0, min(total, max_chats), 0)  # 扫描前先报一次 total 已知
         ingested = 0
         row_sel = "[data-testid='chat-list'] div[role='row']"
         for i in range(min(total, max_chats)):
@@ -324,7 +327,9 @@ class Scanner:
             try:
                 await self.page.locator(row_sel).nth(i).click(timeout=8000)
             except Exception:
-                continue  # 行不可点 (虚拟列表抖动) 则跳过
+                if on_progress:
+                    on_progress(i + 1, min(total, max_chats), ingested)  # 跳过也推进进度
+                continue
             await asyncio.sleep(settle)
             dom_msgs = parse_dom_snapshot_safe(await self.cdp.capture_snapshot(), self._current_chat_id)
             merged = self._merge_idb_dom(data, dom_msgs)
@@ -333,6 +338,8 @@ class Scanner:
                     ingested += 1
             if merged:
                 await self._capture_avatar(self._current_chat_id)
+            if on_progress:
+                on_progress(i + 1, min(total, max_chats), ingested)
         if ingested:
             write_status(settings.status_path, {"state": "running", "last_sync": time.time()})
         return ingested

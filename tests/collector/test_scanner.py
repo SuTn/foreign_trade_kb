@@ -495,3 +495,32 @@ def test_merge_idb_from_me_is_authoritative_over_dom_tail():
             "body": "hi", "body_present": True}]  # DOM tail-in 说 fromMe=False
     merged = sc._merge_idb_dom(data, dom)
     assert merged[0]["fromMe"] is True  # IDB 权威覆盖
+
+
+# ---- collector-settings-center: 手动扫描 (tasks 2.x) ----
+async def test_scan_all_chats_reports_progress(tmp_data, monkeypatch):
+    """2.1: scan_all_chats 每处理一个会话回调 on_progress(current, total, ingested)。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    counter = [0]
+    def fake_parse(s, chat_id=None):
+        counter[0] += 1
+        i = counter[0]
+        return [{"id": f"HEX{i}", "fromMe": False, "from": None,
+                 "timestamp": 0, "body": f"hello{i}", "body_present": True}]
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", fake_parse)
+    async def fake_walk_idb(cdp, acct):
+        return {"chats": {}, "contacts": {},
+                "messages": [{"id": f"false_{i}11@c.us_HEX{i}", "t": i,
+                              "from": f"{i}11@c.us", "to": "99@c.us", "type": "chat", "fromMe": False}
+                             for i in (1, 2, 3)]}
+    monkeypatch.setattr("app.collector.idb_walk.walk_idb", fake_walk_idb)
+    class FakeCdp:
+        async def capture_snapshot(self): return {}
+    page = FakePage(n_rows=3)
+    sc = Scanner(FakeCdp(), store, FakeVector(), page=page)
+    progress = []
+    await sc.scan_all_chats(max_chats=3, settle=0,
+                            on_progress=lambda c, t, i: progress.append((c, t, i)))
+    assert progress[0][0] == 0 and progress[0][1] == 3 and progress[0][2] == 0  # 扫描前 total 已知
+    assert progress[-1] == (3, 3, 3)  # current/total/累计 ingested
