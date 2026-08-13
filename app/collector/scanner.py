@@ -45,7 +45,10 @@ class Scanner:
         from app.storage.runtime_settings import RuntimeSettings
         self._rt = RuntimeSettings(store) if store is not None and hasattr(store, "conn") else None
         if self._rt is not None:
-            self._rt.refresh()
+            try:
+                self._rt.refresh()
+            except Exception:
+                self._rt = None  # store 无 settings 表 (测试/旧库) 时降级, 采集器不崩
 
     async def fast_tick(self):
         """DOM 增量: hash 不变则跳过。心跳每个 tick 都写, 避免空闲时误判死。"""
@@ -355,10 +358,15 @@ class Scanner:
         backoff = 1.0
         while True:
             if self._rt is not None:
-                self._rt.refresh()  # 每轮刷新 (即时生效, 设计 §5.1)
+                try:
+                    self._rt.refresh()  # 每轮刷新 (即时生效, 设计 §5.1)
+                except Exception:
+                    self._rt = None  # settings 表不可用则降级为 .env 默认
             try:
                 await self.fast_tick()
-                if time.time() - last_slow >= self._rt.get_typed("slow_tick_sec", settings.slow_tick_sec) if self._rt else time.time() - last_slow >= settings.slow_tick_sec:
+                slow_sec = (self._rt.get_typed("slow_tick_sec", settings.slow_tick_sec)
+                            if self._rt is not None else settings.slow_tick_sec)
+                if time.time() - last_slow >= slow_sec:
                     if not getattr(self, "_vectors_cleared", False):
                         try:
                             self.vector_store.clear_message_vectors()
@@ -512,8 +520,10 @@ class Scanner:
                 write_status(settings.status_path, {"state": "running",
                     "scan": {"running": True, "current": current, "total": _total,
                              "ingested": ingested}})
-            max_chats = self._rt.get_typed("auto_scan_max_chats", settings.auto_scan_max_chats)
-            settle = self._rt.get_typed("auto_scan_settle_sec", settings.auto_scan_settle_sec)
+            max_chats = (self._rt.get_typed("auto_scan_max_chats", settings.auto_scan_max_chats)
+                         if self._rt is not None else settings.auto_scan_max_chats)
+            settle = (self._rt.get_typed("auto_scan_settle_sec", settings.auto_scan_settle_sec)
+                      if self._rt is not None else settings.auto_scan_settle_sec)
             ingested = await self.scan_all_chats(max_chats=max_chats, settle=settle,
                                                  on_progress=on_progress)
             write_status(settings.status_path, {"state": "running", "last_sync": time.time(),
