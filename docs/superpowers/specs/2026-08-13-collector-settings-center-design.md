@@ -2,6 +2,8 @@
 comet_change: collector-settings-center
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-13-collector-settings-center
+status: final
 ---
 
 # 采集器设置中心 — 技术设计

@@ -1,3 +1,7 @@
+---
+archived-with: 2026-08-13-collector-settings-center
+status: final
+---
 ﻿---
 change: collector-settings-center
 design-doc: docs/superpowers/specs/2026-08-13-collector-settings-center-design.md
