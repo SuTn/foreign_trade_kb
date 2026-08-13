@@ -325,6 +325,12 @@ async def cleanup_page(request: Request):
     return request.app.state.templates.TemplateResponse(request, "cleanup.html", {})
 
 
+@router.get("/settings")
+async def settings_page(request: Request):
+    """采集器设置中心页 (JS 驱动 /api/settings)。"""
+    return request.app.state.templates.TemplateResponse(request, "settings.html", {})
+
+
 @router.get("/api/stats")
 async def stats(request: Request):
     st = _build_stats(_store(request))
