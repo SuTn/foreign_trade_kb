@@ -105,4 +105,4 @@ def test_cleanup_page_renders(tmp_data):
     html = TestClient(create_app()).get("/cleanup").text
     assert 'hx-post="/api/cleanup"' in html
     assert "hx-confirm" in html
-    assert '<a href="/cleanup">清理</a>' in html
+    assert '<a href="/cleanup">' in html

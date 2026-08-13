@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>外贸客户知识库</h1>
+<h1 class="page-title">外贸客户知识库</h1>
 <div class="stat-grid">
   <div class="stat-card"><div class="stat-num">{{ customers.total }}</div><div class="stat-label">客户总数</div></div>
   <div class="stat-card"><div class="stat-num">{{ customers.with_profile }}</div><div class="stat-label">有画像客户</div></div>
@@ -10,10 +10,29 @@
 <div class="two-col">
   <section>
     <h2>采集器状态</h2>
-    <div id="collector-status" hx-get="/api/collector/status" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    <div id="collector-status">
       {% if status %}<p>连接: <strong>{{ '在线' if alive else '离线' }}</strong> · 状态: {{ status.state or '未知' }}</p>{% else %}<p>采集器未启动 (无 status.json)</p>{% endif %}
     </div>
+    <div id="scan-control" class="toolbar" style="margin-top:8px">
+      <button class="btn" id="scan-btn">立即全量扫描</button>
+      <span class="muted" id="scan-hint"></span>
+    </div>
+    <div id="scan-progress" class="scan-progress" hidden>
+      <span id="scan-progress-text"></span>
+      <div class="progress"><div id="scan-progress-bar" class="progress-bar" style="width:0%"></div></div>
+    </div>
   </section>
+
+  <div id="scan-modal" class="modal" hidden>
+    <div class="modal-box">
+      <h3>确认全量扫描</h3>
+      <p>将逐个打开全部会话并读取可见正文，<strong>未读消息会被标记为已读</strong>。扫描期间自动周期扫描将跳过。</p>
+      <div class="toolbar" style="justify-content:flex-end">
+        <button class="btn btn-ghost" id="scan-modal-cancel">取消</button>
+        <button class="btn" id="scan-modal-confirm">开始扫描</button>
+      </div>
+    </div>
+  </div>
   <section>
     <h2>近期活跃会话</h2>
     <ul class="recent-list">

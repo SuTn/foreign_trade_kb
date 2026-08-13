@@ -211,3 +211,45 @@ def test_delete_messages_keeps_profiles_and_documents(tmp_data):
     assert len(s.get_profile("c1")) == 1  # 画像保留
     assert s.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1   # 文档保留
     assert s.conn.execute("SELECT COUNT(*) FROM doc_chunks").fetchone()[0] == 1  # chunk 保留
+
+
+# ---- collector-settings-center: settings / scan_requests 表迁移 (tasks 1.1) ----
+def test_old_schema_gets_settings_and_scan_requests_tables(tmp_data):
+    """旧库打开后自动建出 settings / scan_requests 表 (schema.sql IF NOT EXISTS 幂等)。"""
+    store = SqliteStore()
+    for t in ("settings", "scan_requests"):
+        assert store.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (t,)).fetchone()
+    store.conn.close()
+    p = tmp_data / "old.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE chats(id TEXT, account_id TEXT, PRIMARY KEY(id, account_id))")
+    c.commit(); c.close()
+    for _ in range(2):  # 同一旧库重复打开 → 迁移幂等
+        s2 = SqliteStore(p)
+        for t in ("settings", "scan_requests"):
+            assert s2.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (t,)).fetchone()
+        s2.conn.close()
+
+
+# ---- collector-settings-center: 全量扫描请求 (tasks 1.3) ----
+def test_scan_requests_insert_pending_done_attempts(tmp_data):
+    s = SqliteStore()
+    r1 = s.create_scan_request()
+    assert r1 is not None
+    row = s.next_pending_scan_request()
+    assert row is not None and row["id"] == r1 and row["status"] == "pending"
+    assert s.has_active_scan_request() is True
+    s.mark_scan_request_running(r1)
+    assert s.has_active_scan_request() is True  # running 仍算 active
+    s.mark_scan_request_done(r1)
+    assert s.next_pending_scan_request() is None
+    assert s.has_active_scan_request() is False
+    # 失败重试: attempts+1, <3 时仍可被取到
+    r2 = s.create_scan_request()
+    s.bump_scan_request_attempts(r2)
+    row = s.next_pending_scan_request()
+    assert row["id"] == r2 and row["attempts"] == 1
+    s.bump_scan_request_attempts(r2); s.bump_scan_request_attempts(r2)
+    assert s.next_pending_scan_request() is None  # attempts=3 达到上限不再取

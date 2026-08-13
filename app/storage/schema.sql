@@ -50,3 +50,14 @@ CREATE INDEX IF NOT EXISTS idx_reply_tasks_status ON reply_tasks(status, created
 CREATE INDEX IF NOT EXISTS idx_reply_sessions_cust_chat ON reply_sessions(customer_id, chat_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_reply_sessions_cust_chat_uniq ON reply_sessions(customer_id, chat_id);
 CREATE INDEX IF NOT EXISTS idx_reply_sess_msgs ON reply_session_messages(session_id, ts);
+-- 采集器设置中心 (collector-settings-center): 参数持久化 + 全量扫描意图表
+CREATE TABLE IF NOT EXISTS settings(
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at INTEGER);
+CREATE TABLE IF NOT EXISTS scan_requests(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  requested_at INTEGER,
+  status TEXT DEFAULT 'pending',   -- pending | running | done | failed
+  attempts INTEGER DEFAULT 0,
+  done INTEGER DEFAULT 0);

@@ -282,3 +282,38 @@ class SqliteStore(StructuredStore):
         return Message(r["id"], r["account_id"], r["chat_id"], bool(r["from_me"]), r["sender_jid"],
                        r["ts"], r["type"], r["body"], bool(r["body_present"]), r["ingested_at"],
                        r["sender_name"])
+
+    # ---- collector-settings-center: 全量扫描请求 (D1 意图表) ----
+    def create_scan_request(self) -> int:
+        """记录一次全量扫描请求 (无参数, 一次一条)。返回新行 id。"""
+        cur = self.conn.execute(
+            "INSERT INTO scan_requests(requested_at) VALUES(?)", (int(time.time()),))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def next_pending_scan_request(self):
+        """取待消费请求: 未完成且 attempts<3, 按请求先后。"""
+        r = self.conn.execute(
+            "SELECT * FROM scan_requests WHERE done=0 AND attempts<3 "
+            "ORDER BY id ASC LIMIT 1").fetchone()
+        return dict(r) if r else None
+
+    def has_active_scan_request(self) -> bool:
+        """是否存在未完成请求 (pending/running/failed 待重试, done=0) — Web 层 busy 判定。
+        与 next_pending 同口径: done=0 AND attempts<3, 避免 failed 待重试行漏判致连续两次扫描。"""
+        r = self.conn.execute(
+            "SELECT id FROM scan_requests WHERE done=0 AND attempts<3 ORDER BY id LIMIT 1").fetchone()
+        return r is not None
+
+    def mark_scan_request_running(self, req_id: int):
+        self.conn.execute("UPDATE scan_requests SET status='running' WHERE id=?", (req_id,))
+        self.conn.commit()
+
+    def mark_scan_request_done(self, req_id: int):
+        self.conn.execute("UPDATE scan_requests SET status='done', done=1 WHERE id=?", (req_id,))
+        self.conn.commit()
+
+    def bump_scan_request_attempts(self, req_id: int):
+        self.conn.execute(
+            "UPDATE scan_requests SET attempts=attempts+1, status='failed' WHERE id=?", (req_id,))
+        self.conn.commit()

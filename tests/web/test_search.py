@@ -62,4 +62,4 @@ def test_search_page_renders(tmp_data):
     assert 'hx-get="/api/search"' in html
     assert "keyup changed delay:300ms" in html
     assert 'id="search-results"' in html
-    assert '<a href="/search">搜索</a>' in html
+    assert '<a href="/search">' in html

@@ -1,0 +1,16 @@
+{
+  "change": "collector-settings-center",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "229c7c9555c57b0a7fb7beea1cfeaf5a479b906bd834fef37fc41e1ffa601a9e",
+  "files": [
+    { "path": "openspec/changes/collector-settings-center/proposal.md", "sha256": "070831987904caf4b883e798815bb55798b8eb0c8d6a5d085630f9c4ceba9a20" },
+    { "path": "openspec/changes/collector-settings-center/design.md", "sha256": "87378b66a312c7af9dcf2fc494da284ab299e84ce4d4db1b251edaf765c92b55" },
+    { "path": "openspec/changes/collector-settings-center/tasks.md", "sha256": "dafbeb875dfdb57215cb4b55fbb828c6223e1017cd362b8a91119bc295fd0d66" },
+    { "path": "openspec/changes/collector-settings-center/specs/collector-settings/spec.md", "sha256": "9b6fae63161da62d87163164774902918fdc76281ff5858d598605d5b95f920f" },
+    { "path": "openspec/changes/collector-settings-center/specs/web-app/spec.md", "sha256": "e6c29401450e6306a0291de7f742799b1ecda7c1317a4010cfeb2d81dd1b0810" },
+    { "path": "openspec/changes/collector-settings-center/specs/whatsapp-sync/manual-scan/spec.md", "sha256": "e545d21fc2743c6baa5e665379c59223abe15db13d5a8d936f622817ff86f0dc" }
+  ]
+}
