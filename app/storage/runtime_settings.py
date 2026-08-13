@@ -70,6 +70,9 @@ class RuntimeSettings:
                 raise ValueError(raw)
             if isinstance(default_val, int):
                 return int(raw)
-            return float(raw)
+            v = float(raw)
+            if v != v or v in (float("inf"), float("-inf")):  # NaN / Infinity 视为脏数据
+                raise ValueError(raw)
+            return v
         except (TypeError, ValueError):
             return default

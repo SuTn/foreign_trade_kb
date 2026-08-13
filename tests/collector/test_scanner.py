@@ -587,3 +587,23 @@ async def test_drain_scan_requests_failure_bumps_attempts(tmp_data, monkeypatch)
     row = store.conn.execute("SELECT * FROM scan_requests WHERE id=?", (req_id,)).fetchone()
     assert row["done"] == 0 and row["attempts"] == 1 and row["status"] == "failed"
     assert sc._manual_scan_active is False  # finally 已复位
+
+
+async def test_scanner_rt_uses_runtime_settings_fast_tick(tmp_data):
+    """2.4: Scanner._rt 经 RuntimeSettings 读取, DB 值覆盖 .env。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO settings(key,value,updated_at) VALUES('fast_tick_sec','0.001',0)")
+    store.conn.commit()
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    assert sc._rt.get_typed("fast_tick_sec", settings.fast_tick_sec) == 0.001
+
+
+def test_scanner_rt_parse_failure_falls_back(tmp_data):
+    """2.4: 脏配置 (非数值) → get_typed 回退 .env 默认, 采集器不崩。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO settings(key,value,updated_at) VALUES('slow_tick_sec','NaN',0)")
+    store.conn.commit()
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    assert sc._rt.get_typed("slow_tick_sec", settings.slow_tick_sec) == settings.slow_tick_sec

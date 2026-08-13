@@ -51,3 +51,11 @@ def test_get_typed_dirty_value_falls_back_to_default(tmp_data):
 def test_get_typed_unset_returns_default(tmp_data):
     rt = RuntimeSettings(SqliteStore())
     assert rt.get_typed("slow_tick_sec", settings.slow_tick_sec) == settings.slow_tick_sec
+
+
+def test_get_typed_nan_infinity_falls_back(tmp_data):
+    rt = RuntimeSettings(SqliteStore())
+    rt.set("fast_tick_sec", "NaN")
+    assert rt.get_typed("fast_tick_sec", settings.fast_tick_sec) == settings.fast_tick_sec
+    rt.set("slow_tick_sec", "inf")
+    assert rt.get_typed("slow_tick_sec", settings.slow_tick_sec) == settings.slow_tick_sec
