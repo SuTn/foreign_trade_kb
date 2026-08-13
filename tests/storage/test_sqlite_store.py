@@ -211,3 +211,23 @@ def test_delete_messages_keeps_profiles_and_documents(tmp_data):
     assert len(s.get_profile("c1")) == 1  # 画像保留
     assert s.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1   # 文档保留
     assert s.conn.execute("SELECT COUNT(*) FROM doc_chunks").fetchone()[0] == 1  # chunk 保留
+
+
+# ---- collector-settings-center: settings / scan_requests 表迁移 (tasks 1.1) ----
+def test_old_schema_gets_settings_and_scan_requests_tables(tmp_data):
+    """旧库打开后自动建出 settings / scan_requests 表 (schema.sql IF NOT EXISTS 幂等)。"""
+    store = SqliteStore()
+    for t in ("settings", "scan_requests"):
+        assert store.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (t,)).fetchone()
+    store.conn.close()
+    p = tmp_data / "old.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE chats(id TEXT, account_id TEXT, PRIMARY KEY(id, account_id))")
+    c.commit(); c.close()
+    for _ in range(2):  # 同一旧库重复打开 → 迁移幂等
+        s2 = SqliteStore(p)
+        for t in ("settings", "scan_requests"):
+            assert s2.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (t,)).fetchone()
+        s2.conn.close()
