@@ -639,6 +639,17 @@ async def collector_backfill(request: Request, body: dict):
     return {"accepted": True, "chat_id": chat_id, "max_scrolls": max_scrolls}
 
 
+@router.post("/api/collector/scan")
+async def collector_scan(request: Request):
+    """手动触发全量扫描 (意图表排队, 采集器轮询消费)。
+    已有 pending/running 未完成请求 → 409 busy; 采集器离线不拦截。"""
+    store = _store(request)
+    if store.has_active_scan_request():
+        return JSONResponse({"busy": True, "error": "已有扫描进行中"}, status_code=409)
+    store.create_scan_request()
+    return {"accepted": True}
+
+
 @router.post("/api/knowledge/export-vault")
 async def export_v(request: Request):
     return {"exported": export_vault(_store(request), settings.vault_export_dir)}
