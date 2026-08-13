@@ -11,6 +11,7 @@ from app.config import settings
 from app.collector.scanner import read_status, is_alive
 from app.storage.sqlite_store import SqliteStore
 from app.storage.chroma_store import ChromaStore
+from app.storage.runtime_settings import RuntimeSettings
 from app.rag.pipeline import RagPipeline
 from app.rag.reranker import get_reranker
 from app.llm.cloud_llm import CloudLLM
@@ -118,7 +119,91 @@ async def index(request: Request):
 @router.get("/api/collector/status")
 async def collector_status():
     s = read_status(settings.status_path)
-    return {"status": s, "alive": is_alive(settings.status_path)}
+    return {"status": s, "alive": is_alive(settings.status_path),
+            "scan": (s or {}).get("scan") or None}
+
+
+SETTING_VALIDATORS = {
+    "fast_tick_sec":        {"kind": "float", "min": 1e-9},
+    "slow_tick_sec":        {"kind": "float", "min": 1e-9},
+    "auto_scan_interval_sec": {"kind": "float", "min": 1e-9},
+    "auto_scan_max_chats":  {"kind": "int", "min": 1, "max": 1000},
+    "auto_scan_settle_sec": {"kind": "float", "min": 0.1, "max": 30},
+    "auto_scan_chats":      {"kind": "bool"},
+}
+
+
+def _validate_setting(key, raw) -> tuple:
+    """返回 (ok, 规范化值 or 错误提示)。bool 返回 Python bool, 数值返回字符串。"""
+    spec = SETTING_VALIDATORS.get(key)
+    if spec is None:
+        return False, "未知参数"
+    if spec["kind"] == "bool":
+        s = str(raw).strip().lower()
+        if s in ("true", "1"):
+            return True, True
+        if s in ("false", "0"):
+            return True, False
+        return False, "必须是布尔值 (true/false)"
+    try:
+        val = float(raw) if spec["kind"] == "float" else int(raw)
+    except (TypeError, ValueError):
+        return False, "必须为数值"
+    if spec["kind"] == "int" and float(raw) != val:
+        return False, "必须为整数"
+    if val <= spec.get("min", 1e-9) or val > spec.get("max", float("inf")):
+        rng = f"须在 {spec.get('min')}~{spec.get('max')}" if "max" in spec else "须大于 0"
+        return False, rng
+    return True, str(val)
+
+
+def _rt(request: Request) -> RuntimeSettings:
+    return RuntimeSettings(_store(request))
+
+
+def _typed_values(rt: RuntimeSettings) -> dict:
+    """各参数的当前生效值 (typed: bool→bool, 数值→float/int)。"""
+    db = rt.all()
+    out = {}
+    for key, default in RuntimeSettings.DEFAULTS.items():
+        out[key] = rt.get_typed(key, default)
+    return out
+
+
+@router.get("/api/settings")
+async def settings_get(request: Request):
+    rt = _rt(request)
+    return {"values": _typed_values(rt), "defaults": dict(RuntimeSettings.DEFAULTS)}
+
+
+@router.post("/api/settings")
+async def settings_post(request: Request):
+    body = await request.json()
+    payload = (body or {}).get("values") or {}
+    if not isinstance(payload, dict):
+        return JSONResponse({"error": "body.values 必须为对象", "field": None}, status_code=400)
+    rt = _rt(request)
+    validated = {}
+    for key, raw in payload.items():
+        ok, msg_or_val = _validate_setting(key, raw)
+        if not ok:
+            return JSONResponse({"error": f"{key}: {msg_or_val}", "field": key}, status_code=400)
+        validated[key] = msg_or_val
+    # 全通过才写库 (原子); bool 存字符串, 数值存规范化字符串
+    for key, value in validated.items():
+        rt.set(key, value if isinstance(value, str) else ("true" if value else "false"))
+    return {"values": _typed_values(rt)}
+
+
+@router.post("/api/settings/reset")
+async def settings_reset(request: Request):
+    body = await request.json()
+    key = (body or {}).get("key")
+    if key not in RuntimeSettings.DEFAULTS:
+        return JSONResponse({"error": "未知参数", "field": key}, status_code=400)
+    rt = _rt(request)
+    rt.reset(key)
+    return {"defaults": {key: RuntimeSettings.DEFAULTS[key]}}
 
 
 def _search_messages(store, query, limit=20):
