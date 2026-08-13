@@ -78,4 +78,4 @@ def test_settings_page_renders(tmp_data):
     html = TestClient(create_app()).get("/settings").text
     assert 'id="settings-form"' in html
     assert "fast_tick_sec" in html and "auto_scan_chats" in html
-    assert 'href="/settings">设置</a>' in html
+    assert 'href="/settings"' in html and "nav-ico" in html  # 导航含设置入口 (SVG 图标)
