@@ -231,3 +231,25 @@ def test_old_schema_gets_settings_and_scan_requests_tables(tmp_data):
             assert s2.conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (t,)).fetchone()
         s2.conn.close()
+
+
+# ---- collector-settings-center: 全量扫描请求 (tasks 1.3) ----
+def test_scan_requests_insert_pending_done_attempts(tmp_data):
+    s = SqliteStore()
+    r1 = s.create_scan_request()
+    assert r1 is not None
+    row = s.next_pending_scan_request()
+    assert row is not None and row["id"] == r1 and row["status"] == "pending"
+    assert s.has_active_scan_request() is True
+    s.mark_scan_request_running(r1)
+    assert s.has_active_scan_request() is True  # running 仍算 active
+    s.mark_scan_request_done(r1)
+    assert s.next_pending_scan_request() is None
+    assert s.has_active_scan_request() is False
+    # 失败重试: attempts+1, <3 时仍可被取到
+    r2 = s.create_scan_request()
+    s.bump_scan_request_attempts(r2)
+    row = s.next_pending_scan_request()
+    assert row["id"] == r2 and row["attempts"] == 1
+    s.bump_scan_request_attempts(r2); s.bump_scan_request_attempts(r2)
+    assert s.next_pending_scan_request() is None  # attempts=3 达到上限不再取
