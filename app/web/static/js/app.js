@@ -66,17 +66,45 @@ document.addEventListener("click", function (e) {
   }
 });
 // batch2-search-cleanup-monitor: 采集器异常横幅 (D3, 自适应 15s/5s 轮询)
+// collector-settings-center: 合并为统一轮询 (横幅 + 状态区 + 扫描进度, 消除双轮询)
 (function () {
   var banner = document.getElementById("collector-banner");
-  if (!banner) return;
   var NORMAL_MS = 15000;
   var FAST_MS = 5000;
+  function renderCollectorStatus(d) {
+    var box = document.getElementById("collector-status");
+    if (!box) return;
+    var st = d.status || {};
+    box.innerHTML = "<p>连接: <strong>" + (d.alive ? "在线" : "离线") +
+      "</strong> · 状态: " + (st.state || "未知") +
+      (st.last_sync ? " · 最近同步: " + new Date(st.last_sync * 1000).toLocaleString() : "") + "</p>";
+    var progress = document.getElementById("scan-progress");
+    var scan = d.scan || null;
+    if (scan && progress) {
+      var text = document.getElementById("scan-progress-text");
+      var bar = document.getElementById("scan-progress-bar");
+      if (scan.running) {
+        progress.hidden = false;
+        var pct = (scan.total > 0) ? Math.round((scan.current / scan.total) * 100) : 0;
+        if (text) text.textContent = "扫描中: 已扫 " + scan.current + "/" + scan.total + " 会话 · 新入库 " + scan.ingested + " 条";
+        if (bar) bar.style.width = pct + "%";
+      } else if (scan.done) {
+        progress.hidden = false;
+        if (text) text.textContent = "扫描完成: 新入库 " + scan.ingested + " 条" +
+          (scan.finished_at ? " · 完成于 " + new Date(scan.finished_at * 1000).toLocaleString() : "");
+        if (bar) bar.style.width = "100%";
+        var hint = document.getElementById("scan-hint");
+        if (hint) hint.textContent = "";
+      }
+    }
+  }
   function check() {
     fetch("/api/collector/status")
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var down = !d.alive;
         banner.hidden = !down;
+        renderCollectorStatus(d);
         timer = setTimeout(check, down ? FAST_MS : NORMAL_MS);
       })
       .catch(function () {
@@ -85,4 +113,122 @@ document.addEventListener("click", function (e) {
       });
   }
   var timer = setTimeout(check, 0);
+})();
+// collector-settings-center: 设置读写 + 手动扫描触发 (模态确认)
+(function () {
+  function fmtValue(v) { return typeof v === "boolean" ? (v ? "true" : "false") : String(v); }
+
+  function initSettings() {
+    var form = document.getElementById("settings-form");
+    if (!form) return;
+    var inputs = form.querySelectorAll("[data-key]");
+    var errBox = document.getElementById("settings-error");
+    var saved = document.getElementById("settings-saved");
+    function showErr(msg) {
+      if (!errBox) return;
+      errBox.textContent = msg;
+      errBox.hidden = !msg;
+    }
+    function load() {
+      fetch("/api/settings").then(function (r) { return r.json(); }).then(function (d) {
+        inputs.forEach(function (el) {
+          var key = el.getAttribute("data-key");
+          var v = d.values[key];
+          if (el.getAttribute("data-type") === "checkbox") {
+            el.checked = v === true || v === "true";
+          } else {
+            el.value = v;
+          }
+          var def = el.parentNode.querySelector(".rt-default");
+          if (!def) {
+            def = document.createElement("span");
+            def.className = "rt-default muted";
+            def.style.cssText = "margin-left:6px;font-size:12px";
+            el.parentNode.appendChild(def);
+          }
+          def.textContent = "默认 " + fmtValue(d.defaults[key]);
+        });
+      });
+    }
+    function resetKey(key) {
+      fetch("/api/settings/reset", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: key }) })
+        .then(function (r) { return r.json(); })
+        .then(function () { load(); showErr(""); });
+    }
+    inputs.forEach(function (el) {
+      var key = el.getAttribute("data-key");
+      var p = el.closest("p");
+      if (p) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-sm btn-ghost";
+        btn.textContent = "恢复默认";
+        btn.style.cssText = "margin-left:8px";
+        btn.addEventListener("click", function () { resetKey(key); });
+        p.appendChild(btn);
+      }
+    });
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var values = {};
+      inputs.forEach(function (el) {
+        var key = el.getAttribute("data-key");
+        values[key] = el.getAttribute("data-type") === "checkbox" ? el.checked : el.value;
+      });
+      fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values: values }) })
+        .then(function (r) {
+          return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+        })
+        .then(function (res) {
+          if (!res.ok) {
+            showErr(res.j.error || "保存失败");
+            if (saved) saved.hidden = true;
+            return;
+          }
+          showErr("");
+          if (saved) { saved.hidden = false; setTimeout(function () { saved.hidden = true; }, 2000); }
+          load();
+        })
+        .catch(function () { showErr("网络错误"); });
+    });
+    load();
+  }
+
+  function initScanControl() {
+    var btn = document.getElementById("scan-btn");
+    if (!btn) return;
+    var modal = document.getElementById("scan-modal");
+    var hint = document.getElementById("scan-hint");
+    function openModal() {
+      if (!modal) return;
+      modal.hidden = false;
+      var cancel = document.getElementById("scan-modal-cancel");
+      var ok = document.getElementById("scan-modal-confirm");
+      function close() { modal.hidden = true; }
+      cancel.onclick = close;
+      ok.onclick = function () {
+        close();
+        btn.disabled = true;
+        fetch("/api/collector/scan", { method: "POST" })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) { hint.textContent = res.j.error || "请求被拒绝"; }
+            else {
+              hint.textContent = "扫描已排队，进度即将显示";
+              var prog = document.getElementById("scan-progress");
+              if (prog) prog.hidden = false;
+            }
+          })
+          .finally(function () { btn.disabled = false; });
+      };
+    }
+    btn.addEventListener("click", openModal);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    initSettings();
+    initScanControl();
+  });
 })();
