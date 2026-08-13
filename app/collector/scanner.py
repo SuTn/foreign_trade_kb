@@ -41,6 +41,11 @@ class Scanner:
         self._pw = pw  # Playwright 实例 (重建时关闭旧实例)
         self._context = context  # 持久上下文 (重建时关闭旧实例)
         self._backfill_table_checked = False  # backfill_requests 表存在性已探测
+        self._manual_scan_active = False  # 手动全量扫描进行中 (防御: Web 层 busy 判定不依赖此标志)
+        from app.storage.runtime_settings import RuntimeSettings
+        self._rt = RuntimeSettings(store) if store is not None and hasattr(store, "conn") else None
+        if self._rt is not None:
+            self._rt.refresh()
 
     async def fast_tick(self):
         """DOM 增量: hash 不变则跳过。心跳每个 tick 都写, 避免空闲时误判死。"""
@@ -470,6 +475,41 @@ class Scanner:
                 self.store.conn.execute(
                     "UPDATE backfill_requests SET attempts=attempts+1 WHERE id=?", (r["id"],))
         self.store.conn.commit()
+
+    async def _drain_scan_requests(self):
+        """处理 Web 提交的全量扫描请求 (与 backfill 同构, D1)。
+        串行在主循环执行 scan_all_chats (天然与自动扫描互斥);
+        执行前设 last_scan=now 跳过自动周期分支; 失败 attempts+1 (<3 下轮重试)。"""
+        req = self.store.next_pending_scan_request()
+        if not req:
+            return
+        self._manual_scan_active = True
+        self.last_scan = time.time()
+        self.store.mark_scan_request_running(req["id"])
+        try:
+            total = 0
+            if self.page is not None:
+                try:
+                    total = await self.page.eval_on_selector_all(
+                        "[data-testid='chat-list'] div[role='row']", "els => els.length")
+                except Exception:
+                    total = 0
+            def on_progress(current, _total, ingested):
+                write_status(settings.status_path, {"state": "running",
+                    "scan": {"running": True, "current": current, "total": _total,
+                             "ingested": ingested}})
+            max_chats = self._rt.get_typed("auto_scan_max_chats", settings.auto_scan_max_chats)
+            settle = self._rt.get_typed("auto_scan_settle_sec", settings.auto_scan_settle_sec)
+            ingested = await self.scan_all_chats(max_chats=max_chats, settle=settle,
+                                                 on_progress=on_progress)
+            write_status(settings.status_path, {"state": "running", "last_sync": time.time(),
+                "scan": {"running": False, "done": True, "ingested": ingested,
+                         "finished_at": time.time(), "total": total}})
+            self.store.mark_scan_request_done(req["id"])
+        except Exception:
+            self.store.bump_scan_request_attempts(req["id"])
+        finally:
+            self._manual_scan_active = False
 
 def parse_dom_snapshot_safe(snap, chat_id=None):
     from app.collector.dom_snapshot import parse_dom_snapshot

@@ -524,3 +524,66 @@ async def test_scan_all_chats_reports_progress(tmp_data, monkeypatch):
                             on_progress=lambda c, t, i: progress.append((c, t, i)))
     assert progress[0][0] == 0 and progress[0][1] == 3 and progress[0][2] == 0  # 扫描前 total 已知
     assert progress[-1] == (3, 3, 3)  # current/total/累计 ingested
+
+
+class ScanPage:
+    def __init__(self, n_rows=2):
+        self.n_rows = n_rows; self.clicks = []
+    async def eval_on_selector_all(self, sel, expr): return self.n_rows
+    def locator(self, sel): return _FakeLocator(self)
+
+
+async def test_drain_scan_requests_consumes_and_writes_status(tmp_data, monkeypatch):
+    """2.2: 消费 pending 请求 → 执行扫描 → 进度/结果写 status.json → 标 done。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    req_id = store.create_scan_request()
+    def fake_parse(s, chat_id=None):
+        return [{"id": "HEX1", "fromMe": False, "from": None, "timestamp": 0,
+                 "body": "hello", "body_present": True}]
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", fake_parse)
+    async def fake_walk_idb(cdp, acct):
+        return {"chats": {"111@c.us": "Alice"}, "contacts": {},
+                "messages": [{"id": "false_111@c.us_HEX1", "t": 1,
+                              "from": "111@c.us", "to": "99@c.us", "type": "chat", "fromMe": False}]}
+    monkeypatch.setattr("app.collector.idb_walk.walk_idb", fake_walk_idb)
+    class FakeCdp:
+        async def capture_snapshot(self): return {}
+    sc = Scanner(FakeCdp(), store, FakeVector(), page=ScanPage())
+    await sc._drain_scan_requests()
+    row = store.conn.execute("SELECT * FROM scan_requests WHERE id=?", (req_id,)).fetchone()
+    assert row["done"] == 1 and row["status"] == "done"
+    s = read_status(settings.status_path)
+    assert s["scan"]["running"] is False and s["scan"]["done"] is True
+    assert s["scan"]["ingested"] >= 0 and "finished_at" in s["scan"]
+    assert store.conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0] >= 1
+
+
+async def test_drain_scan_requests_sets_last_scan_skips_auto(tmp_data, monkeypatch):
+    """2.3: 消费期间设置 last_scan=now → 自动周期扫描分支本轮跳过。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.create_scan_request()
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s, chat_id=None: [])
+    async def fake_walk_idb(cdp, acct): return {"chats": {}, "contacts": {}, "messages": []}
+    monkeypatch.setattr("app.collector.idb_walk.walk_idb", fake_walk_idb)
+    class FakeCdp:
+        async def capture_snapshot(self): return {}
+    sc = Scanner(FakeCdp(), store, FakeVector(), page=ScanPage())
+    await sc._drain_scan_requests()
+    assert time.time() - sc.last_scan < 5  # 已刷新
+
+
+async def test_drain_scan_requests_failure_bumps_attempts(tmp_data, monkeypatch):
+    """2.2: 扫描中途异常 → attempts+1 不标 done, <3 下轮可重试。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    req_id = store.create_scan_request()
+    class BoomPage:
+        async def eval_on_selector_all(self, sel, expr): raise RuntimeError("CDP 挂了")
+        def locator(self, sel): raise RuntimeError("CDP 挂了")
+    sc = Scanner(None, store, FakeVector(), page=BoomPage())
+    await sc._drain_scan_requests()   # 不应抛异常
+    row = store.conn.execute("SELECT * FROM scan_requests WHERE id=?", (req_id,)).fetchone()
+    assert row["done"] == 0 and row["attempts"] == 1 and row["status"] == "failed"
+    assert sc._manual_scan_active is False  # finally 已复位
