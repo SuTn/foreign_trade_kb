@@ -339,7 +339,7 @@ class Scanner:
         row_sel = "[data-testid='chat-list'] div[role='row']"
         for i in range(min(total, max_chats)):
             if i % 5 == 0:
-                write_status(settings.status_path, {"state": "running"})  # 长扫描期间保持心跳
+                self._write_status_keep_scan({"state": "running"})  # 长扫描期间保持心跳 (保留 scan 进度, W1)
             try:
                 await self.page.locator(row_sel).nth(i).click(timeout=8000)
             except Exception:
@@ -357,7 +357,7 @@ class Scanner:
             if on_progress:
                 on_progress(i + 1, min(total, max_chats), ingested)
         if ingested:
-            write_status(settings.status_path, {"state": "running", "last_sync": time.time()})
+            self._write_status_keep_scan({"state": "running", "last_sync": time.time()})
         return ingested
 
     async def run(self):
@@ -539,7 +539,7 @@ class Scanner:
             self._scan_runtime = None  # 完成, 不再保留
             write_status(settings.status_path, {"state": "running", "last_sync": time.time(),
                 "scan": {"running": False, "done": True, "ingested": ingested,
-                         "finished_at": time.time(), "total": total}})
+                         "finished_at": time.time(), "total": min(total, max_chats)}})
             self.store.mark_scan_request_done(req["id"])
         except Exception:
             self.store.bump_scan_request_attempts(req["id"])

@@ -526,6 +526,35 @@ async def test_scan_all_chats_reports_progress(tmp_data, monkeypatch):
     assert progress[-1] == (3, 3, 3)  # current/total/累计 ingested
 
 
+async def test_scan_all_chats_respects_max_chats_cap(tmp_data, monkeypatch):
+    """W3: 会话总数 > auto_scan_max_chats 时仅扫前上限个, 进度 total 如实为 min 值。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    counter = [0]
+    def fake_parse(s, chat_id=None):
+        counter[0] += 1
+        i = counter[0]
+        return [{"id": f"HEX{i}", "fromMe": False, "from": None,
+                 "timestamp": 0, "body": f"hello{i}", "body_present": True}]
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", fake_parse)
+    async def fake_walk_idb(cdp, acct):
+        return {"chats": {}, "contacts": {},
+                "messages": [{"id": f"false_{i}11@c.us_HEX{i}", "t": i,
+                              "from": f"{i}11@c.us", "to": "99@c.us", "type": "chat", "fromMe": False}
+                             for i in (1, 2, 3)]}
+    monkeypatch.setattr("app.collector.idb_walk.walk_idb", fake_walk_idb)
+    class FakeCdp:
+        async def capture_snapshot(self): return {}
+    page = FakePage(n_rows=5)  # 5 个会话
+    sc = Scanner(FakeCdp(), store, FakeVector(), page=page)
+    progress = []
+    await sc.scan_all_chats(max_chats=3, settle=0,
+                            on_progress=lambda c, t, i: progress.append((c, t, i)))
+    assert page.clicks == [0, 1, 2]  # 仅扫前 3 个
+    assert progress[-1] == (3, 3, 3)  # total=min(5,3)=3
+    assert store.conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0] == 3
+
+
 class ScanPage:
     def __init__(self, n_rows=2):
         self.n_rows = n_rows; self.clicks = []
