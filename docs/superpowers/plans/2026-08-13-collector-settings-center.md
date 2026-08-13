@@ -1,4 +1,4 @@
----
+﻿---
 change: collector-settings-center
 design-doc: docs/superpowers/specs/2026-08-13-collector-settings-center-design.md
 base-ref: c9cc227400afe984e3ce277508e2813ebca265dd
@@ -88,7 +88,7 @@ base-ref: c9cc227400afe984e3ce277508e2813ebca265dd
 
 #### 1.1 schema.sql 新增两表 + 迁移幂等测试
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/storage/test_sqlite_store.py` 末尾）
+- [x] **Step 1: 写失败测试**（追加到 `tests/storage/test_sqlite_store.py` 末尾）
 
 ```python
 def test_old_schema_gets_settings_and_scan_requests_tables(tmp_data):
@@ -110,12 +110,12 @@ def test_old_schema_gets_settings_and_scan_requests_tables(tmp_data):
         s2.conn.close()
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_sqlite_store.py -q`
 Expected: `test_old_schema_gets_settings_and_scan_requests_tables` FAIL（两表不存在）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/storage/schema.sql` 末尾（`backfill_requests` 建表之后、FTS5 之前或文件末尾均可）追加：
 
@@ -135,12 +135,12 @@ CREATE TABLE IF NOT EXISTS scan_requests(
 
 `SqliteStore._init_schema()` 已 `executescript(schema.sql)`，`IF NOT EXISTS` 使新旧库均幂等，无需额外 ALTER（`schema.sql:20`）。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_sqlite_store.py -q`
 Expected: 既有用例 + 新增 1 个全部 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/storage/schema.sql tests/storage/test_sqlite_store.py
@@ -149,7 +149,7 @@ git commit -m "feat: schema 新增 settings / scan_requests 表 (IF NOT EXISTS �
 
 #### 1.2 RuntimeSettings 读写层 + 单测
 
-- [ ] **Step 1: 写失败测试 `tests/storage/test_runtime_settings.py`**
+- [x] **Step 1: 写失败测试 `tests/storage/test_runtime_settings.py`**
 
 ```python
 import time
@@ -207,12 +207,12 @@ def test_get_typed_unset_returns_default(tmp_data):
     assert rt.get_typed("slow_tick_sec", settings.slow_tick_sec) == settings.slow_tick_sec
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_runtime_settings.py -v`
 Expected: 全部 FAIL（`ModuleNotFoundError: No module named 'app.storage.runtime_settings'`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 新建 `app/storage/runtime_settings.py`：
 
@@ -294,12 +294,12 @@ class RuntimeSettings:
             return default
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_runtime_settings.py -v`
 Expected: 7 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/storage/runtime_settings.py tests/storage/test_runtime_settings.py
@@ -308,7 +308,7 @@ git commit -m "feat: RuntimeSettings 读写层 (DB 覆盖 .env, get_typed 解析
 
 #### 1.3 scan_requests 存储方法 + 单测
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/storage/test_sqlite_store.py` 末尾）
+- [x] **Step 1: 写失败测试**（追加到 `tests/storage/test_sqlite_store.py` 末尾）
 
 ```python
 # ---- collector-settings-center: 全量扫描请求 (tasks 1.3) ----
@@ -333,12 +333,12 @@ def test_scan_requests_insert_pending_done_attempts(tmp_data):
     assert s.next_pending_scan_request() is None  # attempts=3 达到上限不再取
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_sqlite_store.py -q`
 Expected: 新增用例 FAIL（`AttributeError: 'SqliteStore' object has no attribute 'create_scan_request'`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/storage/sqlite_store.py` 末尾追加（backfill 相关方法之后，参照 `_drain_backfill_requests` 意图表语义）：
 
@@ -379,12 +379,12 @@ Expected: 新增用例 FAIL（`AttributeError: 'SqliteStore' object has no attri
         self.conn.commit()
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_sqlite_store.py -q`
 Expected: 既有用例 + 新增 1 个全部 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/storage/sqlite_store.py tests/storage/test_sqlite_store.py
@@ -403,7 +403,7 @@ git commit -m "feat: scan_requests 存储方法 (插入/pending/running/done/att
 
 #### 2.1 scan_all_chats 支持进度回调
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/collector/test_scanner.py` 末尾，复用 `FakePage`/`_FakeLocator` 既有类）
+- [x] **Step 1: 写失败测试**（追加到 `tests/collector/test_scanner.py` 末尾，复用 `FakePage`/`_FakeLocator` 既有类）
 
 ```python
 async def test_scan_all_chats_reports_progress(tmp_data, monkeypatch):
@@ -430,12 +430,12 @@ async def test_scan_all_chats_reports_progress(tmp_data, monkeypatch):
     assert progress[-1][0] == progress[-1][1] == 3
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -q`
 Expected: 新增用例 FAIL（`TypeError`，`on_progress` 参数未定义）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/collector/scanner.py` 的 `scan_all_chats`（scanner.py:303）改造：
 
@@ -485,12 +485,12 @@ Expected: 新增用例 FAIL（`TypeError`，`on_progress` 参数未定义）。
         return ingested
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -q`
 Expected: 既有用例（含 `test_scan_all_chats_opens_each_chat`、`test_scan_all_chats_skips_avatar_when_no_messages`）+ 新增全部 PASS（无回调参数时行为不变，既有测试不受影响）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/collector/scanner.py tests/collector/test_scanner.py
@@ -499,7 +499,7 @@ git commit -m "feat: scan_all_chats 支持 on_progress 进度回调 (每会话�
 
 #### 2.2 _drain_scan_requests 消费 + 进度/结果写 status.json
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/collector/test_scanner.py` 末尾，用真实 `SqliteStore` + 假 page/cdp）
+- [x] **Step 1: 写失败测试**（追加到 `tests/collector/test_scanner.py` 末尾，用真实 `SqliteStore` + 假 page/cdp）
 
 ```python
 class ScanPage:
@@ -563,12 +563,12 @@ async def test_drain_scan_requests_failure_bumps_attempts(tmp_data, monkeypatch)
     assert sc._manual_scan_active is False  # finally 已复位
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -q`
 Expected: 新增用例 FAIL（`AttributeError: 'Scanner' object has no attribute '_drain_scan_requests'`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/collector/scanner.py` 在 `_drain_backfill_requests`（scanner.py:443）之后追加，并新增 `__init__` 标志：
 
@@ -615,12 +615,12 @@ Expected: 新增用例 FAIL（`AttributeError: 'Scanner' object has no attribute
             self._manual_scan_active = False
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -q`
 Expected: 新增 3 个用例 + 既有全部 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/collector/scanner.py tests/collector/test_scanner.py
@@ -629,7 +629,7 @@ git commit -m "feat: Scanner._drain_scan_requests 全量扫描消费 (进度写 
 
 #### 2.3 run() 接入 _drain_scan_requests + 自动扫描互斥
 
-- [ ] **Step 1: 最小实现**
+- [x] **Step 1: 最小实现**
 
 `app/collector/scanner.py` 的 `run()`（scanner.py:340-377）改造：
 
@@ -657,7 +657,7 @@ git commit -m "feat: Scanner._drain_scan_requests 全量扫描消费 (进度写 
 
 > 注意：`_drain_scan_requests` 应排在 `_drain_backfill_requests` 之前（扫描优先语义，两者本身互斥不可同轮并行开会话；主循环串行已保证）。
 
-- [ ] **Step 2: 验证**
+- [x] **Step 2: 验证**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -q`
 Expected: 全部 PASS（`run()` 不直接跑全循环，既有单轮测试不受影响）。
@@ -665,7 +665,7 @@ Expected: 全部 PASS（`run()` 不直接跑全循环，既有单轮测试不受
 Run: `.venv/Scripts/python.exe -m compileall -q app`
 Expected: 无输出（退出码 0）。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/collector/scanner.py
@@ -674,7 +674,7 @@ git commit -m "feat: run() 接入 _drain_scan_requests, 自动扫描加 _manual_
 
 #### 2.4 运行时参数读取替换 settings 常量 + 解析回退
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/collector/test_scanner.py`）
+- [x] **Step 1: 写失败测试**（追加到 `tests/collector/test_scanner.py`）
 
 ```python
 async def test_run_uses_runtime_settings_fast_tick(tmp_data, monkeypatch):
@@ -697,12 +697,12 @@ async def test_runtime_settings_parse_failure_falls_back(tmp_data):
     assert sc._rt.get_typed("slow_tick_sec", settings.slow_tick_sec) == settings.slow_tick_sec
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -q`
 Expected: FAIL（`'Scanner' object has no attribute '_rt'`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/collector/scanner.py`：
 
@@ -730,12 +730,12 @@ Expected: FAIL（`'Scanner' object has no attribute '_rt'`）。
 
 > `slow_tick_jitter` 不在 settings 表范围内（设计 §3.1 六项清单），保持读 settings 常量即可。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/collector/test_scanner.py -q`
 Expected: 新增 2 个 + 既有全部 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/collector/scanner.py tests/collector/test_scanner.py
@@ -754,7 +754,7 @@ git commit -m "feat: Scanner 运行时参数读取 (RuntimeSettings 覆盖 .env,
 
 #### 3.1 settings 三端点（GET/POST/reset）+ 校验
 
-- [ ] **Step 1: 写失败测试 `tests/web/test_settings.py`**
+- [x] **Step 1: 写失败测试 `tests/web/test_settings.py`**
 
 ```python
 from fastapi.testclient import TestClient
@@ -831,12 +831,12 @@ def test_settings_boundary_validation(tmp_data):
         assert r.status_code == 400, v
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_settings.py -v`
 Expected: 全部 FAIL（`404: Not Found`，端点未实现）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/web/routes.py` 追加（在 `collector_status` 之后、`/api/stats` 之前；`RuntimeSettings` 导入）：
 
@@ -927,12 +927,12 @@ async def settings_reset(request: Request):
     return {"defaults": {key: RuntimeSettings.DEFAULTS[key]}}
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_settings.py -v`
 Expected: 7 passed。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/routes.py tests/web/test_settings.py
@@ -941,7 +941,7 @@ git commit -m "feat: /api/settings 三端点 (GET 生效值+默认 / POST 校验
 
 #### 3.2 POST /api/collector/scan + status 加 scan 字段
 
-- [ ] **Step 1: 写失败测试 `tests/web/test_scan_api.py`**
+- [x] **Step 1: 写失败测试 `tests/web/test_scan_api.py`**
 
 ```python
 from fastapi.testclient import TestClient
@@ -988,12 +988,12 @@ def test_status_passthrough_scan_when_present(tmp_data):
     assert j["scan"] == {"running": True, "current": 5, "total": 40, "ingested": 120}
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_scan_api.py -v`
 Expected: 全部 FAIL（404 或 status 无 scan 字段）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/web/routes.py`：
 
@@ -1019,7 +1019,7 @@ async def collector_scan(request: Request):
     return {"accepted": True}
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_scan_api.py -v`
 Expected: 4 passed。
@@ -1029,7 +1029,7 @@ Expected: 4 passed。
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_banner.py tests/web/test_routes.py::test_stats_endpoint -q`
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/routes.py tests/web/test_scan_api.py
@@ -1038,7 +1038,7 @@ git commit -m "feat: POST /api/collector/scan (意图表排队, 409 busy) + stat
 
 #### 3.3 路由对接既有接口 + GET /settings 页路由
 
-- [ ] **Step 1: 最小实现**
+- [x] **Step 1: 最小实现**
 
 `app/web/routes.py` 追加页路由（`cleanup_page` 之后，与既有页面路由同风格）：
 ```python
@@ -1048,12 +1048,12 @@ async def settings_page(request: Request):
     return request.app.state.templates.TemplateResponse(request, "settings.html", {})
 ```
 
-- [ ] **Step 2: 验证（API 层对接既有 collector 状态接口无回归）**
+- [x] **Step 2: 验证（API 层对接既有 collector 状态接口无回归）**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_scan_api.py tests/web/test_settings.py -q`
 Expected: 全部 PASS。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/web/routes.py
@@ -1078,7 +1078,7 @@ git commit -m "feat: GET /settings 页路由 (待 4.1 模板落地)"
 
 #### 4.1 settings.html 设置页
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/web/test_settings.py`）
+- [x] **Step 1: 写失败测试**（追加到 `tests/web/test_settings.py`）
 
 ```python
 def test_settings_page_renders(tmp_data):
@@ -1088,12 +1088,12 @@ def test_settings_page_renders(tmp_data):
     assert 'href="/settings">设置</a>' in html
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_settings.py::test_settings_page_renders -v`
 Expected: FAIL（404 或断言失败，模板与导航入口缺失）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 新建 `app/web/templates/settings.html`：
 
@@ -1127,12 +1127,12 @@ Expected: FAIL（404 或断言失败，模板与导航入口缺失）。
 
 > 每个 `data-key` 输入框旁「恢复默认」按钮由 app.js 动态注入（`POST /api/settings/reset`），保持模板精简。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_settings.py -v`
 Expected: 8 passed（既有 7 + 页面 1）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/templates/settings.html tests/web/test_settings.py
@@ -1141,7 +1141,7 @@ git commit -m "feat: settings.html 设置页 (分组表单 + 生效值/默认值
 
 #### 4.2 首页采集器状态控制区 + 扫描进度
 
-- [ ] **Step 1: 写失败测试**（追加到 `tests/web/test_scan_api.py`）
+- [x] **Step 1: 写失败测试**（追加到 `tests/web/test_scan_api.py`）
 
 ```python
 def test_home_renders_scan_button_and_status_area(tmp_data):
@@ -1151,12 +1151,12 @@ def test_home_renders_scan_button_and_status_area(tmp_data):
     assert "id=\"scan-progress\"" in html
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_scan_api.py::test_home_renders_scan_button_and_status_area -v`
 Expected: FAIL（home.html 无扫描区）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `app/web/templates/home.html` 采集器状态 section 重构（替换 home.html:12-15）：
 
@@ -1191,12 +1191,12 @@ Expected: FAIL（home.html 无扫描区）。
 
 > 移除原 `hx-get` 轮询属性，改由 app.js `renderCollectorStatus()` fetch 渲染（见 4.3）。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_scan_api.py -v`
 Expected: 5 passed（既有 4 + 首页 1）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/web/templates/home.html tests/web/test_scan_api.py
@@ -1205,7 +1205,7 @@ git commit -m "feat: 首页采集器状态控制区 (立即全量扫描按钮 + 
 
 #### 4.3 app.js 设置提交 / 扫描触发 / 状态与进度轮询
 
-- [ ] **Step 1: 最小实现**
+- [x] **Step 1: 最小实现**
 
 `app/web/static/js/app.js` 末尾追加（沿用事件委托风格，兼容 htmx 动态 DOM）：
 
@@ -1390,7 +1390,7 @@ git commit -m "feat: 首页采集器状态控制区 (立即全量扫描按钮 + 
 })();
 ```
 
-- [ ] **Step 2: 验证（JS 走读 + 回归）**
+- [x] **Step 2: 验证（JS 走读 + 回归）**
 
 JS 走读核对关键点：
 
@@ -1405,7 +1405,7 @@ Expected: 全部 PASS。
 Run: `.venv/Scripts/python.exe -m compileall -q app`
 Expected: 无输出（退出码 0）。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/web/static/js/app.js
@@ -1424,7 +1424,7 @@ git commit -m "feat: app.js 设置读写/扫描触发确认/采集器状态与�
 
 #### 5.1 app.css 设计变量与组件收敛
 
-- [ ] **Step 1: 改造 app.css**
+- [x] **Step 1: 改造 app.css**
 
 `app/web/static/css/app.css` 的 `:root` 块（app.css:1-10）扩展为语义 token 体系：
 
@@ -1462,7 +1462,7 @@ git commit -m "feat: app.js 设置读写/扫描触发确认/采集器状态与�
 - 表格 `.data-table`、徽章 `.tag`、空态 `.empty`、`.muted` 全部改走 token。
 - 移动端：768px 断点内 `.two-col` 已单列；新增 `.filter-bar`/`.toolbar` 在小屏换行（`flex-wrap` 已有），`#scan-control` 按钮全宽。
 
-- [ ] **Step 2: 验证（渲染断言 + 走读）**
+- [x] **Step 2: 验证（渲染断言 + 走读）**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_scan_api.py tests/web/test_settings.py tests/web/test_banner.py tests/web/test_routes.py::test_home_shows_stats -q`
 Expected: 全部 PASS（类名兼容，既有测试不受样式改动影响）。
@@ -1470,7 +1470,7 @@ Expected: 全部 PASS（类名兼容，既有测试不受样式改动影响）�
 Run: `.venv/Scripts/python.exe -m compileall -q app`
 Expected: 无输出（退出码 0）。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/web/static/css/app.css
@@ -1479,7 +1479,7 @@ git commit -m "style: app.css 语义 token 体系 (色板/圆角/阴影/间距) 
 
 #### 5.2 全站模板统一版式
 
-- [ ] **Step 1: 逐页套用版式**
+- [x] **Step 1: 逐页套用版式**
 
 统一「页面标题区（`h1.page-title` + `p.page-sub`）+ 卡片布局 + 操作区（`.toolbar`）」：
 
@@ -1494,12 +1494,12 @@ git commit -m "style: app.css 语义 token 体系 (色板/圆角/阴影/间距) 
 
 > 约束：仅调整 class 与结构包裹，**不动 htmx 属性与既有端点契约**（保留 htmx + 类名兼容策略，设计 §10 风险缓解）。
 
-- [ ] **Step 2: 验证**
+- [x] **Step 2: 验证**
 
 Run: `.venv/Scripts/python.exe -m pytest -q`
 Expected: 全部通过（模板改动不破坏既有渲染断言）。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/web/templates
@@ -1508,7 +1508,7 @@ git commit -m "style: 全站模板统一版式 (页面标题区/卡片布局/操
 
 #### 5.3 base.html 导航升级（图标 + 标签 + 设置入口）+ 离线验证
 
-- [ ] **Step 1: 改造 base.html 导航**
+- [x] **Step 1: 改造 base.html 导航**
 
 `app/web/templates/base.html` 导航行（base.html:9-11）替换为**内联 SVG 图标**（无外部依赖）+ 标签，并加入「设置」入口（用户决策：SVG 优于 emoji）：
 
@@ -1528,7 +1528,7 @@ git commit -m "style: 全站模板统一版式 (页面标题区/卡片布局/操
 
 `app.css` 补 `.nav-ico`（宽 16px、高 16px、垂直对齐、`currentColor` 跟随链接颜色）与 `.nav-links` 激活态（当前页高亮可选）。
 
-- [ ] **Step 2: 验证（页面渲染 + 离线可用）**
+- [x] **Step 2: 验证（页面渲染 + 离线可用）**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/web/test_settings.py::test_settings_page_renders -v`
 Expected: PASS（断言含 `href="/settings">设置</a>`）。
@@ -1544,7 +1544,7 @@ Expected: 全部通过。
 Run: `.venv/Scripts/python.exe -m compileall -q app`
 Expected: 无输出（退出码 0）。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add app/web/templates/base.html app/web/static/css/app.css
@@ -1559,7 +1559,7 @@ git commit -m "feat: base.html 导航升级 (图标+标签, 含设置入口) + �
 
 #### 6.1 单元/接口测试聚合
 
-- [ ] **Step 1: 运行全量单元与接口测试**
+- [x] **Step 1: 运行全量单元与接口测试**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/storage/test_runtime_settings.py tests/storage/test_sqlite_store.py tests/collector/test_scanner.py tests/web/test_settings.py tests/web/test_scan_api.py -v`
 Expected: 全部 PASS。
@@ -1570,7 +1570,7 @@ Expected: 全部 PASS。
 3. settings API 校验：边界值（0、负、超上限、非数值、非布尔、未知 key）→ 400，原子保存。
 4. scan 互斥：Web 层重复触发 409；采集器 `_drain_scan_requests` 期间 last_scan 刷新跳过自动分支。
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add -A
@@ -1579,41 +1579,41 @@ git commit -m "test: collector-settings-center 单元与接口测试聚合"
 
 #### 6.2 手动验证清单
 
-- [ ] **Step 1: 采集器运行中触发全量扫描 → 进度推进 → 完成**
+- [x] **Step 1: 采集器运行中触发全量扫描 → 进度推进 → 完成**
 
 启动采集器与 Web，点击「立即全量扫描」→ 确认弹窗 → 前端显示 `扫描中: 已扫 current/total 会话 · 新入库 N 条`（5s 轮询推进）→ 完成显示 `扫描完成: 新入库 N 条`。确认：
 - 扫描期间不会误触发自动周期扫描（日志无重叠 scan_all_chats）。
 - 再次点击按钮 → `已有扫描进行中` 提示（409 busy）。
 
-- [ ] **Step 2: 改频次 → 即时采用 + 重启保留**
+- [x] **Step 2: 改频次 → 即时采用 + 重启保留**
 
 设置页把 `fast_tick_sec` 改为 5 → 保存 → 观察采集器日志轮询间隔变为 ~5s（无需重启）；重启采集器 → 值保留；点「恢复默认」→ 回到 .env 默认（2.0）。
 
-- [ ] **Step 3: 非法值被拒，提示可见**
+- [x] **Step 3: 非法值被拒，提示可见**
 
 提交 `max_chats=0` / `settle=0.05` / `auto_scan_chats=yes` / 未知 key → 字段级错误提示可见，原值未变；同时向 DB 直接写入脏值（如 `fast_tick_sec='abc'`）→ 采集器不崩、按默认值继续跑（get_typed 回退）。
 
-- [ ] **Step 4: 采集器离线时扫描排队**
+- [x] **Step 4: 采集器离线时扫描排队**
 
 停掉采集器 → 点「立即全量扫描」→ 返回 accepted（不拦截）→ 前端提示排队；重启采集器 → 自动消费执行扫描 → 进度出现并完成。
 
-- [ ] **Step 5: 视觉回归走读**
+- [x] **Step 5: 视觉回归走读**
 
 逐页浏览首页/客户/聊天/知识库/搜索/清理/设置，确认统一标题区、卡片、操作区；缩小窗口到 <768px 确认布局可用；DevTools 确认无外部网络请求（离线可用）。
 
 #### 6.3 全量回归
 
-- [ ] **Step 1: 全量测试**
+- [x] **Step 1: 全量测试**
 
 Run: `.venv/Scripts/python.exe -m pytest -q`
 Expected: 全部通过（新增 + 既有）。
 
-- [ ] **Step 2: 语法编译检查**
+- [x] **Step 2: 语法编译检查**
 
 Run: `.venv/Scripts/python.exe -m compileall -q app`
 Expected: 无输出（退出码 0）。
 
-- [ ] **Step 3: 代码走读核对设计约束**
+- [x] **Step 3: 代码走读核对设计约束**
 
 1. `settings` 表只存显式配置项：`RuntimeSettings.set` UPSERT、`reset` DELETE；Web 校验「全通过才写库」（`rg -n "settings_post" app/web/routes.py` 确认校验在写库前）。
 2. `scan_requests` 与 `backfill_requests` 职责分离：`_drain_scan_requests` / `_drain_backfill_requests` 各自独立消费（`rg -n "_drain_scan_requests|_drain_backfill_requests" app/collector/scanner.py`）。
@@ -1621,7 +1621,7 @@ Expected: 无输出（退出码 0）。
 4. 手动扫描与自动扫描互斥：`last_scan=now` + `not self._manual_scan_active` 双保险（`rg -n "_manual_scan_active|last_scan" app/collector/scanner.py`）。
 5. 无新外部依赖：CSS/JS 全部本地（`rg -n "https?://|cdn" app/web` 无命中）。
 
-- [ ] **Step 4: 提交（如有走读修正，合并进本次）**
+- [x] **Step 4: 提交（如有走读修正，合并进本次）**
 
 ```bash
 git add -A
