@@ -351,12 +351,14 @@ class Scanner:
 
     async def run(self):
         last_slow = 0.0
-        last_scan = -1e9  # 启动即扫描全部会话 (首次知识构建)
+        self.last_scan = -1e9  # 启动即扫描全部会话 (首次知识构建)
         backoff = 1.0
         while True:
+            if self._rt is not None:
+                self._rt.refresh()  # 每轮刷新 (即时生效, 设计 §5.1)
             try:
                 await self.fast_tick()
-                if time.time() - last_slow >= settings.slow_tick_sec:
+                if time.time() - last_slow >= self._rt.get_typed("slow_tick_sec", settings.slow_tick_sec) if self._rt else time.time() - last_slow >= settings.slow_tick_sec:
                     if not getattr(self, "_vectors_cleared", False):
                         try:
                             self.vector_store.clear_message_vectors()
@@ -368,12 +370,22 @@ class Scanner:
                     except Exception:
                         pass  # IDB 校准失败不阻塞主循环
                     last_slow = time.time()
-                if settings.auto_scan_chats and self.page is not None and time.time() - last_scan >= settings.auto_scan_interval_sec:
+                auto_scan = (self._rt.get_typed("auto_scan_chats", settings.auto_scan_chats)
+                             if self._rt else settings.auto_scan_chats)
+                interval = (self._rt.get_typed("auto_scan_interval_sec", settings.auto_scan_interval_sec)
+                            if self._rt else settings.auto_scan_interval_sec)
+                if (not self._manual_scan_active and auto_scan and self.page is not None
+                        and time.time() - self.last_scan >= interval):
                     try:
-                        await self.scan_all_chats()
+                        await self.scan_all_chats(
+                            max_chats=(self._rt.get_typed("auto_scan_max_chats", settings.auto_scan_max_chats)
+                                       if self._rt else settings.auto_scan_max_chats),
+                            settle=(self._rt.get_typed("auto_scan_settle_sec", settings.auto_scan_settle_sec)
+                                    if self._rt else settings.auto_scan_settle_sec))
                     except Exception:
                         pass  # 扫描失败不阻塞主循环
-                    last_scan = time.time()
+                    self.last_scan = time.time()
+                await self._drain_scan_requests()
                 await self._drain_backfill_requests()
                 await self._drain_profile_updates()
                 backoff = 1.0  # 成功一轮, 重置退避
@@ -386,7 +398,9 @@ class Scanner:
                     pass
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 30.0)  # 指数退避 1s→30s 上限
-            await asyncio.sleep(settings.fast_tick_sec + random.uniform(0, settings.fast_tick_jitter))
+            await asyncio.sleep((self._rt.get_typed("fast_tick_sec", settings.fast_tick_sec)
+                                 if self._rt else settings.fast_tick_sec)
+                                + random.uniform(0, settings.fast_tick_jitter))
 
     async def _run_once(self):
         """供测试驱动单轮 fast_tick (不含 sleep 与退避): 异常分类/致命计数/阈值重建。"""
