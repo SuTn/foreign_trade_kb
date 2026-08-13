@@ -42,6 +42,17 @@ def test_status_passthrough_scan_when_present(tmp_data):
     assert j["scan"] == {"running": True, "current": 5, "total": 40, "ingested": 120}
 
 
+def test_scan_busy_when_failed_row_pending_retry(tmp_data):
+    """I2: failed 待重试行 (done=0, attempts<3) 仍算 busy, 防止连续两次扫描。"""
+    store = SqliteStore()
+    rid = store.create_scan_request()
+    store.bump_scan_request_attempts(rid)  # failed, attempts=1
+    client = TestClient(create_app())
+    r = client.post("/api/collector/scan")
+    assert r.status_code == 409
+    assert r.json()["busy"] is True
+
+
 def test_home_renders_scan_button_and_status_area(tmp_data):
     html = TestClient(create_app()).get("/").text
     assert "立即全量扫描" in html

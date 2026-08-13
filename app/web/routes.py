@@ -149,6 +149,8 @@ def _validate_setting(key, raw) -> tuple:
         val = float(raw) if spec["kind"] == "float" else int(raw)
     except (TypeError, ValueError):
         return False, "必须为数值"
+    if spec["kind"] == "float" and (val != val or val in (float("inf"), float("-inf"))):
+        return False, "必须为有限数值"  # NaN / ±Infinity 视为非法 (与 get_typed 一致)
     if spec["kind"] == "int" and float(raw) != val:
         return False, "必须为整数"
     if val <= spec.get("min", 1e-9) or val > spec.get("max", float("inf")):

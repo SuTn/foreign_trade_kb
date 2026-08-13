@@ -74,6 +74,13 @@ def test_settings_boundary_validation(tmp_data):
         assert r.status_code == 400, v
 
 
+def test_settings_post_rejects_nan_inf(tmp_data):
+    client = TestClient(create_app())
+    for v in ({"fast_tick_sec": "NaN"}, {"fast_tick_sec": "inf"}, {"slow_tick_sec": "-inf"}):
+        r = client.post("/api/settings", json={"values": v})
+        assert r.status_code == 400, v
+
+
 def test_settings_page_renders(tmp_data):
     html = TestClient(create_app()).get("/settings").text
     assert 'id="settings-form"' in html

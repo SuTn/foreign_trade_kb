@@ -589,6 +589,22 @@ async def test_drain_scan_requests_failure_bumps_attempts(tmp_data, monkeypatch)
     assert sc._manual_scan_active is False  # finally 已复位
 
 
+async def test_drain_scan_requests_page_none_no_false_success(tmp_data, monkeypatch):
+    """M2: 采集器无 page (不可扫描) 时不得标记 done 假成功, 应 bump attempts。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    req_id = store.create_scan_request()
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s, chat_id=None: [])
+    async def fake_walk_idb(cdp, acct): return {"chats": {}, "contacts": {}, "messages": []}
+    monkeypatch.setattr("app.collector.idb_walk.walk_idb", fake_walk_idb)
+    class FakeCdp:
+        async def capture_snapshot(self): return {}
+    sc = Scanner(FakeCdp(), store, FakeVector())  # page=None
+    await sc._drain_scan_requests()
+    row = store.conn.execute("SELECT * FROM scan_requests WHERE id=?", (req_id,)).fetchone()
+    assert row["done"] == 0 and row["attempts"] == 1 and row["status"] == "failed"
+
+
 async def test_scanner_rt_uses_runtime_settings_fast_tick(tmp_data):
     """2.4: Scanner._rt 经 RuntimeSettings 读取, DB 值覆盖 .env。"""
     from app.storage.sqlite_store import SqliteStore
@@ -607,3 +623,17 @@ def test_scanner_rt_parse_failure_falls_back(tmp_data):
     store.conn.commit()
     sc = Scanner(FakeCDP([{}]), store, FakeVector())
     assert sc._rt.get_typed("slow_tick_sec", settings.slow_tick_sec) == settings.slow_tick_sec
+
+
+def test_fast_tick_keeps_scan_progress_when_scanning(tmp_data, monkeypatch):
+    """I1: 扫描进行中 fast_tick 心跳不得清空 status.json 的 scan 进度字段。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    sc._scan_runtime = {"running": True, "current": 3, "total": 10, "ingested": 5}
+    sc._manual_scan_active = True
+    monkeypatch.setattr("app.collector.scanner.parse_dom_snapshot_safe", lambda s, chat_id=None: [])
+    import asyncio
+    asyncio.run(sc.fast_tick())
+    s = read_status(settings.status_path)
+    assert s["scan"] == {"running": True, "current": 3, "total": 10, "ingested": 5}

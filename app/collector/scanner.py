@@ -42,6 +42,7 @@ class Scanner:
         self._context = context  # 持久上下文 (重建时关闭旧实例)
         self._backfill_table_checked = False  # backfill_requests 表存在性已探测
         self._manual_scan_active = False  # 手动全量扫描进行中 (防御: Web 层 busy 判定不依赖此标志)
+        self._scan_runtime = None  # 当前全量扫描进度 (供心跳写 status 时保留, I1)
         from app.storage.runtime_settings import RuntimeSettings
         self._rt = RuntimeSettings(store) if store is not None and hasattr(store, "conn") else None
         if self._rt is not None:
@@ -56,13 +57,13 @@ class Scanner:
         dom_msgs = parse_dom_snapshot_safe(snap, self._current_chat_id)
         h = hashlib.md5(json.dumps([(m.get("message_id") or m.get("id"), m.get("body")) for m in dom_msgs]).encode()).hexdigest()
         if h == self._last_dom_hash:
-            write_status(settings.status_path, {"state": "running"})
+            self._write_status_keep_scan({"state": "running"})
             return  # 空闲不刷屏, 但仍更新心跳
         self._last_dom_hash = h
         # 合并 + upsert (DOM tick 也走 IDB 元数据合并, 此处简化为直接 upsert DOM 抓到的)
         for m in dom_msgs:
             self._upsert_one(m)
-        write_status(settings.status_path, {"state": "running", "last_sync": time.time()})
+        self._write_status_keep_scan({"state": "running", "last_sync": time.time()})
 
     async def slow_tick(self):
         """IDB 全量校准: IDB 提供消息身份/chatId, DOM 提供正文, 按 hex id 合并。"""
@@ -73,7 +74,14 @@ class Scanner:
         merged = self._merge_idb_dom(data, dom_msgs)
         for m in merged:
             self._upsert_one(m)
-        write_status(settings.status_path, {"state": "running", "last_sync": time.time()})
+        self._write_status_keep_scan({"state": "running", "last_sync": time.time()})
+
+    def _write_status_keep_scan(self, status: dict):
+        """写 status.json, 但若全量扫描进行中 (self._scan_runtime), 合并保留 scan 进度,
+        避免 fast/slow tick 心跳 (无 scan 字段) 覆盖清空进度 (I1)。"""
+        if self._scan_runtime and "scan" not in status:
+            status = {**status, "scan": self._scan_runtime}
+        write_status(settings.status_path, status)
 
     def _persist_contacts(self, data: dict):
         """把 IDB contact store 落库 contacts 表:
@@ -507,8 +515,8 @@ class Scanner:
             return
         self._manual_scan_active = True
         self.last_scan = time.time()
-        self.store.mark_scan_request_running(req["id"])
         try:
+            self.store.mark_scan_request_running(req["id"])
             total = 0
             if self.page is not None:
                 try:
@@ -517,15 +525,18 @@ class Scanner:
                 except Exception:
                     total = 0
             def on_progress(current, _total, ingested):
-                write_status(settings.status_path, {"state": "running",
-                    "scan": {"running": True, "current": current, "total": _total,
-                             "ingested": ingested}})
+                self._scan_runtime = {"running": True, "current": current,
+                                      "total": _total, "ingested": ingested}
+                write_status(settings.status_path, {"state": "running", "scan": self._scan_runtime})
             max_chats = (self._rt.get_typed("auto_scan_max_chats", settings.auto_scan_max_chats)
                          if self._rt is not None else settings.auto_scan_max_chats)
             settle = (self._rt.get_typed("auto_scan_settle_sec", settings.auto_scan_settle_sec)
                       if self._rt is not None else settings.auto_scan_settle_sec)
             ingested = await self.scan_all_chats(max_chats=max_chats, settle=settle,
                                                  on_progress=on_progress)
+            if self.page is None:
+                raise RuntimeError("采集器页面不可用, 无法全量扫描")  # 防假成功 (M2)
+            self._scan_runtime = None  # 完成, 不再保留
             write_status(settings.status_path, {"state": "running", "last_sync": time.time(),
                 "scan": {"running": False, "done": True, "ingested": ingested,
                          "finished_at": time.time(), "total": total}})
@@ -534,6 +545,7 @@ class Scanner:
             self.store.bump_scan_request_attempts(req["id"])
         finally:
             self._manual_scan_active = False
+            self._scan_runtime = None
 
 def parse_dom_snapshot_safe(snap, chat_id=None):
     from app.collector.dom_snapshot import parse_dom_snapshot

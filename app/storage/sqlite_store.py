@@ -299,10 +299,10 @@ class SqliteStore(StructuredStore):
         return dict(r) if r else None
 
     def has_active_scan_request(self) -> bool:
-        """是否存在 pending/running 未完成请求 (Web 层 busy 判定)。"""
+        """是否存在未完成请求 (pending/running/failed 待重试, done=0) — Web 层 busy 判定。
+        与 next_pending 同口径: done=0 AND attempts<3, 避免 failed 待重试行漏判致连续两次扫描。"""
         r = self.conn.execute(
-            "SELECT id FROM scan_requests WHERE done=0 AND attempts<3 "
-            "AND status IN ('pending','running') ORDER BY id LIMIT 1").fetchone()
+            "SELECT id FROM scan_requests WHERE done=0 AND attempts<3 ORDER BY id LIMIT 1").fetchone()
         return r is not None
 
     def mark_scan_request_running(self, req_id: int):

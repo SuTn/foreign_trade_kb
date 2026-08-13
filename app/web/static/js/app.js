@@ -68,7 +68,6 @@ document.addEventListener("click", function (e) {
 // batch2-search-cleanup-monitor: 采集器异常横幅 (D3, 自适应 15s/5s 轮询)
 // collector-settings-center: 合并为统一轮询 (横幅 + 状态区 + 扫描进度, 消除双轮询)
 (function () {
-  var banner = document.getElementById("collector-banner");
   var NORMAL_MS = 15000;
   var FAST_MS = 5000;
   function renderCollectorStatus(d) {
@@ -80,39 +79,57 @@ document.addEventListener("click", function (e) {
       (st.last_sync ? " · 最近同步: " + new Date(st.last_sync * 1000).toLocaleString() : "") + "</p>";
     var progress = document.getElementById("scan-progress");
     var scan = d.scan || null;
-    if (scan && progress) {
-      var text = document.getElementById("scan-progress-text");
-      var bar = document.getElementById("scan-progress-bar");
-      if (scan.running) {
+    if (!scan) {
+      if (progress && progress.dataset.doneShown === "1") {
+        // 扫描完成已被新的 tick 覆盖 (scan 字段瞬态), 保留完成提示直至下次扫描
         progress.hidden = false;
-        var pct = (scan.total > 0) ? Math.round((scan.current / scan.total) * 100) : 0;
-        if (text) text.textContent = "扫描中: 已扫 " + scan.current + "/" + scan.total + " 会话 · 新入库 " + scan.ingested + " 条";
-        if (bar) bar.style.width = pct + "%";
-      } else if (scan.done) {
-        progress.hidden = false;
-        if (text) text.textContent = "扫描完成: 新入库 " + scan.ingested + " 条" +
-          (scan.finished_at ? " · 完成于 " + new Date(scan.finished_at * 1000).toLocaleString() : "");
-        if (bar) bar.style.width = "100%";
-        var hint = document.getElementById("scan-hint");
-        if (hint) hint.textContent = "";
       }
+      return;
+    }
+    var text = document.getElementById("scan-progress-text");
+    var bar = document.getElementById("scan-progress-bar");
+    if (scan.running) {
+      progress.hidden = false;
+      delete progress.dataset.doneShown;
+      var pct = (scan.total > 0) ? Math.round((scan.current / scan.total) * 100) : 0;
+      if (text) text.textContent = "扫描中: 已扫 " + scan.current + "/" + scan.total + " 会话 · 新入库 " + scan.ingested + " 条";
+      if (bar) bar.style.width = pct + "%";
+    } else if (scan.done) {
+      progress.hidden = false;
+      progress.dataset.doneShown = "1";
+      if (text) text.textContent = "扫描完成: 新入库 " + scan.ingested + " 条" +
+        (scan.finished_at ? " · 完成于 " + new Date(scan.finished_at * 1000).toLocaleString() : "");
+      if (bar) bar.style.width = "100%";
+      var hint = document.getElementById("scan-hint");
+      if (hint) hint.textContent = "";
     }
   }
   function check() {
     fetch("/api/collector/status")
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        var banner = document.getElementById("collector-banner"); // 惰性查询 (head 内脚本启动时 body 未解析)
         var down = !d.alive;
-        banner.hidden = !down;
+        if (banner) banner.hidden = !down;
         renderCollectorStatus(d);
         timer = setTimeout(check, down ? FAST_MS : NORMAL_MS);
       })
       .catch(function () {
-        banner.hidden = false;
+        var banner = document.getElementById("collector-banner");
+        if (banner) banner.hidden = false;
         timer = setTimeout(check, FAST_MS);
       });
   }
-  var timer = setTimeout(check, 0);
+  function start() {
+    if (document.getElementById("collector-banner") || document.getElementById("collector-status")) {
+      var timer = setTimeout(check, 0);
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
 })();
 // collector-settings-center: 设置读写 + 手动扫描触发 (模态确认)
 (function () {
@@ -221,6 +238,7 @@ document.addEventListener("click", function (e) {
               if (prog) prog.hidden = false;
             }
           })
+          .catch(function () { hint.textContent = "网络错误，请重试"; })
           .finally(function () { btn.disabled = false; });
       };
     }
