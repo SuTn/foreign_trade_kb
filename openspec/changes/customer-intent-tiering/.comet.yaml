@@ -1,5 +1,5 @@
 workflow: full
-phase: build
+phase: verify
 context_compression: off
 build_mode: subagent-driven-development
 build_pause: null
@@ -7,13 +7,13 @@ subagent_dispatch: confirmed
 tdd_mode: tdd
 review_mode: standard
 isolation: branch
-verify_mode: null
+verify_mode: full
 auto_transition: true
 base_ref: e2a1b9e5eb93acc9630e45ee1d7e1bf8ec2fe3ab
 design_doc: docs/superpowers/specs/2026-08-14-customer-intent-tiering-design.md
 plan: docs/superpowers/plans/2026-08-14-customer-intent-tiering.md
 verify_result: pending
-verification_report: null
+verification_report: docs/superpowers/reports/2026-08-14-customer-intent-tiering-verify.md
 branch_status: pending
 created_at: 2026-08-14
 verified_at: null
