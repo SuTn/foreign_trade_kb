@@ -20,7 +20,7 @@ from app.knowledge.parser import parse_document
 from app.knowledge.rag_index import RagIndex
 from app.knowledge.wiki_index import WikiIndex
 from app.knowledge.wiki_export import export_vault
-from app.reply.generator import generate_reply, regenerate_reply, NEXT_STYLE
+from app.reply.generator import generate_reply, NEXT_STYLE
 
 router = APIRouter()
 

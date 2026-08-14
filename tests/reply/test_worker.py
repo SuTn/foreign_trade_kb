@@ -85,7 +85,7 @@ def test_execute_reply_passes_generation_params(tmp_data):
                                   language="ru", scenario="payment", formality="formal")
     worker._execute_reply_task(app, store, store.get_reply_task(tid))
     assert "俄语" in llm.prompts[0]
-    assert "付款" in llm.prompts[0]
+    assert "交易安全" in llm.prompts[0]
     assert "正式" in llm.prompts[0]
     done = store.get_reply_task(tid)
     assert done["status"] == "done"

@@ -115,9 +115,9 @@ def test_reply_result_has_copy_button_and_session(tmp_data, monkeypatch):
         r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi"})
         done = wait_reply_done(client, reply_task_id(r.text))
         assert "data-copy" in done.text
-        # regenerate 按钮透传 session_id (uuid hex 形式)
+        # regenerate 按钮透传 session_id (uuid hex 形式, 隐藏域 value 属性)
         import re
-        assert re.search(r'"session_id"\s*:\s*"[0-9a-f]+"', done.text)
+        assert re.search(r'name="session_id" value="[0-9a-f]+"', done.text)
 
 
 def test_chat_page_passes_session_id(tmp_data):
@@ -207,3 +207,53 @@ def test_reply_result_shows_generation_dimensions(tmp_data, monkeypatch):
         assert "Официальный ответ" in done.text
         assert "俄语" in done.text
         assert "付款" in done.text
+        # 重生成按钮隐藏域回传原始码值 (F2 改为 hx-include 隐藏域, 规避 JSON 转义问题)
+        assert 'name="language" value="ru"' in done.text
+        assert 'name="scenario" value="payment"' in done.text
+        assert 'name="formality" value="formal"' in done.text
+
+
+def test_reply_regenerate_persists_generation_params(tmp_data):
+    """multilingual-reply-generation: POST /api/reply/regenerate 解析语言/场景/语气并持久化。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    client = TestClient(create_app())
+    r = client.post("/api/reply/regenerate",
+                    data={"customer_id": "cust1", "chat_id": "c1", "message": "hi",
+                          "style": "default", "session_id": sid,
+                          "language": "ru", "scenario": "payment", "formality": "formal"})
+    assert r.status_code == 200
+    tid = reply_task_id(r.text)
+    row = SqliteStore().conn.execute("SELECT * FROM reply_tasks WHERE id=?", (tid,)).fetchone()
+    assert row["mode"] == "regenerate"
+    assert row["session_id"] == sid
+    assert row["language"] == "ru"
+    assert row["scenario"] == "payment"
+    assert row["formality"] == "formal"
+
+
+def test_legacy_result_renders_without_dimension_tags(tmp_data):
+    """multilingual-reply-generation: 旧结果 (无 language/scenario/formality) 正常渲染且 regenerate 提交空维度。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate")
+    store.update_reply_task(tid, status="done",
+                            result='{"reply": "旧回复", "sources": [], "style": "default"}')
+    client = TestClient(create_app())
+    done = client.get(f"/api/reply/status/{tid}")
+    assert done.status_code == 200
+    assert "旧回复" in done.text
+    assert "语种:" not in done.text
+    assert "场景:" not in done.text
+    assert "正式语气" not in done.text
+    assert 'name="language" value=""' in done.text
+    assert 'name="scenario" value=""' in done.text
+    assert 'name="formality" value=""' in done.text

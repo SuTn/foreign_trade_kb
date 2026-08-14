@@ -21,6 +21,8 @@ LANGUAGES = {
     "ru": "用俄语回复。",
 }
 
+SCENARIO_LIST = ["询价", "砍价", "看车", "物流", "付款", "售后"]
+
 SCENARIOS = {
     "auto": "先判断本条消息所属业务场景（询价/砍价/看车/物流/付款/售后），按该场景生成；无法判断时按通用场景处理。",
     "inquiry": "本条消息属于询价场景，突出车型信息与价格。",
@@ -45,7 +47,7 @@ def _build_system(style_instruction: str, history: list[dict] | None,
                   language: str = "zh", scenario: str = "auto", formality: str = "casual") -> str:
     base = REPLY_SYSTEM.format(
         style=style_instruction,
-        language=LANGUAGES.get(language, ""),
+        language=LANGUAGES.get(language, LANGUAGES["zh"]),
         scenario=SCENARIOS.get(scenario, SCENARIOS["auto"]),
         formality=FORMALITY.get(formality, ""),
         terms=TERMS,

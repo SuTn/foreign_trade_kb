@@ -43,12 +43,12 @@ class SqliteStore(StructuredStore):
             self.conn.execute("ALTER TABLE reply_tasks ADD COLUMN scenario TEXT")
             self.conn.commit()
         except sqlite3.OperationalError:
-            pass
+            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
         try:
             self.conn.execute("ALTER TABLE reply_tasks ADD COLUMN formality TEXT")
             self.conn.commit()
         except sqlite3.OperationalError:
-            pass
+            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
 
     def upsert_chat(self, chat: Chat):
         # 显示名/类型缺省 (如纯 DOM 增量) 时保留已有值, 仅刷新同步时间

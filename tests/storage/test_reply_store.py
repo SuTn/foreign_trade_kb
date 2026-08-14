@@ -80,3 +80,24 @@ def test_create_reply_task_defaults_generation_params(tmp_data):
     assert t["language"] is None
     assert t["scenario"] is None
     assert t["formality"] is None
+
+
+def test_legacy_db_upgrade_adds_generation_columns(tmp_data):
+    """multilingual-reply-generation: 旧库 (12 列 reply_tasks) 升级路径 — ALTER 补列后可读写。"""
+    from app.config import settings
+    conn = sqlite3.connect(str(settings.sqlite_path))
+    conn.execute(
+        "CREATE TABLE reply_tasks("
+        "id TEXT PRIMARY KEY, customer_id TEXT, chat_id TEXT, message TEXT, style TEXT, "
+        "session_id TEXT, mode TEXT, status TEXT, result TEXT, error TEXT, "
+        "created_at INTEGER, updated_at INTEGER)")
+    conn.commit()
+    conn.close()
+    store = SqliteStore()  # _init_schema: executescript (旧表跳过) + 3×ALTER 补列
+    SqliteStore()          # 幂等: 再次初始化不抛错 (列已存在被捕获)
+    cols = {r[1] for r in store.conn.execute("PRAGMA table_info(reply_tasks)").fetchall()}
+    assert {"language", "scenario", "formality"} <= cols
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate", language="ru")
+    t = store.get_reply_task(tid)
+    assert t["language"] == "ru"

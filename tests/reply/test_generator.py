@@ -100,11 +100,18 @@ def test_language_instruction_in_system(tmp_data):
     assert "英语" in sys_en
 
 
+def test_unknown_language_falls_back_to_chinese(tmp_data):
+    """multilingual-reply-generation: 未知语种回退简体中文, 输出语言仍受约束。"""
+    store = SqliteStore()
+    sys_fr = _capture(store, language="fr")
+    assert "用简体中文回复" in sys_fr
+
+
 def test_scenario_instruction_in_system(tmp_data):
     """multilingual-copy: 手动指定场景时按场景指令生成。"""
     store = SqliteStore()
     sys_bargain = _capture(store, scenario="bargain")
-    assert "砍价" in sys_bargain
+    assert "让步空间" in sys_bargain
 
 
 def test_auto_scenario_detection_instruction(tmp_data):
@@ -154,4 +161,4 @@ def test_regenerate_preserves_dimensions(tmp_data):
                           language="ru", scenario="payment", formality="formal")
     assert r2["style"] != r1["style"]
     assert r2["language"] == "ru" and r2["scenario"] == "payment" and r2["formality"] == "formal"
-    assert "俄语" in seen[1] and "付款" in seen[1] and "正式" in seen[1]
+    assert "俄语" in seen[1] and "交易安全" in seen[1] and "正式" in seen[1]
