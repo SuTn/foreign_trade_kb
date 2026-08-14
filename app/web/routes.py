@@ -20,11 +20,16 @@ from app.knowledge.parser import parse_document
 from app.knowledge.rag_index import RagIndex
 from app.knowledge.wiki_index import WikiIndex
 from app.knowledge.wiki_export import export_vault
-from app.reply.generator import generate_reply, regenerate_reply, NEXT_STYLE
+from app.reply.generator import generate_reply, NEXT_STYLE
 
 router = APIRouter()
 
 WARMUP_TIMEOUT_SEC = 30.0  # 首次请求等待模型预热就绪的超时 (3.3)
+
+# multilingual-reply-generation: 结果卡片展示用中文标签 (hx-vals 回传仍用原始码值)
+_REPLY_LANGUAGE_LABELS = {"zh": "中文", "en": "English", "ru": "俄语"}
+_REPLY_SCENARIO_LABELS = {"inquiry": "询价", "bargain": "砍价", "inspection": "看车",
+                          "logistics": "物流", "payment": "付款", "after_sale": "售后"}
 
 
 def _embedding(request: Request):
@@ -520,21 +525,30 @@ async def knowledge_search(request: Request):
 
 
 async def _reply_params(request: Request) -> dict:
-    """从 JSON body 或表单解析 {customer_id, chat_id, message, style, session_id}。"""
+    """从 JSON body 或表单解析 {customer_id, chat_id, message, style, session_id,
+    language, scenario, formality}。"""
     if request.headers.get("content-type", "").startswith("application/json"):
         body = await request.json()
     else:
         body = await request.form()
-    return {k: (body.get(k) or "") for k in ("customer_id", "chat_id", "message", "style", "session_id")}
+    keys = ("customer_id", "chat_id", "message", "style", "session_id",
+            "language", "scenario", "formality")
+    return {k: (body.get(k) or "") for k in keys}
 
 
 def _render_reply_result(request: Request, customer_id: str, chat_id: str,
                          message: str, result: dict, session_id: str | None = None):
+    language = result.get("language", "")
+    scenario = result.get("scenario", "")
     return request.app.state.templates.TemplateResponse(
         request, "reply_result.html",
         {"customer_id": customer_id, "chat_id": chat_id, "message": message,
          "reply": result.get("reply", ""),
          "sources": result.get("sources", []), "style": result.get("style", "default"),
+         "language": language, "scenario": scenario,
+         "language_label": _REPLY_LANGUAGE_LABELS.get(language, language),
+         "scenario_label": _REPLY_SCENARIO_LABELS.get(scenario, scenario),
+         "formality": result.get("formality", ""),
          "session_id": session_id, "error": result.get("error")},
     )
 
@@ -557,21 +571,27 @@ async def reply(request: Request):
     p = await _reply_params(request)
     store = _store(request)
     session_id = await _reply_session(request, p["customer_id"], p["chat_id"], p.get("session_id"))
-    task_id = store.create_reply_task(p["customer_id"], p["chat_id"], p["message"],
-                                      p.get("style") or "default", session_id, mode="generate")
+    task_id = store.create_reply_task(
+        p["customer_id"], p["chat_id"], p["message"],
+        p.get("style") or "default", session_id, mode="generate",
+        language=p.get("language") or None, scenario=p.get("scenario") or None,
+        formality=p.get("formality") or None)
     return request.app.state.templates.TemplateResponse(
         request, "reply_polling.html", {"task_id": task_id})
 
 
 @router.post("/api/reply/regenerate")
 async def reply_regenerate(request: Request):
-    """reply-assist: 重生成任务 (mode=regenerate, worker 不追加会话历史)。"""
+    """reply-assist: 重生成任务 (mode=regenerate, worker 不追加会话历史);
+    保留语种/场景/语气 (D3)。"""
     p = await _reply_params(request)
     store = _store(request)
     session_id = await _reply_session(request, p["customer_id"], p["chat_id"], p.get("session_id"))
     next_style = NEXT_STYLE.get(p.get("style") or "default", "default")
-    task_id = store.create_reply_task(p["customer_id"], p["chat_id"], p["message"],
-                                      next_style, session_id, mode="regenerate")
+    task_id = store.create_reply_task(
+        p["customer_id"], p["chat_id"], p["message"], next_style, session_id, mode="regenerate",
+        language=p.get("language") or None, scenario=p.get("scenario") or None,
+        formality=p.get("formality") or None)
     return request.app.state.templates.TemplateResponse(
         request, "reply_polling.html", {"task_id": task_id})
 

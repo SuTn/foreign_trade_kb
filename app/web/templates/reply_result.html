@@ -3,12 +3,25 @@
   <p><strong>回复生成失败</strong></p>
   <p class="muted">{{ error }}</p>
   {% else %}
-  <p><strong>建议回复</strong> <span class="tag">风格: {{ style }}</span></p>
+  <p><strong>建议回复</strong>
+    <span class="tag">风格: {{ style }}</span>
+    {% if language_label %}<span class="tag">语种: {{ language_label }}</span>{% endif %}
+    {% if scenario and scenario != 'auto' %}<span class="tag">场景: {{ scenario_label }}</span>{% endif %}
+    {% if formality == 'formal' %}<span class="tag">正式语气</span>{% endif %}
+  </p>
   <textarea class="input" id="reply-text" rows="4" style="width:100%">{{ reply }}</textarea>
   <div class="btn-row">
+    <input type="hidden" name="customer_id" value="{{ customer_id|default('', true) }}">
+    <input type="hidden" name="chat_id" value="{{ chat_id|default('', true) }}">
+    <input type="hidden" name="message" value="{{ message|default('', true) }}">
+    <input type="hidden" name="session_id" value="{{ session_id|default('', true) }}">
+    <input type="hidden" name="style" value="{{ style|default('', true) }}">
+    <input type="hidden" name="language" value="{{ language|default('', true) }}">
+    <input type="hidden" name="scenario" value="{{ scenario|default('', true) }}">
+    <input type="hidden" name="formality" value="{{ formality|default('', true) }}">
     <button class="btn" type="button" data-copy="reply-text">复制</button>
     <button class="btn" hx-post="/api/reply/regenerate"
-            hx-vals='{"customer_id": "{{ customer_id }}", "chat_id": "{{ chat_id }}", "message": "{{ message|default('', true) }}", "style": "{{ style }}", "session_id": "{{ session_id|default('', true) }}" }'
+            hx-include="closest div"
             hx-target="closest div" hx-swap="innerHTML">重新生成</button>
   </div>
   <details class="sources">

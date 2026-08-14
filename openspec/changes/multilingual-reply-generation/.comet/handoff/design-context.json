@@ -1,0 +1,15 @@
+{
+  "change": "multilingual-reply-generation",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "bbe4dcefd9a466b94b465d44b507128a8481ee157f7cdf79f8dad6ff0c237ac3",
+  "files": [
+    { "path": "openspec/changes/multilingual-reply-generation/proposal.md", "sha256": "b9efab67762fff1e05e966b53cc2042c66e874fe866c52b4dafb4e59c7521aae" },
+    { "path": "openspec/changes/multilingual-reply-generation/design.md", "sha256": "b21ff93f861054f4dbf892e2d0175877c5b2ad599976319d8b347c286b9381b8" },
+    { "path": "openspec/changes/multilingual-reply-generation/tasks.md", "sha256": "9f65ff4f1695394307abb5a18be7a06e257e952670ef5d25619030f5907f59c1" },
+    { "path": "openspec/changes/multilingual-reply-generation/specs/multilingual-copy/spec.md", "sha256": "154f107e1f9dce8d02e1d02ad0b3bbf0f2f9025701bc323784422fefce3ec070" },
+    { "path": "openspec/changes/multilingual-reply-generation/specs/reply-assist/spec.md", "sha256": "cd440335fd5b25638688edddff1906fa6a9785f60bdbc0b02d989761ce88440b" }
+  ]
+}
