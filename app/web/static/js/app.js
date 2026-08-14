@@ -16,22 +16,32 @@ function initCustomerFilter() {
   var input = document.getElementById("search-input");
   var country = document.getElementById("filter-country");
   var company = document.getElementById("filter-company");
+  var tier = document.getElementById("filter-tier");
   if (!input) return;
   function apply() {
     var q = (input.value || "").trim().toLowerCase();
     var cc = country ? country.value : "";
     var cp = company ? company.value : "";
+    var tt = tier ? tier.value : "";
     document.querySelectorAll(".customer-card").forEach(function (card) {
       var hay = (card.getAttribute("data-search") || "").toLowerCase();
+      var tierMatch = true;
+      if (tt) {
+        var m = hay.match(/intent_level=([a-d])/);
+        var cur = m ? m[1].toUpperCase() : "";
+        tierMatch = (tt === "untiered") ? (cur === "") : (cur === tt);
+      }
       var ok = (!q || hay.indexOf(q) >= 0)
         && (!cc || hay.indexOf("country=" + cc.toLowerCase()) >= 0)
-        && (!cp || hay.indexOf("company=" + cp.toLowerCase()) >= 0);
+        && (!cp || hay.indexOf("company=" + cp.toLowerCase()) >= 0)
+        && tierMatch;
       card.style.display = ok ? "" : "none";
     });
   }
   input.addEventListener("input", apply);
   if (country) country.addEventListener("change", apply);
   if (company) company.addEventListener("change", apply);
+  if (tier) tier.addEventListener("change", apply);
 }
 document.addEventListener("DOMContentLoaded", function () {
   initCustomerFilter();

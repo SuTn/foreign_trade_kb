@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # 客户画像/分析
     profile_summary_messages: int = 30  # 画像抽取/客户分析所用的近期消息数
 
+    # 客户分层 (customer-intent-tiering)
+    tiering_active_days: int = 30   # 近期活跃客户默认天数
+    tiering_max_customers: int = 50  # 单次分层任务客户数上限
+
     # RAG
     chunk_size: int = 512
     chunk_overlap: int = 64

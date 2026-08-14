@@ -354,10 +354,14 @@ async def customers(request: Request):
     companies = [r[0] for r in store.conn.execute(
         "SELECT DISTINCT value FROM profiles WHERE field='company' "
         "AND value IS NOT NULL AND value != '' ORDER BY value").fetchall()]
+    tiering_levels = [r[0] for r in store.conn.execute(
+        "SELECT DISTINCT value FROM profiles WHERE field='intent_level' "
+        "AND value IS NOT NULL AND value != '' ORDER BY value").fetchall()]
     return request.app.state.templates.TemplateResponse(
         request, "customers.html",
         {"customers": rows, "profiles_by_customer": profiles_by_customer,
-         "countries": countries, "companies": companies})
+         "countries": countries, "companies": companies,
+         "tiering_levels": tiering_levels})
 
 
 @router.get("/customers/{customer_id}")
@@ -369,10 +373,11 @@ async def customer_detail(customer_id: str, request: Request):
         "SELECT chat_id, match_confidence FROM customer_chat_map WHERE customer_id=?",
         (customer_id,)).fetchall()
     profile = store.get_profile(customer_id)
+    tier_history = store.get_tier_history(customer_id)
     return request.app.state.templates.TemplateResponse(
         request, "chat.html",
         {"customer_id": customer_id, "customer": dict(customer) if customer else None,
-         "chats": chats, "profile": profile},
+         "chats": chats, "profile": profile, "tier_history": tier_history},
     )
 
 
@@ -433,13 +438,23 @@ async def customer_refresh_profile(customer_id: str, request: Request):
 
 @router.post("/customers/{customer_id}/profile")
 async def customer_profile_save(customer_id: str, request: Request):
-    """web-app: 画像页编辑某字段并保存 → 持久化并标记为人工来源 (source=manual)。"""
+    """web-app: 画像页编辑某字段并保存 → 持久化并标记为人工来源 (source=manual)。
+
+    intent_level/tags 允许空值 (未分层/清空标签, F1); 其他字段保持原守卫。
+    人工调整 intent_level/tags 追加 manual 历史行 (D3, F2)。
+    """
     body = await request.form()
     field = (body.get("field") or "").strip()
     value = (body.get("value") or "").strip()
     store = _store(request)
-    if field and value:
+    if field and (value or field in ("intent_level", "tags")):
         store.upsert_profile_field(customer_id, field, value, source="manual")
+        if field in ("intent_level", "tags"):
+            # 单字段观察: 另一字段取当前画像值
+            current = {p.field: p.value for p in store.get_profile(customer_id)}
+            level = value if field == "intent_level" else current.get("intent_level", "")
+            tags = value if field == "tags" else current.get("tags", "")
+            store.add_tier_history(customer_id, level, tags, "manual")
     profile = store.get_profile(customer_id)
     return request.app.state.templates.TemplateResponse(
         request, "profile_list.html", {"profile": profile, "customer_id": customer_id},
@@ -661,3 +676,46 @@ async def collector_scan(request: Request):
 @router.post("/api/knowledge/export-vault")
 async def export_v(request: Request):
     return {"exported": export_vault(_store(request), settings.vault_export_dir)}
+
+
+# ---- customer-intent-tiering: 分层分析 API ----
+@router.post("/api/tiering/analyze")
+async def tiering_analyze(request: Request):
+    """创建分层任务。body 可选 customer_ids (缺省=近期活跃客户)。"""
+    store = _store(request)
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    customer_ids = body.get("customer_ids") if isinstance(body, dict) else None
+    if customer_ids is not None:
+        if (not isinstance(customer_ids, list) or not customer_ids
+                or not all(isinstance(c, str) for c in customer_ids)):
+            return JSONResponse({"error": "customer_ids 必须为非空字符串数组"}, status_code=400)
+    else:
+        customer_ids = store.list_recent_active_customers(settings.tiering_active_days)
+    if not customer_ids:
+        return {"task_id": None, "error": "无待分层客户"}
+    dropped = 0
+    if len(customer_ids) > settings.tiering_max_customers:
+        dropped = len(customer_ids) - settings.tiering_max_customers
+        customer_ids = customer_ids[:settings.tiering_max_customers]
+    task_id = store.create_tiering_task(customer_ids)
+    return {"task_id": task_id, "dropped": dropped}
+
+
+@router.get("/api/tiering/status/{task_id}")
+async def tiering_status(task_id: str, request: Request):
+    store = _store(request)
+    task = store.get_tiering_task(task_id)
+    if task is None:
+        return {"status": "not_found"}
+    return {"status": task["status"], "progress": task["progress"],
+            "result": task["result"], "error": task["error"]}
+
+
+@router.get("/api/tiering/history/{customer_id}")
+async def tiering_history(customer_id: str, request: Request):
+    store = _store(request)
+    return {"customer_id": customer_id, "history": store.get_tier_history(customer_id)}

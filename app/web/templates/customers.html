@@ -15,6 +15,13 @@
       <option value="{{ c }}">{{ c }}</option>
     {% endfor %}
   </select>
+  <select id="filter-tier" class="input">
+    <option value="">全部等级</option>
+    {% for lv in tiering_levels %}
+      <option value="{{ lv }}">{{ lv }}</option>
+    {% endfor %}
+    <option value="untiered">未分层</option>
+  </select>
 </div>
 <div class="card-grid">
   {% for c in customers %}
@@ -28,6 +35,20 @@
         <div class="muted">{{ c['phone'] or '-' }}</div>
         <div class="muted">{{ c['company'] or '-' }}</div>
         <div class="muted">{{ c['country'] or '-' }}</div>
+        {% set tier = profiles_by_customer.get(c['id'], '') %}
+        {% if 'intent_level=' in tier %}
+          {% set tier_val = tier.split('intent_level=')[1].split(' ')[0] %}
+          {% if tier_val %}
+            <div class="tier-row">
+              <span class="tier-badge tier-{{ tier_val }}">{{ tier_val }}</span>
+              {% if 'tags=' in tier %}
+                {% for t in tier.split('tags=')[1].split(' ')[0].split(',') %}
+                  <span class="tag">{{ t }}</span>
+                {% endfor %}
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endif %}
       </div>
     </a>
   </div>

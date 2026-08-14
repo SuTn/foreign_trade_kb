@@ -48,16 +48,47 @@ def _execute_reply_task(app: FastAPI, store, task: dict) -> None:
         store.update_reply_task(task_id, status="failed", error=str(e)[:300])
 
 
+def _execute_tiering_task(app: FastAPI, store, task: dict) -> None:
+    """串行执行单个分层任务: running → 逐客户分层 → done/failed。
+    每处理一个客户前检查 pending reply_tasks, 有则先消费回复 (回复优先, D7)。"""
+    task_id = task["id"]
+    try:
+        store.update_tiering_task(task_id, status="running")
+        from app.profile.tiering import tier_customers
+        llm = getattr(app.state, "llm", None) or CloudLLM()
+        customer_ids = task["customer_ids"]
+        tiered = 0
+        untiered = 0
+        for i, cid in enumerate(customer_ids, start=1):
+            reply = store.next_pending_reply_task()
+            if reply is not None:
+                _execute_reply_task(app, store, reply)
+            r = tier_customers(store, llm, [cid])
+            tiered += r["tiered"]
+            untiered += r["untiered"]
+            store.update_tiering_task(task_id, progress=i)
+        store.update_tiering_task(
+            task_id, status="done",
+            result=json.dumps({"tiered": tiered, "untiered": untiered}, ensure_ascii=False))
+    except Exception as e:
+        log.warning("tiering task %s 失败: %s", task_id, e)
+        store.update_tiering_task(task_id, status="failed", error=str(e)[:300])
+
+
 def worker_loop(app: FastAPI) -> None:
-    """常驻循环: 取最早 pending 任务串行执行; 空循环 sleep 1s。daemon 线程。"""
-    store = _build_store()  # worker 独立 SQLite 连接, 任务间复用
+    """常驻循环: 串行消费 reply_tasks 与 tiering_tasks (回复优先); 空循环 sleep 1s。"""
+    store = _build_store()
     while True:
         try:
             task = store.next_pending_reply_task()
-            if task is None:
-                time.sleep(POLL_INTERVAL_SEC)
+            if task is not None:
+                _execute_reply_task(app, store, task)
                 continue
-            _execute_reply_task(app, store, task)
+            tier_task = store.next_pending_tiering_task()
+            if tier_task is not None:
+                _execute_tiering_task(app, store, tier_task)
+                continue
+            time.sleep(POLL_INTERVAL_SEC)
         except Exception:
             log.exception("worker 循环异常")
             time.sleep(POLL_INTERVAL_SEC)

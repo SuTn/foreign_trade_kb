@@ -1,0 +1,16 @@
+{
+  "change": "customer-intent-tiering",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "27be57423b0d30a800cc93c39e6fe9d3cdf6bb4613ae3126b32fbbef40a1d216",
+  "files": [
+    { "path": "openspec/changes/customer-intent-tiering/proposal.md", "sha256": "09e24a0c9dad408c13b803317b22170562e32099edffcf8b44b44828b86da769" },
+    { "path": "openspec/changes/customer-intent-tiering/design.md", "sha256": "b9b3cd048d4b4f063cc16b6ab2cff9230a5c1e81d4c6db720a6cac7c07d90dd1" },
+    { "path": "openspec/changes/customer-intent-tiering/tasks.md", "sha256": "f808b9bdb215fb6d92322e0b16175f113b6a0e93544a13e2c9eedfc01794c9b0" },
+    { "path": "openspec/changes/customer-intent-tiering/specs/customer-intent-tiering/spec.md", "sha256": "b47e89161c061f1c772df87a22ec904bdefa2f8918e188bd4588353eced2e160" },
+    { "path": "openspec/changes/customer-intent-tiering/specs/customer-profile/spec.md", "sha256": "713641e68dc70f18c6508e30cd3dde331dfa30993c8c58d552300f9f3fbe5f29" },
+    { "path": "openspec/changes/customer-intent-tiering/specs/web-app/spec.md", "sha256": "1ed3ef5a0125a66fb8c38a2a12047bbb7537c84fe087e0d59677714908997ac3" }
+  ]
+}
