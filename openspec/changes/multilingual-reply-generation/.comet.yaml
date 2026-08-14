@@ -7,7 +7,7 @@ base_ref: 188d87838a2d739fca62881a844e05f165e311dc
 design_doc: docs/superpowers/specs/2026-08-14-multilingual-reply-generation-design.md
 plan: docs/superpowers/plans/2026-08-14-multilingual-reply-generation.md
 verify_result: pending
-verification_report: null
+verification_report: docs/superpowers/reports/2026-08-14-multilingual-reply-generation-verify.md
 branch_status: pending
 created_at: 2026-08-14
 verified_at: null
