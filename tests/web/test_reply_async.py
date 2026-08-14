@@ -154,3 +154,56 @@ def test_reply_post_persists_generation_params(tmp_data):
     assert row["language"] == "en"
     assert row["scenario"] == "inquiry"
     assert row["formality"] == "formal"
+
+
+def test_chat_page_has_generation_dimension_selects(tmp_data):
+    """multilingual-copy: 聊天页含语种/场景/语气选择器。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    from app.storage.interfaces import Message
+    store.upsert_message(Message("m1", "a1", "c1", False, "x@w", 1, "chat", "hello", True, 0))
+    client = TestClient(create_app())
+    html = client.get("/customers/cust1/chat/c1").text
+    assert 'name="language"' in html
+    assert 'name="scenario"' in html
+    assert 'name="formality"' in html
+    assert "Русский" in html
+
+
+def test_reply_result_shows_generation_dimensions(tmp_data, monkeypatch):
+    """multilingual-copy: 结果卡片展示语种/场景标签。"""
+    from app.web import routes
+    from app.web.app import create_app
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            return "Официальный ответ"  # 俄语正式回复
+
+    class FakeRerank:
+        def rerank(self, q, c, top_k=8):
+            return c[:top_k]
+
+    class FakeEmbed:
+        def embed(self, text):
+            return [1.0] * 8
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    monkeypatch.setattr(routes, "get_reranker", lambda: FakeRerank())
+    monkeypatch.setattr(routes, "get_embedding", lambda: FakeEmbed())
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    with TestClient(create_app()) as client:
+        r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi",
+                                            "language": "ru", "scenario": "payment", "formality": "formal"})
+        done = wait_reply_done(client, reply_task_id(r.text))
+        assert "Официальный ответ" in done.text
+        assert "俄语" in done.text
+        assert "付款" in done.text

@@ -26,6 +26,11 @@ router = APIRouter()
 
 WARMUP_TIMEOUT_SEC = 30.0  # 首次请求等待模型预热就绪的超时 (3.3)
 
+# multilingual-reply-generation: 结果卡片展示用中文标签 (hx-vals 回传仍用原始码值)
+_REPLY_LANGUAGE_LABELS = {"zh": "中文", "en": "English", "ru": "俄语"}
+_REPLY_SCENARIO_LABELS = {"inquiry": "询价", "bargain": "砍价", "inspection": "看车",
+                          "logistics": "物流", "payment": "付款", "after_sale": "售后"}
+
 
 def _embedding(request: Request):
     """返回进程级 embedding 实例 (lifespan 预热共享; 无 lifespan 时惰性创建)。"""
@@ -533,11 +538,17 @@ async def _reply_params(request: Request) -> dict:
 
 def _render_reply_result(request: Request, customer_id: str, chat_id: str,
                          message: str, result: dict, session_id: str | None = None):
+    language = result.get("language", "")
+    scenario = result.get("scenario", "")
     return request.app.state.templates.TemplateResponse(
         request, "reply_result.html",
         {"customer_id": customer_id, "chat_id": chat_id, "message": message,
          "reply": result.get("reply", ""),
          "sources": result.get("sources", []), "style": result.get("style", "default"),
+         "language": language, "scenario": scenario,
+         "language_label": _REPLY_LANGUAGE_LABELS.get(language, language),
+         "scenario_label": _REPLY_SCENARIO_LABELS.get(scenario, scenario),
+         "formality": result.get("formality", ""),
          "session_id": session_id, "error": result.get("error")},
     )
 

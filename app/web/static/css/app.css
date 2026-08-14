@@ -611,3 +611,13 @@ table.data-table {
 .tier-timeline { list-style: none; margin: 0; padding: 0; }
 .tier-timeline li { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .tier-timeline li:last-child { border-bottom: none; }
+
+/* ---- multilingual-reply-generation: 回复维度选择器 ---- */
+.reply-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+.reply-controls .input { width: auto; padding: 3px 8px; font-size: 12px; }
