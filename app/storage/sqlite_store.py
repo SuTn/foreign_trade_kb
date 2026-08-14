@@ -317,3 +317,60 @@ class SqliteStore(StructuredStore):
         self.conn.execute(
             "UPDATE scan_requests SET attempts=attempts+1, status='failed' WHERE id=?", (req_id,))
         self.conn.commit()
+
+    # ---- customer-intent-tiering: 分层历史 + 分层任务 ----
+    def add_tier_history(self, customer_id, intent_level, tags, source):
+        self.conn.execute(
+            "INSERT INTO customer_tier_history VALUES(?,?,?,?,?,?)",
+            (uuid.uuid4().hex, customer_id, intent_level, tags, source, int(time.time())))
+        self.conn.commit()
+
+    def get_tier_history(self, customer_id):
+        rows = self.conn.execute(
+            "SELECT * FROM customer_tier_history WHERE customer_id=? "
+            "ORDER BY created_at ASC, rowid ASC", (customer_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def create_tiering_task(self, customer_ids):
+        task_id = uuid.uuid4().hex
+        now = int(time.time())
+        self.conn.execute(
+            "INSERT INTO tiering_tasks VALUES(?,?,?,?,?,?,?,?)",
+            (task_id, json.dumps(customer_ids, ensure_ascii=False), "pending",
+             0, None, None, now, now))
+        self.conn.commit()
+        return task_id
+
+    def get_tiering_task(self, task_id):
+        r = self.conn.execute("SELECT * FROM tiering_tasks WHERE id=?", (task_id,)).fetchone()
+        if not r:
+            return None
+        d = dict(r)
+        d["customer_ids"] = json.loads(d["customer_ids"] or "[]")
+        return d
+
+    def next_pending_tiering_task(self):
+        r = self.conn.execute(
+            "SELECT * FROM tiering_tasks WHERE status='pending' "
+            "ORDER BY created_at ASC, rowid ASC LIMIT 1").fetchone()
+        if not r:
+            return None
+        d = dict(r)
+        d["customer_ids"] = json.loads(d["customer_ids"] or "[]")
+        return d
+
+    def update_tiering_task(self, task_id, *, status=None, progress=None, result=None, error=None):
+        self.conn.execute(
+            "UPDATE tiering_tasks SET status=COALESCE(?,status), "
+            "progress=COALESCE(?,progress), result=COALESCE(?,result), "
+            "error=COALESCE(?,error), updated_at=? WHERE id=?",
+            (status, progress, result, error, int(time.time()), task_id))
+        self.conn.commit()
+
+    def list_recent_active_customers(self, days):
+        cutoff = int(time.time()) - days * 86400
+        rows = self.conn.execute(
+            "SELECT DISTINCT cm.customer_id FROM customer_chat_map cm "
+            "JOIN messages m ON m.chat_id = cm.chat_id "
+            "WHERE m.ts >= ?", (cutoff,)).fetchall()
+        return [r["customer_id"] for r in rows]

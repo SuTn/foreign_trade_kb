@@ -61,3 +61,22 @@ CREATE TABLE IF NOT EXISTS scan_requests(
   status TEXT DEFAULT 'pending',   -- pending | running | done | failed
   attempts INTEGER DEFAULT 0,
   done INTEGER DEFAULT 0);
+-- 客户自动分层标签体系 (customer-intent-tiering): 分层任务表 / 分层历史表
+CREATE TABLE IF NOT EXISTS tiering_tasks(
+  id TEXT PRIMARY KEY,
+  customer_ids TEXT,          -- JSON 数组
+  status TEXT,                -- pending | running | done | failed
+  progress INTEGER DEFAULT 0,
+  result TEXT,
+  error TEXT,
+  created_at INTEGER,
+  updated_at INTEGER);
+CREATE INDEX IF NOT EXISTS idx_tiering_tasks_status ON tiering_tasks(status, created_at);
+CREATE TABLE IF NOT EXISTS customer_tier_history(
+  id TEXT PRIMARY KEY,
+  customer_id TEXT,
+  intent_level TEXT,
+  tags TEXT,
+  source TEXT,                -- auto | manual
+  created_at INTEGER);
+CREATE INDEX IF NOT EXISTS idx_tier_history_customer ON customer_tier_history(customer_id, created_at);
