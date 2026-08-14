@@ -2,6 +2,8 @@
 comet_change: multilingual-reply-generation
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-14-multilingual-reply-generation
+status: final
 ---
 
 # Design: 场景化多语种话术生成

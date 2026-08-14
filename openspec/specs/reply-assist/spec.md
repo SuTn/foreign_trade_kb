@@ -41,7 +41,7 @@ TBD - created by archiving change whatsapp-customer-kb. Update Purpose after arc
 
 ### Requirement: 回复生成异步任务
 
-系统 SHALL 将回复生成改为异步任务：提交后立即返回任务标识，由后台线程执行 RAG + LLM，前端轮询任务状态直至完成。
+系统 SHALL 将回复生成改为异步任务：提交后立即返回任务标识，由后台线程执行 RAG + LLM，前端轮询任务状态直至完成。任务可携带语种（language）、场景（scenario）、语气（formality）参数，缺省使用默认值。
 
 #### Scenario: 提交回复任务
 
@@ -57,6 +57,11 @@ TBD - created by archiving change whatsapp-customer-kb. Update Purpose after arc
 
 - **WHEN** 回复任务执行中 LLM 或检索失败
 - **THEN** 系统 SHALL 将任务置为 failed 并记录可读错误信息，不抛出 500
+
+#### Scenario: 提交带生成参数的任务
+
+- **WHEN** 用户请求生成回复且携带语种/场景/语气参数
+- **THEN** 系统 SHALL 将参数持久化到任务并用于生成；未携带时使用默认值（中文/通用/口语）
 
 ### Requirement: 多轮会话上下文
 

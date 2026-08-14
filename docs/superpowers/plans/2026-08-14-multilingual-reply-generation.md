@@ -2,6 +2,7 @@
 change: multilingual-reply-generation
 design-doc: docs/superpowers/specs/2026-08-14-multilingual-reply-generation-design.md
 base-ref: 188d87838a2d739fca62881a844e05f165e311dc
+archived-with: 2026-08-14-multilingual-reply-generation
 ---
 
 # 场景化多语种话术生成 Implementation Plan
