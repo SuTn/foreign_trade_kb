@@ -34,6 +34,21 @@ class SqliteStore(StructuredStore):
             self.conn.commit()
         except sqlite3.OperationalError:
             pass  # 列已存在 (新库 schema.sql 已含; 旧库由旧版 routes 建表缺列) — 幂等
+        try:
+            self.conn.execute("ALTER TABLE reply_tasks ADD COLUMN language TEXT")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
+        try:
+            self.conn.execute("ALTER TABLE reply_tasks ADD COLUMN scenario TEXT")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
+        try:
+            self.conn.execute("ALTER TABLE reply_tasks ADD COLUMN formality TEXT")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
     def upsert_chat(self, chat: Chat):
         # 显示名/类型缺省 (如纯 DOM 增量) 时保留已有值, 仅刷新同步时间
@@ -207,13 +222,14 @@ class SqliteStore(StructuredStore):
         return {"deleted_rows": deleted, "affected_chats": chat_ids}
 
     # ---- reply-workflow-optimization: 回复任务 (D1/D7) ----
-    def create_reply_task(self, customer_id, chat_id, message, style, session_id, mode):
+    def create_reply_task(self, customer_id, chat_id, message, style, session_id, mode,
+                          language=None, scenario=None, formality=None):
         task_id = uuid.uuid4().hex
         now = int(time.time())
         self.conn.execute(
-            "INSERT INTO reply_tasks VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO reply_tasks VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (task_id, customer_id, chat_id, message, style, session_id, mode,
-             "pending", None, None, now, now))
+             "pending", None, None, now, now, language, scenario, formality))
         self.conn.commit()
         return task_id
 

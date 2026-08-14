@@ -58,3 +58,25 @@ def test_legacy_tasks_marked_failed(tmp_data):
     store.mark_legacy_reply_tasks_failed()
     assert store.get_reply_task(tid)["status"] == "failed"
     assert "清理" in store.get_reply_task(tid)["error"]
+
+
+def test_create_reply_task_persists_generation_params(tmp_data):
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate",
+                                  language="ru", scenario="payment", formality="formal")
+    t = store.get_reply_task(tid)
+    assert t["language"] == "ru"
+    assert t["scenario"] == "payment"
+    assert t["formality"] == "formal"
+
+
+def test_create_reply_task_defaults_generation_params(tmp_data):
+    """缺省语言/场景/语气为 NULL, 生成器侧回退默认 (zh/auto/casual)。"""
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate")
+    t = store.get_reply_task(tid)
+    assert t["language"] is None
+    assert t["scenario"] is None
+    assert t["formality"] is None

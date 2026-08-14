@@ -41,7 +41,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS doc_chunks_fts USING fts5(text, content='doc_
 -- mode: generate=主生成(追加会话历史) | regenerate=重生成(只读历史不追加)
 CREATE TABLE IF NOT EXISTS reply_tasks(
   id TEXT PRIMARY KEY, customer_id TEXT, chat_id TEXT, message TEXT, style TEXT,
-  session_id TEXT, mode TEXT, status TEXT, result TEXT, error TEXT, created_at INTEGER, updated_at INTEGER);
+  session_id TEXT, mode TEXT, status TEXT, result TEXT, error TEXT, created_at INTEGER, updated_at INTEGER,
+  language TEXT, scenario TEXT, formality TEXT);
 CREATE TABLE IF NOT EXISTS reply_sessions(
   id TEXT PRIMARY KEY, customer_id TEXT, chat_id TEXT, created_at INTEGER, updated_at INTEGER);
 CREATE TABLE IF NOT EXISTS reply_session_messages(
