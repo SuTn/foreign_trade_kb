@@ -2,6 +2,7 @@
 change: customer-intent-tiering
 design-doc: docs/superpowers/specs/2026-08-14-customer-intent-tiering-design.md
 base-ref: e2a1b9e5eb93acc9630e45ee1d7e1bf8ec2fe3ab
+archived-with: 2026-08-14-customer-intent-tiering
 ---
 
 # 客户自动分层标签体系 Implementation Plan
@@ -26,6 +27,7 @@ base-ref: e2a1b9e5eb93acc9630e45ee1d7e1bf8ec2fe3ab
 - 近期活跃默认 30 天可配（`settings.tiering_active_days`）。
 - 所有 SQL 迁移幂等（`CREATE TABLE IF NOT EXISTS`）。
 
+archived-with: 2026-08-14-customer-intent-tiering
 ---
 
 ### Task 1: 存储层 — 分层历史表 + 分层任务表
@@ -223,6 +225,7 @@ git add app/storage/schema.sql app/storage/sqlite_store.py tests/storage/test_ti
 git commit -m "feat: 分层历史表 + 分层任务表存储层 (customer-intent-tiering)"
 ```
 
+archived-with: 2026-08-14-customer-intent-tiering
 ---
 
 ### Task 2: 分层分析模块 `tiering.py`
@@ -441,6 +444,7 @@ git add app/profile/tiering.py app/config.py tests/profile/test_tiering.py
 git commit -m "feat: 分层分析模块 tier_customer/tier_customers (customer-intent-tiering)"
 ```
 
+archived-with: 2026-08-14-customer-intent-tiering
 ---
 
 ### Task 3: Web API — 分层触发 + 历史查询 + 等级筛选
@@ -612,6 +616,7 @@ git add app/web/routes.py tests/web/test_tiering_api.py
 git commit -m "feat: 分层分析/状态/历史 API + 客户列表等级下拉 (customer-intent-tiering)"
 ```
 
+archived-with: 2026-08-14-customer-intent-tiering
 ---
 
 ### Task 4: Worker 扩展 — 串行消费 tiering_tasks（回复优先）
@@ -771,6 +776,7 @@ git add app/web/worker.py tests/reply/test_worker_tiering.py
 git commit -m "feat: worker 串行消费 tiering_tasks, 回复优先 (customer-intent-tiering)"
 ```
 
+archived-with: 2026-08-14-customer-intent-tiering
 ---
 
 ### Task 5: 前端 — 等级徽章 + 筛选 + 历史时间线 + 编辑
@@ -1014,6 +1020,7 @@ git add app/web/templates/customers.html app/web/templates/chat.html app/web/tem
 git commit -m "feat: 前端等级徽章/筛选/历史时间线/人工编辑 (customer-intent-tiering)"
 ```
 
+archived-with: 2026-08-14-customer-intent-tiering
 ---
 
 ### Task 6: 全量回归验证
@@ -1051,6 +1058,7 @@ git add -A
 git commit -m "fix: 分层功能回归修复 (customer-intent-tiering)"
 ```
 
+archived-with: 2026-08-14-customer-intent-tiering
 ---
 
 ## Self-Review

@@ -4,7 +4,7 @@
 TBD - created by archiving change whatsapp-customer-kb. Update Purpose after archive.
 ## Requirements
 ### Requirement: 客户画像字段维护
-系统 SHALL 为每个客户维护画像字段（姓名/公司/国家/产品兴趣/询价历史/沟通偏好/语言/成交阶段等），存储于结构化存储，并支持手动编辑修正。画像抽取所用的聊天摘要 SHALL 对群聊会话按发送者标注消息归属，使 LLM 能区分群内不同成员的发言。
+系统 SHALL 为每个客户维护画像字段（姓名/公司/国家/产品兴趣/询价历史/沟通偏好/语言/成交阶段/意向等级/标签等），存储于结构化存储，并支持手动编辑修正。画像抽取所用的聊天摘要 SHALL 对群聊会话按发送者标注消息归属，使 LLM 能区分群内不同成员的发言。
 
 #### Scenario: 自动抽取画像
 - **WHEN** 某客户有新增聊天内容并触发画像更新
@@ -17,6 +17,10 @@ TBD - created by archiving change whatsapp-customer-kb. Update Purpose after arc
 #### Scenario: 手动编辑优先
 - **WHEN** 用户手动编辑某画像字段
 - **THEN** 该字段 SHALL 以用户编辑值为准（标记为人工来源），不被后续自动抽取覆盖
+
+#### Scenario: 意向等级与标签字段
+- **WHEN** 系统对客户执行意向分层分析
+- **THEN** 系统 SHALL 将意向等级（intent_level）与标签（tags）写入该客户画像字段，并遵循人工编辑优先规则
 
 ### Requirement: 客户实体匹配
 系统 SHALL 将 WhatsApp chatId/JID 关联到客户实体，MVP 采用手机号 + 显示名启发式匹配并支持人工确认合并。

@@ -2,6 +2,8 @@
 comet_change: customer-intent-tiering
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-14-customer-intent-tiering
+status: final
 ---
 
 # Design: 客户自动分层标签体系
