@@ -1,0 +1,16 @@
+workflow: full
+phase: build
+build_mode: subagent-driven-development
+isolation: branch
+verify_mode: null
+base_ref: 188d87838a2d739fca62881a844e05f165e311dc
+design_doc: docs/superpowers/specs/2026-08-14-multilingual-reply-generation-design.md
+plan: docs/superpowers/plans/2026-08-14-multilingual-reply-generation.md
+verify_result: pending
+verification_report: null
+branch_status: pending
+created_at: 2026-08-14
+verified_at: null
+archived: false
+handoff_context: openspec/changes/multilingual-reply-generation/.comet/handoff/design-context.json
+handoff_hash: bbe4dcefd9a466b94b465d44b507128a8481ee157f7cdf79f8dad6ff0c237ac3
