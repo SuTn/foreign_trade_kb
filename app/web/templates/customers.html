@@ -15,6 +15,12 @@
       <option value="{{ c }}">{{ c }}</option>
     {% endfor %}
   </select>
+  <select id="filter-tier" class="input">
+    <option value="">全部等级</option>
+    {% for lv in tiering_levels %}
+      <option value="{{ lv }}">{{ lv }}</option>
+    {% endfor %}
+  </select>
 </div>
 <div class="card-grid">
   {% for c in customers %}
