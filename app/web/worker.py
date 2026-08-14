@@ -57,15 +57,19 @@ def _execute_tiering_task(app: FastAPI, store, task: dict) -> None:
         from app.profile.tiering import tier_customers
         llm = getattr(app.state, "llm", None) or CloudLLM()
         customer_ids = task["customer_ids"]
-        total = len(customer_ids)
+        tiered = 0
+        untiered = 0
         for i, cid in enumerate(customer_ids, start=1):
             reply = store.next_pending_reply_task()
             if reply is not None:
                 _execute_reply_task(app, store, reply)
-            tier_customers(store, llm, [cid])
+            r = tier_customers(store, llm, [cid])
+            tiered += r["tiered"]
+            untiered += r["untiered"]
             store.update_tiering_task(task_id, progress=i)
-        store.update_tiering_task(task_id, status="done",
-                                  result=json.dumps({"tiered": total}, ensure_ascii=False))
+        store.update_tiering_task(
+            task_id, status="done",
+            result=json.dumps({"tiered": tiered, "untiered": untiered}, ensure_ascii=False))
     except Exception as e:
         log.warning("tiering task %s 失败: %s", task_id, e)
         store.update_tiering_task(task_id, status="failed", error=str(e)[:300])

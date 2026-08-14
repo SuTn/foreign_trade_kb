@@ -1,6 +1,7 @@
 # tests/profile/test_tiering.py
 import time
-from app.profile.tiering import tier_customer, tier_customers, PREDEFINED_TAGS
+from app.profile.tiering import (tier_customer, tier_customers, PREDEFINED_TAGS,
+                                 _parse_result)
 from app.storage.sqlite_store import SqliteStore
 from app.storage.interfaces import Message
 from app.llm.interfaces import LLM
@@ -90,3 +91,50 @@ def test_tier_customers_batch(tmp_data):
     assert r["untiered"] == 0
     assert len(store.get_tier_history("cust1")) == 1
     assert len(store.get_tier_history("cust2")) == 1
+
+
+def test_parse_result_fenced_json():
+    """F4: 围栏 ```json ... ``` 输入可解析。"""
+    assert _parse_result('```json\n{"intent_level": "B", "tags": "待跟进"}\n```') == \
+        {"intent_level": "B", "tags": "待跟进"}
+
+
+def test_parse_result_list_tags():
+    """F4: 列表 tags 归一化为逗号字符串。"""
+    assert _parse_result('{"intent_level": "A", "tags": ["已购", "议价中"]}') == \
+        {"intent_level": "A", "tags": "已购,议价中"}
+
+
+def test_tier_customer_fenced_json(tmp_data):
+    """F4: 围栏 JSON 完整链路: 解析 → 写画像 + 历史。"""
+    store = SqliteStore()
+    store.upsert_message(_msg("m1", "c1", False, "确认车型 LED-100, 谈付款", 100))
+    _link(store, "c1", "cust1")
+    llm = FakeLLM('```json\n{"intent_level": "A", "tags": "已购,议价中"}\n```')
+    r = tier_customer(store, llm, "cust1")
+    assert r["intent_level"] == "A"
+    assert r["tags"] == "已购,议价中"
+    prof = {p.field: p.value for p in store.get_profile("cust1")}
+    assert prof["tags"] == "已购,议价中"
+
+
+def test_tier_customer_list_tags_joined(tmp_data):
+    """F4: 列表 tags 经 tier_customer 存为逗号字符串, 不被 str(list) 破坏。"""
+    store = SqliteStore()
+    store.upsert_message(_msg("m1", "c1", False, "确认车型 LED-100, 谈付款", 100))
+    _link(store, "c1", "cust1")
+    llm = FakeLLM('{"intent_level": "A", "tags": ["已购", "议价中"]}')
+    r = tier_customer(store, llm, "cust1")
+    assert r["tags"] == "已购,议价中"
+    prof = {p.field: p.value for p in store.get_profile("cust1")}
+    assert prof["tags"] == "已购,议价中"
+
+
+def test_tier_customer_tags_whitespace_normalized(tmp_data):
+    """F4: tags 逗号周围空白被规整。"""
+    store = SqliteStore()
+    store.upsert_message(_msg("m1", "c1", False, "确认车型 LED-100, 谈付款", 100))
+    _link(store, "c1", "cust1")
+    llm = FakeLLM('{"intent_level": "A", "tags": "已购, 议价中"}')
+    r = tier_customer(store, llm, "cust1")
+    assert r["tags"] == "已购,议价中"

@@ -438,13 +438,23 @@ async def customer_refresh_profile(customer_id: str, request: Request):
 
 @router.post("/customers/{customer_id}/profile")
 async def customer_profile_save(customer_id: str, request: Request):
-    """web-app: 画像页编辑某字段并保存 → 持久化并标记为人工来源 (source=manual)。"""
+    """web-app: 画像页编辑某字段并保存 → 持久化并标记为人工来源 (source=manual)。
+
+    intent_level/tags 允许空值 (未分层/清空标签, F1); 其他字段保持原守卫。
+    人工调整 intent_level/tags 追加 manual 历史行 (D3, F2)。
+    """
     body = await request.form()
     field = (body.get("field") or "").strip()
     value = (body.get("value") or "").strip()
     store = _store(request)
-    if field and value:
+    if field and (value or field in ("intent_level", "tags")):
         store.upsert_profile_field(customer_id, field, value, source="manual")
+        if field in ("intent_level", "tags"):
+            # 单字段观察: 另一字段取当前画像值
+            current = {p.field: p.value for p in store.get_profile(customer_id)}
+            level = value if field == "intent_level" else current.get("intent_level", "")
+            tags = value if field == "tags" else current.get("tags", "")
+            store.add_tier_history(customer_id, level, tags, "manual")
     profile = store.get_profile(customer_id)
     return request.app.state.templates.TemplateResponse(
         request, "profile_list.html", {"profile": profile, "customer_id": customer_id},
@@ -679,13 +689,20 @@ async def tiering_analyze(request: Request):
     except Exception:
         body = {}
     customer_ids = body.get("customer_ids") if isinstance(body, dict) else None
-    if not customer_ids:
+    if customer_ids is not None:
+        if (not isinstance(customer_ids, list) or not customer_ids
+                or not all(isinstance(c, str) for c in customer_ids)):
+            return JSONResponse({"error": "customer_ids 必须为非空字符串数组"}, status_code=400)
+    else:
         customer_ids = store.list_recent_active_customers(settings.tiering_active_days)
     if not customer_ids:
         return {"task_id": None, "error": "无待分层客户"}
-    customer_ids = customer_ids[:settings.tiering_max_customers]
+    dropped = 0
+    if len(customer_ids) > settings.tiering_max_customers:
+        dropped = len(customer_ids) - settings.tiering_max_customers
+        customer_ids = customer_ids[:settings.tiering_max_customers]
     task_id = store.create_tiering_task(customer_ids)
-    return {"task_id": task_id}
+    return {"task_id": task_id, "dropped": dropped}
 
 
 @router.get("/api/tiering/status/{task_id}")

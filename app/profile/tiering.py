@@ -1,6 +1,7 @@
 # app/profile/tiering.py
 """客户意向分层: 复用摘要构建 → LLM 输出 A/B/C/D 等级 + 标签 → 写 profiles + 历史表。"""
 import json
+import re
 from app.storage.interfaces import StructuredStore
 from app.llm.interfaces import LLM
 from app.profile.service import build_customer_summary
@@ -22,17 +23,34 @@ TIER_PROMPT = """你是外贸客户意向分层助手。根据客户聊天摘要
 
 
 def _parse_result(resp: str) -> dict:
-    """解析 LLM 输出; 失败返回空 dict (回退未分层)。"""
+    """解析 LLM 输出; 失败返回空 dict (回退未分层)。
+
+    容错: 围栏 JSON (```json ... ```) 提取首个 {..} 子串解析; tags 为列表时 join 为逗号字符串。
+    """
+    data = None
     try:
         data = json.loads(resp)
     except Exception:
-        return {}
+        data = None
+    if not isinstance(data, dict):
+        m = re.search(r"\{.*\}", resp or "", re.DOTALL)
+        if not m:
+            return {}
+        try:
+            data = json.loads(m.group(0))
+        except Exception:
+            return {}
     if not isinstance(data, dict):
         return {}
     level = str(data.get("intent_level", "")).strip().upper()
     if level not in ("A", "B", "C", "D"):
         return {}
-    tags = str(data.get("tags", "")).strip()
+    raw_tags = data.get("tags", "")
+    if isinstance(raw_tags, list):
+        tags = ",".join(str(t).strip() for t in raw_tags if str(t).strip())
+    else:
+        tags = str(raw_tags).strip()
+    tags = re.sub(r"\s*,\s*", ",", tags)
     return {"intent_level": level, "tags": tags}
 
 

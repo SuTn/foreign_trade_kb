@@ -341,12 +341,21 @@ class SqliteStore(StructuredStore):
         self.conn.commit()
         return task_id
 
+    @staticmethod
+    def _parse_tiering_customer_ids(raw) -> list:
+        """解析任务 customer_ids JSON; 损坏数据返回 [] 避免 worker 无限重试。"""
+        try:
+            data = json.loads(raw or "[]")
+        except Exception:
+            return []
+        return data if isinstance(data, list) else []
+
     def get_tiering_task(self, task_id):
         r = self.conn.execute("SELECT * FROM tiering_tasks WHERE id=?", (task_id,)).fetchone()
         if not r:
             return None
         d = dict(r)
-        d["customer_ids"] = json.loads(d["customer_ids"] or "[]")
+        d["customer_ids"] = self._parse_tiering_customer_ids(d["customer_ids"])
         return d
 
     def next_pending_tiering_task(self):
@@ -356,7 +365,7 @@ class SqliteStore(StructuredStore):
         if not r:
             return None
         d = dict(r)
-        d["customer_ids"] = json.loads(d["customer_ids"] or "[]")
+        d["customer_ids"] = self._parse_tiering_customer_ids(d["customer_ids"])
         return d
 
     def update_tiering_task(self, task_id, *, status=None, progress=None, result=None, error=None):

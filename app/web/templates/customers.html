@@ -37,14 +37,17 @@
         <div class="muted">{{ c['country'] or '-' }}</div>
         {% set tier = profiles_by_customer.get(c['id'], '') %}
         {% if 'intent_level=' in tier %}
-          <div class="tier-row">
-            <span class="tier-badge tier-{{ tier.split('intent_level=')[1].split(' ')[0] }}">{{ tier.split('intent_level=')[1].split(' ')[0] }}</span>
-            {% if 'tags=' in tier %}
-              {% for t in tier.split('tags=')[1].split(' ')[0].split(',') %}
-                <span class="tag">{{ t }}</span>
-              {% endfor %}
-            {% endif %}
-          </div>
+          {% set tier_val = tier.split('intent_level=')[1].split(' ')[0] %}
+          {% if tier_val %}
+            <div class="tier-row">
+              <span class="tier-badge tier-{{ tier_val }}">{{ tier_val }}</span>
+              {% if 'tags=' in tier %}
+                {% for t in tier.split('tags=')[1].split(' ')[0].split(',') %}
+                  <span class="tag">{{ t }}</span>
+                {% endfor %}
+              {% endif %}
+            </div>
+          {% endif %}
         {% endif %}
       </div>
     </a>

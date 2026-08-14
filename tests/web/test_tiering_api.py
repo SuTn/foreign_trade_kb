@@ -73,3 +73,33 @@ def test_customers_page_has_tiering_levels(tmp_data):
     client = TestClient(create_app())
     html = client.get("/customers").text
     assert 'value="A"' in html  # 等级下拉含 A
+
+
+def test_analyze_rejects_non_list_customer_ids(tmp_data):
+    """F3: customer_ids 非空字符串数组校验 (字符串/空数组/非字符串元素 → 400)。"""
+    client = TestClient(create_app())
+    r = client.post("/api/tiering/analyze", json={"customer_ids": "c1"})
+    assert r.status_code == 400
+    r = client.post("/api/tiering/analyze", json={"customer_ids": []})
+    assert r.status_code == 400
+    r = client.post("/api/tiering/analyze", json={"customer_ids": [1, 2]})
+    assert r.status_code == 400
+
+
+def test_analyze_reports_dropped_over_max(tmp_data, monkeypatch):
+    """F3: 超过 tiering_max_customers 截断并在响应中报告 dropped 数。"""
+    from app.config import settings
+    monkeypatch.setattr(settings, "tiering_max_customers", 2)
+    store = SqliteStore()
+    for i in range(5):
+        store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                           (f"c{i}", f"C{i}", str(i), None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/api/tiering/analyze",
+                    json={"customer_ids": [f"c{i}" for i in range(5)]})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["dropped"] == 3
+    task = store.get_tiering_task(j["task_id"])
+    assert task["customer_ids"] == ["c0", "c1"]

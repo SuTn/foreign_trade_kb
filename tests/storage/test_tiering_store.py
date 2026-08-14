@@ -62,3 +62,16 @@ def test_recent_active_customers(tmp_data):
     store.conn.commit()
     active = store.list_recent_active_customers(days=30)
     assert active == ["c1"]  # c1 近期活跃; c2 超 30 天; c3 无消息
+
+
+def test_tiering_task_corrupt_customer_ids_guarded(tmp_data):
+    """损坏的 customer_ids JSON 不抛错, 返回 [] 避免 worker 无限重试。"""
+    store = SqliteStore()
+    tid = store.create_tiering_task(["c1"])
+    store.conn.execute("UPDATE tiering_tasks SET customer_ids=? WHERE id=?",
+                       ("{{{corrupt", tid))
+    store.conn.commit()
+    assert store.get_tiering_task(tid)["customer_ids"] == []
+    t = store.next_pending_tiering_task()
+    assert t is not None
+    assert t["customer_ids"] == []
