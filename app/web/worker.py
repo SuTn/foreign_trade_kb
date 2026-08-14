@@ -36,7 +36,11 @@ def _execute_reply_task(app: FastAPI, store, task: dict) -> None:
         pipe = _resources(app, store)
         history = store.get_session_history(task["session_id"]) if task["session_id"] else []
         result = generate_reply(pipe, task["customer_id"], task["chat_id"], task["message"],
-                                style=task["style"], history=history)
+                                style=task["style"],
+                                language=task.get("language") or "zh",
+                                scenario=task.get("scenario") or "auto",
+                                formality=task.get("formality") or "casual",
+                                history=history)
         if task["mode"] == "generate":
             store.append_session_message(task["session_id"], "user", task["message"])
             store.append_session_message(task["session_id"], "assistant", result["reply"])

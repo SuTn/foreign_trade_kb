@@ -1,4 +1,6 @@
 # tests/reply/test_worker.py
+import json
+
 from app.web.app import create_app
 from app.web import worker
 from app.storage.sqlite_store import SqliteStore
@@ -71,3 +73,21 @@ def test_execute_failure_marks_failed(tmp_data):
     t = store.get_reply_task(tid)
     assert t["status"] == "failed"
     assert "LLM 挂了" in t["error"]
+
+
+def test_execute_reply_passes_generation_params(tmp_data):
+    """multilingual-copy: worker 将 language/scenario/formality 传给 generate_reply。"""
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    llm = FakeLLM()
+    app = _make_app(store, llm)
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate",
+                                  language="ru", scenario="payment", formality="formal")
+    worker._execute_reply_task(app, store, store.get_reply_task(tid))
+    assert "俄语" in llm.prompts[0]
+    assert "付款" in llm.prompts[0]
+    assert "正式" in llm.prompts[0]
+    done = store.get_reply_task(tid)
+    assert done["status"] == "done"
+    result = json.loads(done["result"])
+    assert result["language"] == "ru" and result["scenario"] == "payment" and result["formality"] == "formal"

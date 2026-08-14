@@ -136,3 +136,21 @@ def test_chat_page_passes_session_id(tmp_data):
     sid = store.find_or_create_reply_session("cust1", "c1")
     assert sid in html  # 页面携带 session_id
     assert "session_id" in html  # 生成回复按钮 hx-vals 透传
+
+
+def test_reply_post_persists_generation_params(tmp_data):
+    """multilingual-copy: POST /api/reply 解析 language/scenario/formality 并持久化。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/api/reply", data={"customer_id": "cust1", "chat_id": "c1", "message": "hi",
+                                        "language": "en", "scenario": "inquiry", "formality": "formal"})
+    assert r.status_code == 200
+    tid = reply_task_id(r.text)
+    row = SqliteStore().conn.execute("SELECT * FROM reply_tasks WHERE id=?", (tid,)).fetchone()
+    assert row["language"] == "en"
+    assert row["scenario"] == "inquiry"
+    assert row["formality"] == "formal"
