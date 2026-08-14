@@ -54,16 +54,22 @@ def tier_customer(store: StructuredStore, llm: LLM, customer_id: str) -> dict:
 
 
 def tier_customers(store: StructuredStore, llm: LLM, customer_ids: list[str]) -> dict:
-    """批量分层入口。返回 {tiered, untiered}。单个失败不阻塞其余。"""
+    """批量分层入口。返回 {tiered, untiered}。单个客户失败不阻塞其余;
+    但存在硬错误时, 批量处理完毕后重新抛出第一个异常 (供 worker 将任务标记 failed)。"""
     tiered = 0
     untiered = 0
+    first_error = None
     for cid in customer_ids:
         try:
             r = tier_customer(store, llm, cid)
-        except Exception:
+        except Exception as e:
+            if first_error is None:
+                first_error = e
             r = {"intent_level": "", "tags": ""}
         if r["intent_level"]:
             tiered += 1
         else:
             untiered += 1
+    if first_error is not None:
+        raise first_error
     return {"tiered": tiered, "untiered": untiered}
