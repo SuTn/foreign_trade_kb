@@ -15,3 +15,4 @@
   - Minor: regenerate mode 无专门持久化测试 (worker 路径 mode-agnostic, 风险低); _reply_params 共享 helper 对 knowledge_search 多出无关键
 - Task 4: complete (commit b57d62d, 9/9 + full 276 passed, review clean; label-map deviation 解决 brief 内部冲突)
   - Minor (pre-existing/plan-mandated): reply_result.html regenerate hx-vals message 未做 `&quot;` 替换, 含引号消息时 regenerate 静默失败; 测试未断言 hx-vals 内 raw 码; 无 legacy result 路径测试
+- Final review: With fixes → fix commit 019d076 (F1-F9, 280 passed)
