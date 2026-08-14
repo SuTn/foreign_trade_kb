@@ -373,10 +373,11 @@ async def customer_detail(customer_id: str, request: Request):
         "SELECT chat_id, match_confidence FROM customer_chat_map WHERE customer_id=?",
         (customer_id,)).fetchall()
     profile = store.get_profile(customer_id)
+    tier_history = store.get_tier_history(customer_id)
     return request.app.state.templates.TemplateResponse(
         request, "chat.html",
         {"customer_id": customer_id, "customer": dict(customer) if customer else None,
-         "chats": chats, "profile": profile},
+         "chats": chats, "profile": profile, "tier_history": tier_history},
     )
 
 

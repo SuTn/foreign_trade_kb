@@ -24,6 +24,10 @@
     <button class="btn" id="analyze-btn">生成客户分析</button>
   </section>
 </div>
+<h2>分层历史</h2>
+<div id="tier-history">
+  {% with history=tier_history %}{% include "tier_history.html" %}{% endwith %}
+</div>
 <h2>关联会话</h2>
 <ul>{% for c in chats %}<li>{{ c['chat_id'] }} (置信度 {{ c['match_confidence'] }}) <a class="btn btn-sm" href="/customers/{{ customer_id }}/chat/{{ c['chat_id'] }}">打开聊天</a></li>{% else %}<li>暂无关联会话</li>{% endfor %}</ul>
 {% endblock %}

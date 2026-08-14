@@ -590,3 +590,24 @@ table.data-table {
 }
 
 .btn-success { background: var(--success); }
+
+/* ---- customer-intent-tiering: 等级徽章 ---- */
+.tier-badge {
+  display: inline-block;
+  min-width: 22px;
+  text-align: center;
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  margin-right: 6px;
+}
+.tier-A { background: #16a34a; }
+.tier-B { background: #2563eb; }
+.tier-C { background: #f59e0b; }
+.tier-D { background: #6b7280; }
+.tier-row { margin-top: 6px; }
+.tier-timeline { list-style: none; margin: 0; padding: 0; }
+.tier-timeline li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.tier-timeline li:last-child { border-bottom: none; }

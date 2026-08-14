@@ -1,3 +1,20 @@
+<h3>意向等级 / 标签（人工编辑标记为 manual）</h3>
+<form hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
+  <input type="hidden" name="field" value="intent_level">
+  <select name="value">
+    <option value="">未分层</option>
+    <option value="A">A</option>
+    <option value="B">B</option>
+    <option value="C">C</option>
+    <option value="D">D</option>
+  </select>
+  <button type="submit">保存等级</button>
+</form>
+<form hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
+  <input type="hidden" name="field" value="tags">
+  <input type="text" name="value" placeholder="标签,逗号分隔" size="30">
+  <button type="submit">保存标签</button>
+</form>
 <h3>画像（人工编辑标记为 manual）</h3>
 <ul>
   {% for p in profile %}
