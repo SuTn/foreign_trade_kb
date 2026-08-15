@@ -214,25 +214,35 @@ async def settings_reset(request: Request):
 
 
 def _search_messages(store, query, limit=20):
-    """D1: 消息 FTS 行 join 回 messages 取 chat_id/body/ts (search_fts 已含 rowid)。"""
-    out = []
-    for r in store.search_fts("messages", query, limit):
-        row = store.conn.execute(
-            "SELECT chat_id, ts, body FROM messages WHERE rowid=?", (r["rowid"],)).fetchone()
-        if row:
-            out.append({"chat_id": row["chat_id"], "ts": row["ts"], "body": row["body"]})
-    return out
+    """D1: 消息 FTS join 回 messages 取 chat_id/body/ts。
+    FTS5 外部内容表 rowid 对应 messages rowid, 直接 JOIN 取字段, 避免逐条 N+1 查询。"""
+    if not query or not query.strip():
+        return []
+    toks = [t for t in query.replace('"', '""').split() if t]
+    if not toks:
+        return []
+    expr = " OR ".join(f'"{t}"' for t in toks)
+    rows = store.conn.execute(
+        "SELECT m.chat_id, m.ts, m.body FROM messages_fts "
+        "JOIN messages m ON m.rowid = messages_fts.rowid "
+        "WHERE messages_fts MATCH ? LIMIT ?", (expr, limit)).fetchall()
+    return [{"chat_id": r["chat_id"], "ts": r["ts"], "body": r["body"]} for r in rows]
 
 
 def _search_knowledge(store, query, limit=20):
-    """D1: 知识库 FTS join 回 doc_chunks 取 doc_id (参照 knowledge_search 的 doc_lookup)。"""
-    doc_lookup = {}
-    for r in store.conn.execute("SELECT rowid, doc_id FROM doc_chunks").fetchall():
-        doc_lookup[r["rowid"]] = r["doc_id"]
-    out = []
-    for r in store.search_fts("doc_chunks", query, limit):
-        out.append({"doc_id": doc_lookup.get(r["rowid"]), "text": r["text"]})
-    return out
+    """D1: 知识库 FTS join 回 doc_chunks 取 doc_id。
+    FTS5 外部内容表 rowid 对应 doc_chunks rowid, 直接 JOIN 取 doc_id, 避免全表扫描。"""
+    if not query or not query.strip():
+        return []
+    toks = [t for t in query.replace('"', '""').split() if t]
+    if not toks:
+        return []
+    expr = " OR ".join(f'"{t}"' for t in toks)
+    rows = store.conn.execute(
+        "SELECT d.doc_id, d.text FROM doc_chunks_fts "
+        "JOIN doc_chunks d ON d.rowid = doc_chunks_fts.rowid "
+        "WHERE doc_chunks_fts MATCH ? LIMIT ?", (expr, limit)).fetchall()
+    return [{"doc_id": r["doc_id"], "text": r["text"]} for r in rows]
 
 
 @router.get("/api/search")
@@ -528,16 +538,26 @@ async def workspace_chat_poll(customer_id: str, request: Request):
 
 
 @router.get("/workspace/customer/{customer_id}/side")
-async def workspace_side(customer_id: str, request: Request):
-    """workspace-layout: 右栏客户画像 + 对话摘要 + AI 建议。"""
+async def workspace_side(customer_id: str, request: Request, chat_id: str | None = None):
+    """workspace-layout: 右栏客户画像 + 对话摘要 + AI 建议。
+    customer-match-confirm: 传入 chat_id 时附带该会话的匹配状态 (置信度/是否已确认)。"""
     store = _store(request)
     customer = store.conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
     profile = store.get_profile(customer_id)
     summary = store.get_customer_summary(customer_id)
+    match = None
+    if chat_id:
+        row = store.conn.execute(
+            "SELECT match_confidence, confirmed FROM customer_chat_map "
+            "WHERE chat_id=? AND customer_id=?",
+            (chat_id, customer_id)).fetchone()
+        if row:
+            match = {"chat_id": chat_id, "confidence": row["match_confidence"],
+                     "confirmed": bool(row["confirmed"])}
     return request.app.state.templates.TemplateResponse(
         request, "workspace_side.html",
         {"customer_id": customer_id, "customer": dict(customer) if customer else None,
-         "profile": profile, "summary": summary})
+         "profile": profile, "summary": summary, "match": match})
 
 
 @router.post("/customers/{customer_id}/summarize")
@@ -644,6 +664,28 @@ async def customer_profile_save(customer_id: str, request: Request):
     )
 
 
+@router.post("/customers/{customer_id}/confirm-match")
+async def customer_confirm_match(customer_id: str, request: Request):
+    """customer-match-confirm: 人工确认某会话与客户的匹配 (设置 confirmed=1)。
+    返回更新后的匹配区块 (已确认状态)。"""
+    body = await _parse_body(request)
+    chat_id = (body.get("chat_id") or "").strip()
+    store = _store(request)
+    if not chat_id:
+        return JSONResponse({"error": "缺少 chat_id"}, status_code=400)
+    cur = store.conn.execute(
+        "UPDATE customer_chat_map SET confirmed=1, updated_at=? "
+        "WHERE chat_id=? AND customer_id=?",
+        (int(time.time()), chat_id, customer_id))
+    store.conn.commit()
+    if cur.rowcount == 0:
+        return JSONResponse({"error": "未找到该会话匹配"}, status_code=404)
+    match = {"chat_id": chat_id, "confidence": 1.0, "confirmed": True}
+    return request.app.state.templates.TemplateResponse(
+        request, "workspace_match.html",
+        {"customer_id": customer_id, "match": match})
+
+
 @router.get("/knowledge")
 async def knowledge(request: Request):
     docs = _store(request).list_documents()
@@ -681,10 +723,14 @@ async def knowledge_search(request: Request):
         degraded = "向量检索不可用"
         vec = []
     bm25 = store.search_fts("doc_chunks", query, limit=5)
-    # FTS 外部内容表不含 doc_id, 需 join 回 doc_chunks
+    # FTS 外部内容表 rowid 对应 doc_chunks rowid, 直接 JOIN 取 doc_id (避免全表扫描)
     doc_lookup = {}
-    for r in store.conn.execute("SELECT id, doc_id, text FROM doc_chunks").fetchall():
-        doc_lookup[r["text"]] = r["doc_id"]
+    if bm25:
+        rowids = [r["rowid"] for r in bm25]
+        ph = ",".join("?" * len(rowids))
+        for r in store.conn.execute(
+            f"SELECT rowid, doc_id FROM doc_chunks WHERE rowid IN ({ph})", rowids).fetchall():
+            doc_lookup[r["rowid"]] = r["doc_id"]
     seen = set(); merged = []
     for c in vec:
         if c["text"] in seen: continue
@@ -694,7 +740,7 @@ async def knowledge_search(request: Request):
     for r in bm25:
         if r["text"] in seen: continue
         seen.add(r["text"])
-        merged.append({"source": "bm25", "doc_id": doc_lookup.get(r["text"]), "text": r["text"]})
+        merged.append({"source": "bm25", "doc_id": doc_lookup.get(r["rowid"]), "text": r["text"]})
     if degraded:
         merged.insert(0, {"source": "degraded", "doc_id": None, "text": degraded})
     return request.app.state.templates.TemplateResponse(

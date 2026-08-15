@@ -3,6 +3,27 @@
   <div class="muted">{{ customer['phone'] or '-' }} · {{ customer['company'] or '-' }} · {{ customer['country'] or '-' }}</div>
 </div>
 
+{% if match %}
+<div class="ws-match-block">
+  <div class="ws-match-head">
+    <span class="ws-match-label">会话匹配</span>
+    {% if match['confirmed'] %}
+    <span class="ws-match-badge confirmed">✓ 已确认</span>
+    {% else %}
+    <span class="ws-match-badge">待确认</span>
+    {% endif %}
+  </div>
+  <div class="muted ws-match-conf">置信度 {{ (match['confidence'] * 100)|round|int }}%</div>
+  {% if not match.confirmed %}
+  <div class="ws-match-actions">
+    <button class="btn btn-sm" hx-post="/customers/{{ customer_id }}/confirm-match"
+            hx-vals='{"chat_id": "{{ match.chat_id }}"}'
+            hx-target="closest .ws-match-block" hx-swap="outerHTML">确认匹配</button>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="ws-tabs" role="tablist">
   <button class="ws-tab active" data-tab="profile" role="tab">画像</button>
   <button class="ws-tab" data-tab="summary" role="tab">摘要</button>

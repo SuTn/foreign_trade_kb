@@ -1,0 +1,17 @@
+feat: 搜索性能优化 + 客户匹配人工确认
+
+N1 搜索性能:
+- _search_knowledge: 去掉全表扫描 doc_chunks 建映射, 改为 FTS rowid 直接 JOIN 取 doc_id
+- knowledge_search: 同样去掉全表扫描, 改为按 FTS rowid IN 查询
+- _search_messages: 去掉逐条 N+1 查询, 改为 FTS rowid 直接 JOIN
+
+A3 客户匹配人工确认:
+- 工作台右栏新增「会话匹配」区块, 显示置信度与确认状态
+- 新增 POST /customers/{id}/confirm-match: 设置 confirmed=1
+- workspace_side 支持 ?chat_id= 附带匹配状态
+- 新增 workspace_match.html 已确认区块模板
+
+review 修复:
+- 补 workspace_side.html / workspace_match.html 末尾换行
+
+测试: 326 passed (新增 2 个匹配确认测试)

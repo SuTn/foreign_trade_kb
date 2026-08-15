@@ -1179,6 +1179,44 @@ main.container:has(.workspace) {
   font-size: 12px;
 }
 
+/* customer-match-confirm: 会话匹配确认区块 */
+.ws-match-block {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.ws-match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ws-match-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+.ws-match-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, .15);
+  color: #b45309;
+}
+.ws-match-badge.confirmed {
+  background: rgba(16, 185, 129, .15);
+  color: #059669;
+}
+.ws-match-conf {
+  font-size: 12px;
+  margin-top: 4px;
+}
+.ws-match-actions {
+  margin-top: 8px;
+}
+
 /* 右栏 Tab 切换 */
 .ws-tabs {
   display: flex;

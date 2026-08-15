@@ -741,6 +741,42 @@ def test_workspace_side_loads_profile_and_summary(tmp_data):
     assert "LED-100" in r.text
 
 
+def test_workspace_side_shows_match_block_when_chat_id(tmp_data):
+    """customer-match-confirm: /side?chat_id= 显示会话匹配状态 (待确认)。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.6, 0, 0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/workspace/customer/cust1/side?chat_id=c1")
+    assert r.status_code == 200
+    assert "会话匹配" in r.text
+    assert "待确认" in r.text
+    assert "确认匹配" in r.text
+
+
+def test_confirm_match_sets_confirmed(tmp_data):
+    """customer-match-confirm: POST /customers/{id}/confirm-match 设置 confirmed=1。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.6, 0, 0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/customers/cust1/confirm-match", json={"chat_id": "c1"})
+    assert r.status_code == 200
+    assert "已确认" in r.text
+    # 数据库 confirmed 已置 1
+    row = store.conn.execute(
+        "SELECT confirmed FROM customer_chat_map WHERE chat_id='c1'").fetchone()
+    assert row["confirmed"] == 1
+
+
 def test_workspace_live_poll_returns_new_messages(tmp_data):
     """workspace-live-refresh: /chat/poll?after_ts= 增量拉取新消息。"""
     from app.storage.sqlite_store import SqliteStore
