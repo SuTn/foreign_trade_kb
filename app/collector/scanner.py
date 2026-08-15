@@ -25,6 +25,114 @@ def _msg_vector_key(chat_id: str, msg_id: str, ts: int) -> str:
     day = time.strftime("%Y-%m-%d", time.gmtime(ts)) if ts else "unknown"
     return f"{chat_id}:{day}:{ts}"
 
+
+# ---- _merge_idb_dom 归一化辅助 (F: 拆成可测试小函数) ----
+
+def _build_idb_index(data: dict) -> tuple[dict, str | None]:
+    """从 IDB messages 建 hex→消息 索引, 并取自身账号 (恒定的 to)。"""
+    idb_by_hex = {}
+    our_jid = None
+    for m in data.get("messages", []):
+        hex_part = (m.get("id") or "").rsplit("_", 1)[-1]
+        if hex_part and hex_part not in idb_by_hex:
+            idb_by_hex[hex_part] = m
+        if our_jid is None and m.get("to"):
+            our_jid = m["to"]
+    return idb_by_hex, our_jid
+
+
+def _dom_sender_name(dom_msgs: list[dict]) -> str | None:
+    """DOM 入站消息的发送人显示名 (供名字回退)。"""
+    for dom in dom_msgs:
+        if not dom.get("fromMe") and dom.get("from"):
+            return dom.get("from")
+    return None
+
+
+def _build_lid_by_phone(lids: dict) -> dict:
+    """反向: phone_jid → lid_jid, 供发送者名归一 (成员表可能以任一形态建键)。"""
+    lid_by_phone = {}
+    for _lid, _phone in lids.items():
+        lid_by_phone.setdefault(_phone, _lid)
+    return lid_by_phone
+
+
+def _jid_forms(jid, phone_by_lid, lids, lid_by_phone):
+    """LID/手机号 JID 归一候选形态: 原始 + phone_by_lid + lids(lid→phone) + 反向(phone→lid)。"""
+    forms = [jid]
+    for f in (phone_by_lid.get(jid), lids.get(jid), lid_by_phone.get(jid)):
+        if f and f not in forms:
+            forms.append(f)
+    return forms
+
+
+def _resolve_chat(rec: dict | None, our_jid: str | None, current_chat_id: str | None) -> str | None:
+    """解析会话 JID: 群聊=群 JID; 私聊=非我方一方 (入站 from, 出站 to)。"""
+    if not rec:
+        return current_chat_id
+    from_me = (rec.get("from") == our_jid) if our_jid else False
+    to = rec.get("to")
+    is_group = bool(to) and str(to).endswith("@g.us")
+    if is_group:
+        return to
+    chat = rec.get("from")
+    if chat == our_jid or not chat:
+        chat = rec.get("to")
+    return chat or current_chat_id
+
+
+def _resolve_phone_chat(chat: str | None, phone_by_lid: dict, lids: dict) -> str | None:
+    """LID → 真实手机号归一 (@lid → contact store 手机号, 回退 lid→phone_jid)。"""
+    if not chat:
+        return chat
+    if phone_by_lid.get(chat):
+        return phone_by_lid[chat]
+    if chat in lids:
+        return lids[chat]
+    return chat
+
+
+def _resolve_chat_name(chat, phone_chat, groups, chats, contacts, dom_sender_name) -> str | None:
+    """会话名: 群名 → chats → contacts (含 LID 索引) → DOM 发送人显示名。"""
+    name = None
+    if chat and groups.get(chat, {}).get("name"):
+        name = groups[chat]["name"]
+    if not name and chat:
+        name = chats.get(chat)
+    if not name and chat:
+        name = contacts.get(chat)
+    if not name and phone_chat != chat:
+        name = contacts.get(phone_chat)
+    if not name:
+        name = dom_sender_name
+    return name
+
+
+def _resolve_sender_name(rec, from_me, sender_jid, contacts, groups, chat, dom,
+                         phone_by_lid, lids, lid_by_phone) -> str | None:
+    """入站发送者显示名: contacts → 群成员表 → DOM 显示名 → JID 回退。
+    发送者 JID 先经 LID/手机号归一, 再对归一与原始形态双查。"""
+    if not rec or from_me:
+        return None
+    sender_name = None
+    if sender_jid:
+        for f in _jid_forms(sender_jid, phone_by_lid, lids, lid_by_phone):
+            sender_name = contacts.get(f)
+            if sender_name:
+                break
+    if not sender_name and chat and groups.get(chat):
+        members = groups[chat]["members"]
+        for f in _jid_forms(sender_jid, phone_by_lid, lids, lid_by_phone):
+            sender_name = members.get(f)
+            if sender_name:
+                break
+    if not sender_name:
+        sender_name = dom.get("from")
+    if not sender_name:
+        sender_name = rec.get("from")
+    return sender_name
+
+
 class Scanner:
     def __init__(self, cdp, store, vector_store, account_id="me", page=None, llm=None, pw=None, context=None):
         self.cdp = cdp
@@ -112,90 +220,28 @@ class Scanner:
         our_jid = IDB 消息恒定的 to (自身账号); chat 取"不是自己"的一方 (入站=from, 出站=to);
         正文/发送人/时间优先取 DOM, 缺省回退 IDB。
         chat 名: 优先 chats[jid] → contacts[jid] (含 LID 索引) → DOM 发送人显示名。
-        返回的 chatId 为真实手机号 JID (LID 经 lid_to_phone 解析), 便于客户匹配。"""
-        idb_by_hex = {}
-        our_jid = None
-        for m in data.get("messages", []):
-            hex_part = (m.get("id") or "").rsplit("_", 1)[-1]
-            if hex_part and hex_part not in idb_by_hex:
-                idb_by_hex[hex_part] = m
-            if our_jid is None and m.get("to"):
-                our_jid = m["to"]
-        # DOM 发送人显示名 (入站消息, 供名字回退)
-        dom_sender_name = None
-        for dom in dom_msgs:
-            if not dom.get("fromMe") and dom.get("from"):
-                dom_sender_name = dom.get("from")
-                break
+        返回的 chatId 为真实手机号 JID (LID 经 lid_to_phone 解析), 便于客户匹配。
+        归一化逻辑拆为模块级小函数 (F), 便于单测。"""
+        idb_by_hex, our_jid = _build_idb_index(data)
+        dom_sender_name = _dom_sender_name(dom_msgs)
         lids = data.get("lid_to_phone", {})
         phone_by_lid = data.get("phone_by_lid", {})
         groups = data.get("groups", {})
-        # 反向: phone_jid → lid_jid, 供发送者名归一 (成员表可能以任一形态建键)
-        lid_by_phone = {}
-        for _lid, _phone in lids.items():
-            lid_by_phone.setdefault(_phone, _lid)
-
-        def _jid_forms(jid):
-            """LID/手机号 JID 归一候选形态: 原始 + phone_by_lid + lids(lid→phone) + 反向(phone→lid),
-            与 chat 路径的 phone_by_lid/lids 翻译一致。"""
-            forms = [jid]
-            for f in (phone_by_lid.get(jid), lids.get(jid), lid_by_phone.get(jid)):
-                if f and f not in forms:
-                    forms.append(f)
-            return forms
+        lid_by_phone = _build_lid_by_phone(lids)
 
         merged = []
         for dom in dom_msgs:
             rec = idb_by_hex.get(dom.get("id"))
-            chat, from_me = None, bool(dom.get("fromMe"))
+            from_me = bool(dom.get("fromMe"))
             if rec:
                 from_me = (rec.get("from") == our_jid) if our_jid else from_me
-                to = rec.get("to")
-                is_group = bool(to) and str(to).endswith("@g.us")
-                if is_group:
-                    chat = to  # 群聊: 会话 = 群 JID, 发送者为 from
-                else:
-                    chat = rec.get("from")
-                    if chat == our_jid or not chat:
-                        chat = rec.get("to")
-            chat = chat or self._current_chat_id
-            phone_chat = chat
-            if chat and phone_by_lid.get(chat):
-                phone_chat = phone_by_lid[chat]  # @lid → contact store 的真实手机号 (无@)
-            elif chat and chat in lids:
-                phone_chat = lids[chat]  # 回退: lid→phone_jid 映射
-            # 会话名: group-metadata 群名 → chats → contacts (含 LID 索引) → DOM 发送人显示名
-            name = None
-            if chat and groups.get(chat, {}).get("name"):
-                name = groups[chat]["name"]
-            if not name and chat:
-                name = data["chats"].get(chat)
-            if not name and chat:
-                name = data["contacts"].get(chat)
-            if not name and phone_chat != chat:
-                name = data["contacts"].get(phone_chat)
-            if not name:
-                name = dom_sender_name
-            # 入站发送者显示名: contacts → 群成员表 → DOM 显示名 → JID 回退
-            # 发送者 JID 先经 LID/手机号归一 (与 chat 路径一致), 再对归一与原始形态双查
-            sender_name = None
-            if rec and not from_me:
-                sender_jid = rec.get("from")
-                if sender_jid:
-                    for f in _jid_forms(sender_jid):
-                        sender_name = data["contacts"].get(f)
-                        if sender_name:
-                            break
-                if not sender_name and chat and groups.get(chat):
-                    members = groups[chat]["members"]
-                    for f in _jid_forms(sender_jid):
-                        sender_name = members.get(f)
-                        if sender_name:
-                            break
-            if not sender_name and not from_me:
-                sender_name = dom.get("from")
-            if not sender_name and rec and not from_me:
-                sender_name = rec.get("from")
+            chat = _resolve_chat(rec, our_jid, self._current_chat_id)
+            phone_chat = _resolve_phone_chat(chat, phone_by_lid, lids)
+            name = _resolve_chat_name(chat, phone_chat, groups, data["chats"],
+                                      data["contacts"], dom_sender_name)
+            sender_jid = (rec or {}).get("from") if rec else None
+            sender_name = _resolve_sender_name(rec, from_me, sender_jid, data["contacts"],
+                                               groups, chat, dom, phone_by_lid, lids, lid_by_phone)
             kind = "group" if chat and str(chat).endswith("@g.us") else "single"
             merged.append({
                 "id": dom.get("id"), "chatId": phone_chat, "fromMe": from_me,

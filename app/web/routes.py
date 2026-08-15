@@ -2,6 +2,7 @@
 import time, uuid, tempfile
 import sqlite3
 import json
+import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Request, File, Form
@@ -62,11 +63,18 @@ def _build_store() -> SqliteStore:
     return store
 
 
+_thread_local = threading.local()
+
+
 def _store(request: Request) -> SqliteStore:
-    """返回进程级 sqlite 单例 (lifespan 创建; 测试无 lifespan 时惰性创建并缓存)。"""
-    if not hasattr(request.app.state, "sqlite_store"):
-        request.app.state.sqlite_store = _build_store()
-    return request.app.state.sqlite_store
+    """返回当前线程的独立 SQLite 连接 (threading.local), 避免多线程共享连接 (A1)。
+    lifespan 创建的 app.state.sqlite_store 仍保留 (供测试/关闭清理引用);
+    无 lifespan 时惰性设置单例引用以兼容旧测试。"""
+    if not hasattr(_thread_local, "store"):
+        _thread_local.store = _build_store()
+        if not hasattr(request.app.state, "sqlite_store"):
+            request.app.state.sqlite_store = _thread_local.store
+    return _thread_local.store
 
 
 def _get_chroma_store(app) -> ChromaStore:

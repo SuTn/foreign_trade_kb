@@ -666,3 +666,64 @@ def test_fast_tick_keeps_scan_progress_when_scanning(tmp_data, monkeypatch):
     asyncio.run(sc.fast_tick())
     s = read_status(settings.status_path)
     assert s["scan"] == {"running": True, "current": 3, "total": 10, "ingested": 5}
+
+
+# ---- F: _merge_idb_dom 归一化辅助函数单测 ----
+
+def test_build_idb_index_extracts_hex_and_our_jid():
+    from app.collector.scanner import _build_idb_index
+    data = {"messages": [
+        {"id": "false_me_abc123", "to": "me@c.us", "from": "cust@c.us"},
+        {"id": "false_me_def456", "to": "me@c.us", "from": "cust@c.us"},
+    ]}
+    idx, our = _build_idb_index(data)
+    assert our == "me@c.us"
+    assert set(idx.keys()) == {"abc123", "def456"}
+
+
+def test_resolve_chat_private_and_group():
+    from app.collector.scanner import _resolve_chat
+    # 私聊入站: from 非我方 → chat=from
+    assert _resolve_chat({"from": "cust@c.us", "to": "me@c.us"}, "me@c.us", None) == "cust@c.us"
+    # 私聊出站: from 是我方 → chat=to
+    assert _resolve_chat({"from": "me@c.us", "to": "cust@c.us"}, "me@c.us", None) == "cust@c.us"
+    # 群聊: chat=群 JID
+    assert _resolve_chat({"from": "cust@c.us", "to": "grp@g.us"}, "me@c.us", None) == "grp@g.us"
+    # 无 rec: 回退当前会话
+    assert _resolve_chat(None, "me@c.us", "cur@c.us") == "cur@c.us"
+
+
+def test_resolve_phone_chat_lid_to_phone():
+    from app.collector.scanner import _resolve_phone_chat
+    assert _resolve_phone_chat("123@lid", {"123@lid": "8613800000000"}, {}) == "8613800000000"
+    assert _resolve_phone_chat("123@lid", {}, {"123@lid": "8613800000000"}) == "8613800000000"
+    assert _resolve_phone_chat("8613800000000@c.us", {}, {}) == "8613800000000@c.us"
+
+
+def test_resolve_chat_name_priority():
+    from app.collector.scanner import _resolve_chat_name
+    groups = {"g@g.us": {"name": "群名"}}
+    chats = {"c@c.us": "会话名"}
+    contacts = {"c@c.us": "联系人名"}
+    # 群名优先
+    assert _resolve_chat_name("g@g.us", "g@g.us", groups, chats, contacts, "回退") == "群名"
+    # chats 次之
+    assert _resolve_chat_name("c@c.us", "c@c.us", {}, chats, contacts, "回退") == "会话名"
+    # contacts 再次
+    assert _resolve_chat_name("c@c.us", "c@c.us", {}, {}, contacts, "回退") == "联系人名"
+    # 全缺 → DOM 回退
+    assert _resolve_chat_name("x@c.us", "x@c.us", {}, {}, {}, "回退") == "回退"
+
+
+def test_resolve_sender_name_contacts_then_dom():
+    from app.collector.scanner import _resolve_sender_name
+    rec = {"from": "cust@c.us"}
+    contacts = {"cust@c.us": "Alice"}
+    # contacts 命中
+    assert _resolve_sender_name(rec, False, "cust@c.us", contacts, {}, None, {},
+                                {}, {}, {}) == "Alice"
+    # contacts 未命中 → DOM 回退
+    assert _resolve_sender_name(rec, False, "cust@c.us", {}, {}, None, {"from": "Bob"},
+                                {}, {}, {}) == "Bob"
+    # 出站消息 (from_me) → None
+    assert _resolve_sender_name(rec, True, "cust@c.us", contacts, {}, None, {}, {}, {}, {}) is None

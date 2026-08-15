@@ -88,6 +88,19 @@ class SqliteStore(StructuredStore):
         rows = self.conn.execute("SELECT * FROM profiles WHERE customer_id=?", (customer_id,)).fetchall()
         return [ProfileField(r["customer_id"], r["field"], r["value"], r["source"], r["updated_at"]) for r in rows]
 
+    def sync_customer_column(self, customer_id, field, value):
+        """把画像字段同步到 customers 固定列 (G: 消除 EAV 与固定列双轨)。
+        目前 company/country 同时存在于 profiles EAV 与 customers 列, 抽取时同步到列,
+        使 search_customers (查固定列) 能命中。仅覆盖非空值, 不覆盖已有非空列。"""
+        if field not in ("company", "country"):
+            return
+        if not value:
+            return
+        self.conn.execute(
+            f"UPDATE customers SET {field}=COALESCE(NULLIF({field},''), ?) WHERE id=?",
+            (value, customer_id))
+        self.conn.commit()
+
     def list_messages(self, chat_id, limit=50, before_ts=None):
         if before_ts:
             rows = self.conn.execute("SELECT * FROM messages WHERE chat_id=? AND ts<? ORDER BY ts DESC LIMIT ?",

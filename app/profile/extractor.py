@@ -17,4 +17,5 @@ def extract_profile(store: StructuredStore, llm: LLM, customer_id: str, chat_sum
         return {}
     for field, value in fields.items():
         store.upsert_profile_field(customer_id, field, str(value), "auto")  # 遇 manual 自动跳过
+        store.sync_customer_column(customer_id, field, str(value))  # G: company/country 同步到 customers 列
     return fields
