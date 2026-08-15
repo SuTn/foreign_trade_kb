@@ -61,7 +61,8 @@ def tier_customer(store: StructuredStore, llm: LLM, customer_id: str) -> dict:
     if not summary:
         return {"intent_level": "", "tags": ""}
     resp = llm.generate("你是外贸客户意向分层助手",
-                        TIER_PROMPT.format(tags=",".join(PREDEFINED_TAGS), summary=summary))
+                        TIER_PROMPT.format(tags=",".join(PREDEFINED_TAGS), summary=summary),
+                        max_tokens=256)
     result = _parse_result(resp)
     if not result:
         return {"intent_level": "", "tags": ""}

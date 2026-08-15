@@ -26,7 +26,8 @@ class WikiIndex(IndexStrategy):
 
     def _extract_entities(self, doc_id, text) -> list[dict]:
         import json
-        resp = self.llm.generate("你是外贸知识抽取助手", EXTRACT_PROMPT.format(text=text[:3000]))
+        resp = self.llm.generate("你是外贸知识抽取助手", EXTRACT_PROMPT.format(text=text[:3000]),
+                             max_tokens=512)
         try:
             ents = json.loads(resp)
             for e in ents: e["source_doc"] = doc_id
@@ -59,7 +60,8 @@ class WikiIndex(IndexStrategy):
 
     def _llm_synonym(self, a, b) -> bool:
         resp = self.llm.generate("判断两实体是否同义, 只回 true/false",
-                                 f"A={a['name']}({a['summary']}) B={b['name']}({b['summary']})")
+                                 f"A={a['name']}({a['summary']}) B={b['name']}({b['summary']})",
+                                 max_tokens=16)
         return resp.strip().lower().startswith("true")
 
     def _merge_cluster(self, cluster: list[dict]) -> dict:

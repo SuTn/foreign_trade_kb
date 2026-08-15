@@ -114,10 +114,12 @@ def summarize_customer(store: StructuredStore, llm: LLM, customer_id: str) -> di
         # 增量合并: 旧摘要 + 新消息
         old_summary = _format_old_summary(old)
         resp = llm.generate("你是外贸客户对话摘要助手",
-                            INCREMENTAL_PROMPT.format(old_summary=old_summary, new_messages=new_text))
+                            INCREMENTAL_PROMPT.format(old_summary=old_summary, new_messages=new_text),
+                            max_tokens=2048)
     else:
         resp = llm.generate("你是外贸客户对话摘要助手",
-                            SUMMARIZE_PROMPT.format(summary=new_text))
+                            SUMMARIZE_PROMPT.format(summary=new_text),
+                            max_tokens=2048)
     result = _parse_result(resp)
     if not result:
         return {}

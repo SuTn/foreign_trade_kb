@@ -69,7 +69,7 @@ def test_execute_summary_task_failure_marks_failed(tmp_data):
 
 
 def test_worker_loop_consumes_summary_task(tmp_data):
-    """worker_loop 串行消费 summary_tasks。"""
+    """后台线程 _background_loop 消费 summary_tasks。"""
     store = SqliteStore()
     store.upsert_message(_msg("1", "c1", False, "想买 LED-100", 100))
     store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
@@ -87,7 +87,7 @@ def test_worker_loop_consumes_summary_task(tmp_data):
     w.time.sleep = lambda s: (_ for _ in ()).throw(_StopLoop())
     try:
         try:
-            w.worker_loop(app)
+            w._background_loop(app)
         except _StopLoop:
             pass
     finally:

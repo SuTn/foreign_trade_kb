@@ -50,5 +50,6 @@ def _parse_analysis(text: str) -> dict:
 def analyze_customer(store: StructuredStore, llm: LLM, customer_id: str, chat_summary: str) -> dict:
     profile = {p.field: p.value for p in store.get_profile(customer_id)}
     text = llm.generate("你是外贸客户分析助手",
-                        ANALYZE_PROMPT.format(profile=profile, summary=chat_summary))
+                        ANALYZE_PROMPT.format(profile=profile, summary=chat_summary),
+                        max_tokens=1024)
     return _parse_analysis(text)

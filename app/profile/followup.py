@@ -62,5 +62,6 @@ def generate_followup(store: StructuredStore, llm: LLM, customer_id: str) -> dic
         return {"priority": "medium", "next_action": "暂无聊天记录, 建议先主动联系客户",
                 "suggested_message": "", "best_time": "尽快", "reason": "该客户暂无关联会话消息"}
     text = llm.generate("你是外贸客户跟进助手",
-                        FOLLOWUP_PROMPT.format(profile=profile, summary=summary))
+                        FOLLOWUP_PROMPT.format(profile=profile, summary=summary),
+                        max_tokens=1024)
     return _parse_followup(text)

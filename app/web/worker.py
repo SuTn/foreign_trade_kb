@@ -53,8 +53,8 @@ def _execute_reply_task(app: FastAPI, store, task: dict) -> None:
 
 
 def _execute_tiering_task(app: FastAPI, store, task: dict) -> None:
-    """串行执行单个分层任务: running → 逐客户分层 → done/failed。
-    每处理一个客户前检查 pending reply_tasks, 有则先消费回复 (回复优先, D7)。"""
+    """后台线程执行单个分层任务: running → 逐客户分层 → done/failed。
+    回复由独立回复线程消费, 不再在此检查回复优先 (worker 并发优化)。"""
     task_id = task["id"]
     try:
         store.update_tiering_task(task_id, status="running")
@@ -64,9 +64,6 @@ def _execute_tiering_task(app: FastAPI, store, task: dict) -> None:
         tiered = 0
         untiered = 0
         for i, cid in enumerate(customer_ids, start=1):
-            reply = store.next_pending_reply_task()
-            if reply is not None:
-                _execute_reply_task(app, store, reply)
             r = tier_customers(store, llm, [cid])
             tiered += r["tiered"]
             untiered += r["untiered"]
@@ -95,8 +92,8 @@ def _execute_summary_task(app: FastAPI, store, task: dict) -> None:
         store.update_summary_task(task_id, status="failed", error=str(e)[:300])
 
 
-def worker_loop(app: FastAPI) -> None:
-    """常驻循环: 串行消费 reply_tasks / tiering_tasks / summary_tasks (回复优先); 空循环 sleep 1s。"""
+def _reply_loop(app: FastAPI) -> None:
+    """回复线程: 只消费 reply_tasks (最高优先级, 永不阻塞)。独立 SQLite 连接。"""
     store = _build_store()
     while True:
         try:
@@ -104,6 +101,17 @@ def worker_loop(app: FastAPI) -> None:
             if task is not None:
                 _execute_reply_task(app, store, task)
                 continue
+            time.sleep(POLL_INTERVAL_SEC)
+        except Exception:
+            log.exception("回复 worker 循环异常")
+            time.sleep(POLL_INTERVAL_SEC)
+
+
+def _background_loop(app: FastAPI) -> None:
+    """后台线程: 消费 tiering_tasks / summary_tasks (低优先级)。独立 SQLite 连接。"""
+    store = _build_store()
+    while True:
+        try:
             tier_task = store.next_pending_tiering_task()
             if tier_task is not None:
                 _execute_tiering_task(app, store, tier_task)
@@ -114,5 +122,13 @@ def worker_loop(app: FastAPI) -> None:
                 continue
             time.sleep(POLL_INTERVAL_SEC)
         except Exception:
-            log.exception("worker 循环异常")
+            log.exception("后台 worker 循环异常")
             time.sleep(POLL_INTERVAL_SEC)
+
+
+def start_worker(app: FastAPI) -> None:
+    """启动双线程 worker: 回复线程 + 后台线程 (分层/摘要)。
+    回复永不阻塞于分层/摘要; 各线程独立 SQLite 连接 (WAL + busy_timeout 兜底并发写)。"""
+    import threading
+    threading.Thread(target=_reply_loop, args=(app,), daemon=True).start()
+    threading.Thread(target=_background_loop, args=(app,), daemon=True).start()

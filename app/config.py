@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     llm_model: str = "claude-sonnet-4-6"
     llm_api_base: str | None = None  # OpenAI 兼容接口 base URL; None=官方端点
     llm_api_key: str | None = None   # None 时回退 OPENAI_API_KEY / ANTHROPIC_API_KEY
+    llm_max_tokens: int = 2048  # 回复生成最大 token 数 (长回复不被截断; 短任务单独传更小值)
     embedding_provider: str = "local"  # local (bge-m3 本地) | openai (OpenAI 兼容接口)
     embedding_model: str = "BAAI/bge-m3"
     embedding_api_base: str | None = None  # 嵌入接口 base URL, 可与 LLM 分开配置

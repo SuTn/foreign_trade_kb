@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from app.config import settings
 from app.web import routes
 from app.web.routes import router, _build_store
-from app.web.worker import worker_loop
+from app.web.worker import start_worker
 
 
 def _hf_model_cached(model_name: str) -> bool:
@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
     app.state.embedding_ready = threading.Event()
     store.mark_legacy_reply_tasks_failed()  # D7 (worker 起跑前清理)
     store.mark_legacy_summary_tasks_failed()  # 摘要任务同构清理
-    app.state.reply_worker = threading.Thread(target=worker_loop, args=(app,), daemon=True)
+    app.state.reply_worker = threading.Thread(target=start_worker, args=(app,), daemon=True)
     app.state.reply_worker.start()
     threading.Thread(target=_warmup_models, args=(app,), daemon=True).start()
     try:

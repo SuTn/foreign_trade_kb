@@ -9,7 +9,8 @@ EXTRACT_PROMPT = """从以下客户聊天摘要抽取画像字段, 输出 JSON �
 摘要: {summary}"""
 
 def extract_profile(store: StructuredStore, llm: LLM, customer_id: str, chat_summary: str) -> dict:
-    resp = llm.generate("你是外贸客户画像抽取助手", EXTRACT_PROMPT.format(summary=chat_summary))
+    resp = llm.generate("你是外贸客户画像抽取助手", EXTRACT_PROMPT.format(summary=chat_summary),
+                        max_tokens=1024)
     try:
         fields = json.loads(resp)
     except Exception:

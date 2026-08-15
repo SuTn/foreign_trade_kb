@@ -11,7 +11,8 @@ class RagPipeline:
         self.reranker = reranker; self.llm = llm
         self.plugins = []  # 可选插件 (查询理解/改写), MVP 默认空
 
-    def run(self, query: str, customer_id=None, chat_id=None, system="", top_k=None) -> dict:
+    def run(self, query: str, customer_id=None, chat_id=None, system="", top_k=None,
+            max_tokens: int | None = None) -> dict:
         top_k = top_k or settings.rerank_top_k
         # 1. 多路召回
         candidates = retrieve_multi(self.store, self.vector_store, query, customer_id, chat_id)
@@ -19,8 +20,9 @@ class RagPipeline:
         ranked = self.reranker.rerank(query, candidates, top_k=top_k)
         # 3. 上下文压缩/去重 + 父子块展开
         context = self._compress_and_expand(ranked)
-        # 4. 生成
-        answer = self.llm.generate(system, f"上下文:\n{context}\n\n问题/消息: {query}")
+        # 4. 生成 (max_tokens 可配置, 缺省用 settings.llm_max_tokens)
+        answer = self.llm.generate(system, f"上下文:\n{context}\n\n问题/消息: {query}",
+                                   max_tokens=max_tokens or settings.llm_max_tokens)
         return {"answer": answer, "sources": ranked}
 
     def _compress_and_expand(self, ranked: list[dict]) -> str:

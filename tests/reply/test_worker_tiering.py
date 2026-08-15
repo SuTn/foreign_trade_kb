@@ -70,8 +70,8 @@ def test_execute_tiering_failure_marks_failed(tmp_data):
     assert "LLM 挂了" in t["error"]
 
 
-def test_tiering_consumes_pending_reply_first(tmp_data):
-    """D7 (F5): 分层期间存在 pending 回复任务 → 回复优先消费, 不阻塞回复。"""
+def test_tiering_does_not_consume_pending_reply(tmp_data):
+    """worker 并发优化: 分层任务不再消费回复 (回复由独立回复线程处理)。"""
     store = SqliteStore()
     store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
                        ("c1", "Alice", "1", None, None, 0, None))
@@ -88,9 +88,9 @@ def test_tiering_consumes_pending_reply_first(tmp_data):
     rtid = store.create_reply_task("c1", "ch1", "hi", "default", sid, "generate")
     tid = store.create_tiering_task(["c1"])
     worker._execute_tiering_task(app, store, store.get_tiering_task(tid))
-    assert store.get_reply_task(rtid)["status"] == "done"
+    # 分层完成, 但回复任务仍 pending (留给回复线程)
     assert store.get_tiering_task(tid)["status"] == "done"
-    assert store.next_pending_reply_task() is None
+    assert store.get_reply_task(rtid)["status"] == "pending"
 
 
 def test_execute_tiering_result_aggregates_real_counts(tmp_data):
