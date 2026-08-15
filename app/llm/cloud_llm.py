@@ -1,6 +1,7 @@
 # app/llm/cloud_llm.py
 import os
 import threading
+import time
 from app.llm.interfaces import LLM
 from app.config import settings
 
@@ -8,13 +9,17 @@ from app.config import settings
 class CloudLLM(LLM):
     """云端 LLM。支持 anthropic 与 openai 两种 provider。
     openai 走 OpenAI 兼容接口 (可配 api_base 指向第三方/自建网关)。
-    _client 懒加载缓存, 跨任务复用 (D3); threading.Lock 防并发首建竞态。"""
+    _client 懒加载缓存, 跨任务复用 (D3); threading.Lock 防并发首建竞态。
+    generate 带重试 (瞬时错误退避重试) 与超时 (llm-retry-timeout)。"""
 
-    def __init__(self, provider=None, model=None, api_base=None, api_key=None):
+    def __init__(self, provider=None, model=None, api_base=None, api_key=None,
+                 max_retries=3, timeout_sec=60):
         self.provider = provider or settings.llm_provider
         self.model = model or settings.llm_model
         self.api_base = api_base or settings.llm_api_base
         self.api_key = api_key or settings.llm_api_key
+        self.max_retries = max_retries
+        self.timeout_sec = timeout_sec
         self._client = None
         self._lock = threading.Lock()
 
@@ -47,12 +52,13 @@ class CloudLLM(LLM):
                             api_key=self._resolve_key(), base_url=self.api_base)
         return self._client
 
-    def generate(self, system, user, max_tokens=1024):
-        client = self._get_client()
+    def _call_once(self, client, system, user, max_tokens):
+        """单次调用; 返回文本。超时经 client 层 timeout 参数控制。"""
         if self.provider == "anthropic":
             resp = client.messages.create(
                 model=self.model, max_tokens=max_tokens,
                 system=system, messages=[{"role": "user", "content": user}],
+                timeout=self.timeout_sec,
             )
             return resp.content[0].text
         else:
@@ -60,5 +66,18 @@ class CloudLLM(LLM):
             resp = client.chat.completions.create(
                 model=self.model, max_tokens=max_tokens,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                timeout=self.timeout_sec,
             )
             return resp.choices[0].message.content
+
+    def generate(self, system, user, max_tokens=1024):
+        client = self._get_client()
+        last_err = None
+        for attempt in range(self.max_retries):
+            try:
+                return self._call_once(client, system, user, max_tokens)
+            except Exception as e:
+                last_err = e
+                if attempt < self.max_retries - 1:
+                    time.sleep(2 ** attempt)  # 指数退避: 0s, 2s, 4s
+        raise last_err
