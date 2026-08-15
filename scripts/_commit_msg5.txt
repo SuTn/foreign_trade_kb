@@ -1,0 +1,22 @@
+feat: 清理/知识库/设置/首页四项体验优化
+
+C. 清理页按会话改为下拉选择:
+- /cleanup 路由传入会话列表 (显示客户/群名, 不再手填 chat_id)
+- 模板改为 select 下拉, 附说明文字
+
+D. 知识库上传自动带出文件名:
+- filename 输入框改为只读, 选文件后 JS 自动填充文件名
+
+E. 设置页参数加人话说明:
+- 每个参数加一句通俗解释 (settings-hint)
+- 调整布局 (label + 说明换行)
+
+F. 首页快速开始引导:
+- 新增 onboard-card 四步引导 (配置/同步/查看客户/上传知识库)
+
+review 修复:
+- customers 表列名用 display_name (非 name)
+- settings-desc 类名笔误改为 settings-hint
+- 补末尾换行
+
+测试: 322 passed (新增清理下拉测试 + 首页引导断言)

@@ -106,3 +106,22 @@ def test_cleanup_page_renders(tmp_data):
     assert 'hx-post="/api/cleanup"' in html
     assert "hx-confirm" in html
     assert '<a href="/cleanup">' in html
+
+
+def test_cleanup_page_lists_chats_in_dropdown(tmp_data):
+    """cleanup-ux: 按会话清理改为下拉选择会话 (显示客户名, 不手填 chat_id)。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                       ("c1", "a1", "c1", "Alice", "single", 0))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    html = TestClient(create_app()).get("/cleanup").text
+    assert 'name="chat_id"' in html
+    assert 'value="c1"' in html
+    assert "Alice" in html
+    # 不应再要求手填 chat_id 文本框
+    assert 'placeholder="chat_id"' not in html

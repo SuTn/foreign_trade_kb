@@ -431,6 +431,8 @@ def test_home_shows_stats(tmp_data):
     client = TestClient(create_app())
     html = client.get("/").text
     assert "客户总数" in html and "近期活跃会话" in html and "Alice" in html
+    # first-run-onboarding: 首页含快速开始引导
+    assert "快速开始" in html and "onboard-card" in html
 
 
 def test_chat_page_group_renders_sender_name(tmp_data):

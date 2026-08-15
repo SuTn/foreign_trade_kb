@@ -335,8 +335,16 @@ async def cleanup(request: Request):
 
 @router.get("/cleanup")
 async def cleanup_page(request: Request):
-    """D2: 数据清理管理页 (chat / days 两种模式, 删除前确认)。"""
-    return request.app.state.templates.TemplateResponse(request, "cleanup.html", {})
+    """D2: 数据清理管理页 (chat / days 两种模式, 删除前确认)。
+    cleanup-ux: 按会话清理改为下拉选择会话 (显示客户/群名, 不再手填 chat_id)。"""
+    store = _store(request)
+    chats = store.conn.execute(
+        "SELECT c.id, c.display_name, c.kind, cm.customer_id, cu.display_name AS customer_name "
+        "FROM chats c "
+        "LEFT JOIN customer_chat_map cm ON cm.chat_id = c.id "
+        "LEFT JOIN customers cu ON cu.id = cm.customer_id "
+        "ORDER BY c.display_name").fetchall()
+    return request.app.state.templates.TemplateResponse(request, "cleanup.html", {"chats": chats})
 
 
 @router.get("/settings")

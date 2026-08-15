@@ -4,8 +4,8 @@
 <h1 class="page-title">知识库</h1>
 <form class="toolbar" hx-post="/api/knowledge/upload" hx-encoding="multipart/form-data" method="post" enctype="multipart/form-data"
       hx-target="#doc-list" hx-swap="outerHTML" hx-on::after-request="this.reset()">
-  <input class="input" type="file" name="file" required>
-  <input class="input" type="text" name="filename" placeholder="文件名(含扩展名)" required>
+  <input class="input" type="file" name="file" id="kb-file" required>
+  <input class="input" type="text" name="filename" id="kb-filename" placeholder="文件名(含扩展名)" required readonly>
   <button class="btn" type="submit">上传</button>
   <button class="btn" type="button" hx-post="/api/knowledge/export-vault">导出 Vault</button>
 </form>

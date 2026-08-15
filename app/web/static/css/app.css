@@ -216,6 +216,32 @@ a:hover {
   margin-top: 4px;
 }
 
+/* ---- first-run-onboarding: 首页快速开始引导 ---- */
+.onboard-card {
+  background: linear-gradient(135deg, rgba(37, 99, 235, .08), rgba(16, 185, 129, .06));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+.onboard-card h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.onboard-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.onboard-steps a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 /* ---- Forms & buttons ---- */
 .input,
 select,
@@ -507,6 +533,9 @@ table.data-table {
 .settings-group h2 { font-size: 16px; margin: 0 0 10px; }
 .settings-group p { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; font-size: 14px; }
 .settings-group .input { width: 140px; }
+.settings-group .settings-item { flex-direction: column; align-items: flex-start; gap: 2px; }
+.settings-group .settings-item label { display: flex; align-items: center; gap: 10px; }
+.settings-group .settings-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
 
 .form-error {
   background: rgba(220, 38, 38, .1);

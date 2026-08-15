@@ -7,15 +7,33 @@
   <div id="settings-error" class="form-error" hidden></div>
   <section class="settings-group">
     <h2>同步频次</h2>
-    <p>DOM 增量轮询间隔（秒）<input class="input" data-key="fast_tick_sec" data-type="number" step="0.1" min="0.1"></p>
-    <p>IDB 校准轮询间隔（秒）<input class="input" data-key="slow_tick_sec" data-type="number" step="0.1" min="0.1"></p>
+    <p class="settings-item">
+      <label>消息检查间隔（秒）<input class="input" data-key="fast_tick_sec" data-type="number" step="0.1" min="0.1"></label>
+      <span class="muted settings-hint">多久检查一次新消息。越小越及时，但更耗资源；一般保持默认即可。</span>
+    </p>
+    <p class="settings-item">
+      <label>缓存校准间隔（秒）<input class="input" data-key="slow_tick_sec" data-type="number" step="0.1" min="0.1"></label>
+      <span class="muted settings-hint">多久校准一次本地缓存，确保数据一致。一般保持默认即可。</span>
+    </p>
   </section>
   <section class="settings-group">
     <h2>自动扫描</h2>
-    <p>扫描间隔（秒）<input class="input" data-key="auto_scan_interval_sec" data-type="number" step="1" min="1"></p>
-    <p>单次扫描会话数上限 <input class="input" data-key="auto_scan_max_chats" data-type="number" step="1" min="1" max="1000"></p>
-    <p>会话停留时长（秒）<input class="input" data-key="auto_scan_settle_sec" data-type="number" step="0.1" min="0.1" max="30"></p>
-    <p>启用自动扫描 <input class="input" data-key="auto_scan_chats" data-type="checkbox"></p>
+    <p class="settings-item">
+      <label>扫描间隔（秒）<input class="input" data-key="auto_scan_interval_sec" data-type="number" step="1" min="1"></label>
+      <span class="muted settings-hint">多久自动扫描一次会话，抓取新消息。越小越频繁。</span>
+    </p>
+    <p class="settings-item">
+      <label>单次扫描会话数上限 <input class="input" data-key="auto_scan_max_chats" data-type="number" step="1" min="1" max="1000"></label>
+      <span class="muted settings-hint">每次最多扫描多少个会话，防止一次扫太多卡住。</span>
+    </p>
+    <p class="settings-item">
+      <label>会话停留时长（秒）<input class="input" data-key="auto_scan_settle_sec" data-type="number" step="0.1" min="0.1" max="30"></label>
+      <span class="muted settings-hint">打开会话后停留多久再读取，确保消息加载完成。</span>
+    </p>
+    <p class="settings-item">
+      <label>启用自动扫描 <input class="input" data-key="auto_scan_chats" data-type="checkbox"></label>
+      <span class="muted settings-hint">开启后自动扫描新会话并抓取消息。关闭则需手动扫描。</span>
+    </p>
   </section>
   <div class="toolbar">
     <button class="btn" type="submit">保存</button>

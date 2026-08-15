@@ -5,16 +5,23 @@
 <div class="two-col">
   <section class="result-card">
     <h2>按会话清理</h2>
+    <p class="muted">选择要清理的会话，删除该会话的全部消息。</p>
     <form hx-post="/api/cleanup"
           hx-confirm="确认删除该会话全部消息? 删除不可恢复!"
           hx-target="#cleanup-result" hx-swap="innerHTML">
       <input type="hidden" name="mode" value="chat">
-      <input class="input" name="chat_id" placeholder="chat_id" style="width:100%">
+      <select class="input" name="chat_id" required style="width:100%">
+        <option value="">选择会话…</option>
+        {% for c in chats %}
+        <option value="{{ c['id'] }}">{{ c['display_name'] or c['id'] }}{% if c['customer_name'] %} · {{ c['customer_name'] }}{% endif %}</option>
+        {% endfor %}
+      </select>
       <button class="btn btn-danger" type="submit" style="margin-top:8px">删除该会话消息</button>
     </form>
   </section>
   <section class="result-card">
     <h2>按天数清理</h2>
+    <p class="muted">删除 N 天前的全部消息（保留最近 N 天）。</p>
     <form hx-post="/api/cleanup"
           hx-confirm="确认删除 N 天前的全部消息? 删除不可恢复!"
           hx-target="#cleanup-result" hx-swap="innerHTML">

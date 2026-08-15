@@ -161,6 +161,26 @@ document.addEventListener("click", function (e) {
     copied();
   }
 });
+// knowledge-upload-ux: 选文件后自动带出文件名 (无需手填)
+(function () {
+  function initKbUpload() {
+    var fileInput = document.getElementById("kb-file");
+    var nameInput = document.getElementById("kb-filename");
+    if (!fileInput || !nameInput) return;
+    fileInput.addEventListener("change", function () {
+      if (fileInput.files && fileInput.files.length > 0) {
+        nameInput.value = fileInput.files[0].name;
+      } else {
+        nameInput.value = "";
+      }
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initKbUpload);
+  } else {
+    initKbUpload();
+  }
+})();
 // workspace-tiering: 批量分层按钮 + 进度轮询 + 完成后刷新客户列表
 (function () {
   function initTiering() {
