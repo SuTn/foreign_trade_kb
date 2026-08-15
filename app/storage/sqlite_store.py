@@ -92,13 +92,19 @@ class SqliteStore(StructuredStore):
         """把画像字段同步到 customers 固定列 (G: 消除 EAV 与固定列双轨)。
         目前 company/country 同时存在于 profiles EAV 与 customers 列, 抽取时同步到列,
         使 search_customers (查固定列) 能命中。仅覆盖非空值, 不覆盖已有非空列。"""
-        if field not in ("company", "country"):
-            return
         if not value:
             return
-        self.conn.execute(
-            f"UPDATE customers SET {field}=COALESCE(NULLIF({field},''), ?) WHERE id=?",
-            (value, customer_id))
+        # 显式白名单映射, 避免 f-string 拼列名 (A4)
+        if field == "company":
+            self.conn.execute(
+                "UPDATE customers SET company=COALESCE(NULLIF(company,''), ?) WHERE id=?",
+                (value, customer_id))
+        elif field == "country":
+            self.conn.execute(
+                "UPDATE customers SET country=COALESCE(NULLIF(country,''), ?) WHERE id=?",
+                (value, customer_id))
+        else:
+            return
         self.conn.commit()
 
     def list_messages(self, chat_id, limit=50, before_ts=None):
@@ -495,22 +501,24 @@ class SqliteStore(StructuredStore):
         if not customer_ids:
             return {}
         result: dict[str, dict] = {cid: {"last_ts": 0, "unread": 0} for cid in customer_ids}
-        # 最近消息时间 (一次 JOIN 聚合)
         placeholders = ",".join("?" * len(customer_ids))
+        # 最近消息时间 (一次 JOIN 聚合)
         for r in self.conn.execute(
             "SELECT c.customer_id, MAX(m.ts) AS last_ts FROM messages m "
             "JOIN customer_chat_map c ON c.chat_id=m.chat_id "
             "WHERE c.customer_id IN (%s) GROUP BY c.customer_id" % placeholders,
             customer_ids).fetchall():
             result[r["customer_id"]]["last_ts"] = r["last_ts"] or 0
-        # 未读数: 非我方且 ts > last_seen (逐客户, 因 last_seen 不同)
-        for cid in customer_ids:
-            last_seen = self.get_last_seen(cid)
-            n = self.conn.execute(
-                "SELECT COUNT(*) AS n FROM messages m "
-                "JOIN customer_chat_map c ON c.chat_id=m.chat_id "
-                "WHERE c.customer_id=? AND m.from_me=0 AND m.ts>?", (cid, last_seen)).fetchone()
-            result[cid]["unread"] = n["n"] if n else 0
+        # 未读数: 非我方且 ts > last_seen (一次 JOIN settings 取 last_seen, 避免逐客户 N+1)
+        for r in self.conn.execute(
+            "SELECT c.customer_id, COUNT(*) AS n FROM messages m "
+            "JOIN customer_chat_map c ON c.chat_id=m.chat_id "
+            "LEFT JOIN settings s ON s.key='ws_last_seen:'||c.customer_id "
+            "WHERE c.customer_id IN (%s) AND m.from_me=0 "
+            "AND m.ts > COALESCE(CAST(s.value AS INTEGER), 0) "
+            "GROUP BY c.customer_id" % placeholders,
+            customer_ids).fetchall():
+            result[r["customer_id"]]["unread"] = r["n"]
         return result
 
     # ---- customer-summary: 摘要异步任务 (worker 串行消费) ----

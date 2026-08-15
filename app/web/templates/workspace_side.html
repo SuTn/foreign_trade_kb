@@ -20,8 +20,7 @@
             hx-vals='{"chat_id": "{{ match.chat_id }}"}'
             hx-target="closest .ws-match-block" hx-swap="outerHTML">确认匹配</button>
     {% endif %}
-    <button class="btn btn-sm btn-ghost" type="button"
-            onclick="this.closest('.ws-match-block').querySelector('.ws-remap-form').classList.toggle('hidden')">重新匹配</button>
+    <button class="btn btn-sm btn-ghost ws-remap-toggle" type="button">重新匹配</button>
   </div>
   <form class="ws-remap-form hidden" hx-post="/customers/{{ customer_id }}/remap"
         hx-target="closest .ws-match-block" hx-swap="outerHTML">

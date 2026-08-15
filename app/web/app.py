@@ -89,6 +89,7 @@ async def lifespan(app: FastAPI):
             store.conn.close()
         except Exception:
             pass
+        routes.close_thread_connections()  # A2: 关闭每线程连接
 
 
 def create_app() -> FastAPI:

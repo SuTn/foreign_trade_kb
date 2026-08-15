@@ -135,6 +135,15 @@ document.addEventListener("click", function (e) {
   var msgBox = document.getElementById("messages");
   if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
 });
+// customer-match-confirm: 展开/收起「重新匹配」下拉 (事件委托, 替代内联 onclick)
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest ? e.target.closest(".ws-remap-toggle") : null;
+  if (!btn) return;
+  var block = btn.closest(".ws-match-block");
+  if (!block) return;
+  var form = block.querySelector(".ws-remap-form");
+  if (form) form.classList.toggle("hidden");
+});
 // reply-workflow-optimization: 一键复制 (事件委托, 兼容 htmx 动态插入的 DOM)
 document.addEventListener("click", function (e) {
   var btn = e.target.closest ? e.target.closest("[data-copy]") : null;

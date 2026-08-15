@@ -1,0 +1,22 @@
+feat: 连接清理 + 未读数优化 + 代码整洁
+
+A2 每线程连接关闭清理:
+- 追踪每线程 SQLite 连接, 新增 close_thread_connections()
+- lifespan 关闭时清理, 避免连接泄漏
+
+A3 未读数 N+1 优化:
+- get_customers_recent_activity 未读数改为一次 JOIN settings 取 last_seen
+- 消除逐客户 N+1 查询
+
+A4 sync_customer_column 去 f-string:
+- 显式白名单映射 company/country, 避免 f-string 拼列名
+
+A5 app.js 混合范式整理:
+- 「重新匹配」内联 onclick 改为事件委托 (与其余代码一致)
+
+A6 token 近似改进:
+- 新增 _estimate_tokens: CJK 1 token/字, 其余 4 字符/token
+- _compress_and_expand 按估算 token 截断 (替代 char*4)
+- 新增 2 个估算单测
+
+测试: 337 passed (新增 2 个 pipeline 测试)

@@ -65,6 +65,8 @@ def _build_store() -> SqliteStore:
 
 _thread_local = threading.local()
 _chroma_lock = threading.Lock()  # A1: 双线程首次访问 chroma 时防重复创建
+_thread_stores: set[SqliteStore] = set()  # A2: 追踪每线程连接, 供关闭时清理
+_thread_stores_lock = threading.Lock()
 
 
 def _store(request: Request) -> SqliteStore:
@@ -73,9 +75,23 @@ def _store(request: Request) -> SqliteStore:
     无 lifespan 时惰性设置单例引用以兼容旧测试。"""
     if not hasattr(_thread_local, "store"):
         _thread_local.store = _build_store()
+        with _thread_stores_lock:
+            _thread_stores.add(_thread_local.store)
         if not hasattr(request.app.state, "sqlite_store"):
             request.app.state.sqlite_store = _thread_local.store
     return _thread_local.store
+
+
+def close_thread_connections() -> None:
+    """关闭所有每线程 SQLite 连接 (A2: 进程关闭时清理, 避免连接泄漏)。"""
+    with _thread_stores_lock:
+        stores = list(_thread_stores)
+        _thread_stores.clear()
+    for s in stores:
+        try:
+            s.conn.close()
+        except Exception:
+            pass
 
 
 def _get_chroma_store(app) -> ChromaStore:

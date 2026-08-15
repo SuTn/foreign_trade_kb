@@ -1,9 +1,23 @@
 # app/rag/pipeline.py
 """RAG 管线骨架 (插件式): query → 多路召回 → rerank → 上下文压缩 → 父子块展开 → 生成。
 可选插件 (查询理解/改写) 默认不挂载。"""
+import re
 from app.rag.retrievers import retrieve_multi
 from app.rag.reranker import rerank
 from app.config import settings
+
+# A6: 粗略 token 估算 — CJK 字符约 1 token/字, 其余约 4 字符/token。
+# 比固定 char*4 更贴合中文场景 (中文 1 字≈1 token, 英文 4 字符≈1 token)。
+_CJK_RE = re.compile(r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]")
+
+
+def _estimate_tokens(text: str) -> int:
+    if not text:
+        return 0
+    cjk = len(_CJK_RE.findall(text))
+    other = len(text) - cjk
+    return cjk + other // 4
+
 
 class RagPipeline:
     def __init__(self, store, vector_store, reranker, llm):
@@ -39,4 +53,14 @@ class RagPipeline:
                     (pid, r["metadata"].get("doc_id"))).fetchone()
                 if row and row["text"] not in seen:
                     parts.append(row["text"]); seen.add(row["text"])
-        return "\n---\n".join(parts)[:settings.context_token_limit*4]
+        # A6: 按估算 token 数截断 (而非 char*4), 中文/英文都更贴合
+        budget = settings.context_token_limit
+        out = []
+        used = 0
+        for p in parts:
+            est = _estimate_tokens(p)
+            if used + est > budget and out:
+                break
+            out.append(p)
+            used += est
+        return "\n---\n".join(out)
