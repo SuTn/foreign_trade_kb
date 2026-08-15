@@ -64,6 +64,7 @@ def _build_store() -> SqliteStore:
 
 
 _thread_local = threading.local()
+_chroma_lock = threading.Lock()  # A1: 双线程首次访问 chroma 时防重复创建
 
 
 def _store(request: Request) -> SqliteStore:
@@ -82,8 +83,12 @@ def _get_chroma_store(app) -> ChromaStore:
 
     模型预热未就绪时按 WARMUP_TIMEOUT_SEC 等待, 超时抛错由调用方降级。
     request 无关: worker 线程同样经此访问共享 chroma (审计 H)。
-    """
-    if not getattr(app.state, "chroma_store", None):
+    加锁防双线程首次访问重复创建 (A1)。"""
+    if getattr(app.state, "chroma_store", None):
+        return app.state.chroma_store
+    with _chroma_lock:
+        if getattr(app.state, "chroma_store", None):
+            return app.state.chroma_store
         if not _embedding_ready(app):
             raise RuntimeError("embedding 模型预热超时未就绪, 请稍后重试")
         emb = getattr(app.state, "embedding", None) or get_embedding()

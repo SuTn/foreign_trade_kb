@@ -1,9 +1,11 @@
 # app/web/worker.py
-"""reply_tasks 常驻串行 worker (D1/D7)。
+"""reply_tasks / tiering_tasks / summary_tasks 常驻 worker (D1/D7)。
 
 worker 以 app 引用持有 app.state 共享资源 (chroma_store/reranker/llm),
 使用独立 SQLite 连接 (routes._build_store 每次新建连接), 任务间复用。
-串行消费保证一次只有一个 LLM 调用。
+双线程并发 (worker 并发优化): 回复线程只消费 reply_tasks (最高优先级, 永不阻塞);
+后台线程消费 tiering_tasks / summary_tasks (低优先级)。各线程独立 SQLite 连接,
+WAL + busy_timeout 兜底并发写。
 """
 import json
 import logging
@@ -77,7 +79,7 @@ def _execute_tiering_task(app: FastAPI, store, task: dict) -> None:
 
 
 def _execute_summary_task(app: FastAPI, store, task: dict) -> None:
-    """串行执行单个摘要任务: running → 生成/增量更新摘要 → done/failed。
+    """后台线程执行单个摘要任务: running → 生成/增量更新摘要 → done/failed。
     结果写入 customer_summaries 表, task.result 存 JSON 摘要供轮询展示。"""
     task_id = task["id"]
     try:

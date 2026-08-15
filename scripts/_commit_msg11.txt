@@ -1,0 +1,19 @@
+feat: chroma 竞态修复 + 文档同步
+
+A1 chroma 竞态:
+- _get_chroma_store 加锁 (threading.Lock) 防双线程首次访问重复创建
+- 双检锁: 先无锁快查, 再持锁复查, 避免重复创建 ChromaStore
+
+D1 使用说明.md 补新功能:
+- 右栏「会话匹配」区块 (确认匹配/重新匹配) 说明
+- 画像 tab「分层历史」时间线说明
+
+D2 README/.env.example 补 KB_LLM_MAX_TOKENS:
+- README「其他可调项」表新增该配置项
+- .env.example 新增注释示例
+
+D3 worker.py docstring 更新:
+- 模块 docstring 改为双线程并发描述
+- _execute_summary_task docstring 改为后台线程
+
+测试: 335 passed

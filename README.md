@@ -110,6 +110,7 @@ KB_LLM_API_KEY=sk-...
 | `KB_AUTO_SCAN_INTERVAL_SEC` | `600.0` | 全量扫描周期 |
 | `KB_AUTO_SCAN_MAX_CHATS` | `100` | 单次最多扫描的会话数 |
 | `KB_AUTO_SCAN_SETTLE_SEC` | `1.5` | 打开每个会话后的等待秒数 |
+| `KB_LLM_MAX_TOKENS` | `2048` | 回复生成最大 token 数（长回复不被截断；分层/同义判断等短任务自动用更小值） |
 
 ## 启动
 
