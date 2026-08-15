@@ -476,6 +476,30 @@ class SqliteStore(StructuredStore):
             "WHERE c.customer_id=? AND m.from_me=0 AND m.ts>?", (customer_id, last_seen)).fetchone()
         return {"last_ts": last_ts, "unread": unread["n"] if unread else 0}
 
+    def get_customers_recent_activity(self, customer_ids: list[str]) -> dict[str, dict]:
+        """批量返回多个客户的最近活跃 (最近消息时间 + 未读数), 避免 N+1 查询。
+        返回 {customer_id: {last_ts, unread}}。"""
+        if not customer_ids:
+            return {}
+        result: dict[str, dict] = {cid: {"last_ts": 0, "unread": 0} for cid in customer_ids}
+        # 最近消息时间 (一次 JOIN 聚合)
+        placeholders = ",".join("?" * len(customer_ids))
+        for r in self.conn.execute(
+            "SELECT c.customer_id, MAX(m.ts) AS last_ts FROM messages m "
+            "JOIN customer_chat_map c ON c.chat_id=m.chat_id "
+            "WHERE c.customer_id IN (%s) GROUP BY c.customer_id" % placeholders,
+            customer_ids).fetchall():
+            result[r["customer_id"]]["last_ts"] = r["last_ts"] or 0
+        # 未读数: 非我方且 ts > last_seen (逐客户, 因 last_seen 不同)
+        for cid in customer_ids:
+            last_seen = self.get_last_seen(cid)
+            n = self.conn.execute(
+                "SELECT COUNT(*) AS n FROM messages m "
+                "JOIN customer_chat_map c ON c.chat_id=m.chat_id "
+                "WHERE c.customer_id=? AND m.from_me=0 AND m.ts>?", (cid, last_seen)).fetchone()
+            result[cid]["unread"] = n["n"] if n else 0
+        return result
+
     # ---- customer-summary: 摘要异步任务 (worker 串行消费) ----
     def create_summary_task(self, customer_id: str) -> str:
         task_id = uuid.uuid4().hex

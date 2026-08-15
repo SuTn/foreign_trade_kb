@@ -852,3 +852,36 @@ def test_followup_parse_fallback_on_bad_json():
     assert d["priority"] == "medium"
     assert "客户意向很高" in d["reason"]
 
+
+def test_followup_parse_json_with_surrounding_text():
+    """workspace-reply-profile: LLM 输出带前后缀文字时仍能提取 JSON。"""
+    from app.profile.followup import _parse_followup
+    d = _parse_followup('好的, 以下是建议: {"priority": "high", "next_action": "报价", '
+                        '"suggested_message": "您好", "best_time": "今天", "reason": "意向高"} 请查收')
+    assert d["priority"] == "high"
+    assert d["next_action"] == "报价"
+    assert d["suggested_message"] == "您好"
+
+
+def test_get_customers_recent_activity_batch(tmp_data):
+    """workspace-live-refresh: 批量活跃查询返回各客户最近消息时间 + 未读数。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust2", "Bob", "10087", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                       ("c1", "a1", "c1", "A", "single", 0))
+    store.conn.execute(
+        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        ("m1", "a1", "c1", 0, None, 2000, "chat", "客户消息", 1, 0, None))
+    store.conn.commit()
+    act = store.get_customers_recent_activity(["cust1", "cust2"])
+    assert act["cust1"]["last_ts"] == 2000
+    assert act["cust1"]["unread"] == 1  # 非我方且 ts>last_seen=0
+    assert act["cust2"]["last_ts"] == 0
+    assert act["cust2"]["unread"] == 0
+

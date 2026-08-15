@@ -19,18 +19,29 @@ FOLLOWUP_PROMPT = """你是外贸业务跟进助手。基于客户画像与聊�
 
 
 def _parse_followup(text: str) -> dict:
-    """解析 LLM 输出的 JSON; 容错: 提取首个 {...} 块, 解析失败回退为文本。"""
+    """解析 LLM 输出的 JSON; 容错: 先尝试整体解析, 再提取首个 {...} 块, 失败回退为文本。"""
     if not text:
         return {"priority": "medium", "next_action": "", "suggested_message": "",
                 "best_time": "", "reason": ""}
-    # 提取首个 JSON 对象块
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    raw = m.group(0) if m else text
+    # 先尝试整体解析 (LLM 只输出 JSON 时)
+    data = None
     try:
-        data = json.loads(raw)
-        if not isinstance(data, dict):
-            raise ValueError("not dict")
+        d = json.loads(text)
+        if isinstance(d, dict):
+            data = d
     except (ValueError, json.JSONDecodeError):
+        pass
+    if data is None:
+        # 提取首个 JSON 对象块 (非贪婪, 避免跨多个块过度匹配)
+        m = re.search(r"\{.*?\}", text, re.DOTALL)
+        raw = m.group(0) if m else text
+        try:
+            d = json.loads(raw)
+            if isinstance(d, dict):
+                data = d
+        except (ValueError, json.JSONDecodeError):
+            pass
+    if data is None:
         # 回退: 整段作为 reason 展示
         return {"priority": "medium", "next_action": "", "suggested_message": "",
                 "best_time": "", "reason": text.strip()}

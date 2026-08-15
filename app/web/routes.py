@@ -386,10 +386,8 @@ async def workspace(request: Request):
     for r in store.conn.execute("SELECT customer_id, field, value FROM profiles").fetchall():
         s = profiles_by_customer.setdefault(r["customer_id"], "")
         profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
-    # 每个客户最近活跃 (最近消息时间 + 未读数), 按最近活跃降序
-    activity: dict[str, dict] = {}
-    for r in rows:
-        activity[r["id"]] = store.get_customer_recent_activity(r["id"])
+    # 每个客户最近活跃 (最近消息时间 + 未读数), 按最近活跃降序 (批量查询避免 N+1)
+    activity = store.get_customers_recent_activity([r["id"] for r in rows])
     customers = sorted(rows, key=lambda c: activity.get(c["id"], {}).get("last_ts", 0), reverse=True)
     return request.app.state.templates.TemplateResponse(
         request, "workspace.html",
@@ -450,6 +448,13 @@ async def workspace_chat_poll(customer_id: str, request: Request):
     except (TypeError, ValueError):
         after_ts = 0
     chat_id = (request.query_params.get("chat_id") or "").strip()
+    if chat_id:
+        # 校验该会话确实属于该客户 (防越权读取其他客户会话)
+        owned = store.conn.execute(
+            "SELECT 1 FROM customer_chat_map WHERE customer_id=? AND chat_id=?",
+            (customer_id, chat_id)).fetchone()
+        if not owned:
+            chat_id = ""
     if not chat_id:
         # 缺省取该客户置信度最高会话
         chats = store.conn.execute(

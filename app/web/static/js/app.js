@@ -99,8 +99,12 @@ function initWorkspaceFilter() {
   if (tier) tier.addEventListener("change", apply);
 }
 // workspace-live-refresh: 中栏聊天增量轮询 (JS setInterval + htmx.ajax, 5s)
+// 注意: .ws-chat-poll 是点击客户后由 htmx 动态插入的, 需在每次 #ws-center 更新后重新初始化。
+var _wsPollTimer = null;
 function initWorkspacePoll() {
   var POLL_MS = 5000;
+  // 清理旧轮询 (切换客户/会话时避免重复 setInterval)
+  if (_wsPollTimer) { clearInterval(_wsPollTimer); _wsPollTimer = null; }
   var pollEl = document.querySelector(".ws-chat-poll");
   if (!pollEl) return;
   var chatId = pollEl.getAttribute("data-chat-id");
@@ -136,8 +140,14 @@ function initWorkspacePoll() {
     document.addEventListener("htmx:afterSwap", onSwap);
     htmx.ajax("GET", url, { target: "#messages", swap: "beforeend" });
   }
-  setInterval(poll, POLL_MS);
+  _wsPollTimer = setInterval(poll, POLL_MS);
 }
+// workspace-live-refresh: #ws-center 每次被 htmx 替换后重新初始化轮询 (事件委托)
+document.addEventListener("htmx:afterSwap", function (e) {
+  if (e.target && e.target.id === "ws-center") {
+    initWorkspacePoll();
+  }
+});
 // reply-workflow-optimization: 一键复制 (事件委托, 兼容 htmx 动态插入的 DOM)
 document.addEventListener("click", function (e) {
   var btn = e.target.closest ? e.target.closest("[data-copy]") : null;
