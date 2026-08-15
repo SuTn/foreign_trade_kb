@@ -540,7 +540,7 @@ async def workspace_chat_poll(customer_id: str, request: Request):
 @router.get("/workspace/customer/{customer_id}/side")
 async def workspace_side(customer_id: str, request: Request, chat_id: str | None = None):
     """workspace-layout: 右栏客户画像 + 对话摘要 + AI 建议。
-    customer-match-confirm: 传入 chat_id 时附带该会话的匹配状态 (置信度/是否已确认)。"""
+    customer-match-confirm: 传入 chat_id 时附带该会话的匹配状态 (置信度/是否已确认) 与客户列表 (供重新匹配)。"""
     store = _store(request)
     customer = store.conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
     profile = store.get_profile(customer_id)
@@ -554,10 +554,17 @@ async def workspace_side(customer_id: str, request: Request, chat_id: str | None
         if row:
             match = {"chat_id": chat_id, "confidence": row["match_confidence"],
                      "confirmed": bool(row["confirmed"])}
+    # 客户列表 (供重新匹配下拉, 排除当前客户)
+    customers = store.conn.execute(
+        "SELECT id, display_name FROM customers WHERE id != ? ORDER BY display_name",
+        (customer_id,)).fetchall()
+    # 分层历史 (customer-tier-history: 直接渲染, 避免 htmx load 触发不可靠)
+    tier_history = store.get_tier_history(customer_id)
     return request.app.state.templates.TemplateResponse(
         request, "workspace_side.html",
         {"customer_id": customer_id, "customer": dict(customer) if customer else None,
-         "profile": profile, "summary": summary, "match": match})
+         "profile": profile, "summary": summary, "match": match,
+         "customers": [dict(c) for c in customers], "tier_history": tier_history})
 
 
 @router.post("/customers/{customer_id}/summarize")
@@ -684,6 +691,34 @@ async def customer_confirm_match(customer_id: str, request: Request):
     return request.app.state.templates.TemplateResponse(
         request, "workspace_match.html",
         {"customer_id": customer_id, "match": match})
+
+
+@router.post("/customers/{customer_id}/remap")
+async def customer_remap(customer_id: str, request: Request):
+    """customer-match-confirm: 把某会话重新映射到另一个客户 (纠正误合并)。
+    body: {chat_id, target_customer_id}。更新 customer_chat_map 指向目标客户并置 confirmed=1。"""
+    body = await _parse_body(request)
+    chat_id = (body.get("chat_id") or "").strip()
+    target = (body.get("target_customer_id") or "").strip()
+    store = _store(request)
+    if not chat_id or not target:
+        return JSONResponse({"error": "缺少 chat_id 或 target_customer_id"}, status_code=400)
+    # 目标客户必须存在
+    tgt = store.conn.execute("SELECT id FROM customers WHERE id=?", (target,)).fetchone()
+    if not tgt:
+        return JSONResponse({"error": "目标客户不存在"}, status_code=404)
+    # 更新该会话的映射到目标客户 (confirmed=1)
+    cur = store.conn.execute(
+        "UPDATE customer_chat_map SET customer_id=?, confirmed=1, updated_at=? "
+        "WHERE chat_id=? AND customer_id=?",
+        (target, int(time.time()), chat_id, customer_id))
+    store.conn.commit()
+    if cur.rowcount == 0:
+        return JSONResponse({"error": "未找到该会话匹配"}, status_code=404)
+    match = {"chat_id": chat_id, "confidence": 1.0, "confirmed": True}
+    return request.app.state.templates.TemplateResponse(
+        request, "workspace_match.html",
+        {"customer_id": target, "match": match})
 
 
 @router.get("/knowledge")
@@ -959,4 +994,8 @@ async def tiering_status(task_id: str, request: Request):
 @router.get("/api/tiering/history/{customer_id}")
 async def tiering_history(customer_id: str, request: Request):
     store = _store(request)
-    return {"customer_id": customer_id, "history": store.get_tier_history(customer_id)}
+    history = store.get_tier_history(customer_id)
+    if request.headers.get("HX-Request"):
+        return request.app.state.templates.TemplateResponse(
+            request, "tier_history_list.html", {"customer_id": customer_id, "history": history})
+    return {"customer_id": customer_id, "history": history}

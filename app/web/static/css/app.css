@@ -566,6 +566,34 @@ table.data-table {
 .tier-C { background: #f59e0b; }
 .tier-D { background: #6b7280; }
 
+/* customer-tier-history: 分层历史时间线 */
+.tier-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.tier-timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.tier-timeline-item:last-child {
+  border-bottom: none;
+}
+.tier-timeline-tags {
+  flex: 1;
+  word-break: break-word;
+}
+.tier-timeline-meta {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 /* ---- multilingual-reply-generation: 回复维度选择器 ---- */
 .reply-controls {
   display: flex;
@@ -1215,6 +1243,20 @@ main.container:has(.workspace) {
 }
 .ws-match-actions {
   margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ws-remap-form {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ws-remap-form .input {
+  flex: 1;
+  min-width: 140px;
 }
 
 /* 右栏 Tab 切换 */

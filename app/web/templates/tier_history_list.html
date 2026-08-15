@@ -1,0 +1,15 @@
+<div class="tier-history">
+  {% if history %}
+  <ul class="tier-timeline">
+    {% for h in history %}
+    <li class="tier-timeline-item">
+      <span class="tier-badge tier-{{- h['intent_level'] if h['intent_level'] else 'none' }}">{{ h['intent_level'] if h['intent_level'] else '未分层' }}</span>
+      <span class="tier-timeline-tags">{{ h['tags'] or '—' }}</span>
+      <span class="tier-timeline-meta muted">{{ 'AI' if h['source'] == 'auto' else '人工' }} · {{ h['created_at']|fmt_ts }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">暂无分层历史</p>
+  {% endif %}
+</div>

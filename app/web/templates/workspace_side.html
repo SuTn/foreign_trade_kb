@@ -14,13 +14,26 @@
     {% endif %}
   </div>
   <div class="muted ws-match-conf">置信度 {{ (match['confidence'] * 100)|round|int }}%</div>
-  {% if not match.confirmed %}
   <div class="ws-match-actions">
+    {% if not match.confirmed %}
     <button class="btn btn-sm" hx-post="/customers/{{ customer_id }}/confirm-match"
             hx-vals='{"chat_id": "{{ match.chat_id }}"}'
             hx-target="closest .ws-match-block" hx-swap="outerHTML">确认匹配</button>
+    {% endif %}
+    <button class="btn btn-sm btn-ghost" type="button"
+            onclick="this.closest('.ws-match-block').querySelector('.ws-remap-form').classList.toggle('hidden')">重新匹配</button>
   </div>
-  {% endif %}
+  <form class="ws-remap-form hidden" hx-post="/customers/{{ customer_id }}/remap"
+        hx-target="closest .ws-match-block" hx-swap="outerHTML">
+    <input type="hidden" name="chat_id" value="{{ match.chat_id }}">
+    <select name="target_customer_id" class="input" required>
+      <option value="">选择要合并到的客户…</option>
+      {% for c in customers %}
+      <option value="{{ c['id'] }}">{{ c['display_name'] or c['id'] }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm" type="submit">重新映射</button>
+  </form>
 </div>
 {% endif %}
 
@@ -36,6 +49,12 @@
     <h3>意向等级 / 标签</h3>
     <div id="profile">{% include "profile_list.html" %}</div>
     <button class="btn btn-sm" hx-post="/customers/{{ customer_id }}/refresh-profile" hx-target="#profile" hx-swap="innerHTML">重新抽取画像</button>
+  </section>
+  <section class="ws-side-block">
+    <h3>分层历史</h3>
+    <div id="tier-history">
+      {% with history=tier_history %}{% include "tier_history_list.html" %}{% endwith %}
+    </div>
   </section>
 </div>
 

@@ -777,6 +777,58 @@ def test_confirm_match_sets_confirmed(tmp_data):
     assert row["confirmed"] == 1
 
 
+def test_remap_chat_to_another_customer(tmp_data):
+    """customer-match-confirm: POST /customers/{id}/remap 把会话映射到另一客户。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust2", "Bob", "10087", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.6, 0, 0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/customers/cust1/remap",
+                    json={"chat_id": "c1", "target_customer_id": "cust2"})
+    assert r.status_code == 200
+    assert "已确认" in r.text
+    # 会话已映射到 cust2 且 confirmed=1
+    row = store.conn.execute(
+        "SELECT customer_id, confirmed FROM customer_chat_map WHERE chat_id='c1'").fetchone()
+    assert row["customer_id"] == "cust2"
+    assert row["confirmed"] == 1
+
+
+def test_remap_requires_valid_target(tmp_data):
+    """customer-match-confirm: remap 目标客户不存在时返回 404。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.6, 0, 0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.post("/customers/cust1/remap",
+                    json={"chat_id": "c1", "target_customer_id": "nope"})
+    assert r.status_code == 404
+
+
+def test_tier_history_htmx_renders_timeline(tmp_data):
+    """customer-tier-history: /api/tiering/history/{id} 的 htmx 请求返回时间线。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.add_tier_history("cust1", "A", "已购,意向车型", "auto")
+    store.add_tier_history("cust1", "B", "议价中", "manual")
+    client = TestClient(create_app())
+    r = client.get("/api/tiering/history/cust1", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "tier-timeline" in r.text
+    assert "A" in r.text and "B" in r.text
+    assert "已购" in r.text
+
+
 def test_workspace_live_poll_returns_new_messages(tmp_data):
     """workspace-live-refresh: /chat/poll?after_ts= 增量拉取新消息。"""
     from app.storage.sqlite_store import SqliteStore
