@@ -148,6 +148,25 @@ document.addEventListener("htmx:afterSwap", function (e) {
     initWorkspacePoll();
   }
 });
+// workspace-reply-panel: 点击消息"回复"按钮 → 填充底部回复面板并显示 (事件委托)
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest ? e.target.closest(".ws-reply-btn") : null;
+  if (!btn) return;
+  var msgId = btn.getAttribute("data-msg-id");
+  var row = msgId ? document.querySelector('.chat-row[data-msg-id="' + msgId + '"]') : null;
+  var textEl = row ? row.querySelector(".chat-text") : null;
+  var text = textEl ? textEl.textContent : "";
+  var panel = document.getElementById("ws-reply-panel");
+  if (!panel) return;
+  var msgInput = document.getElementById("ws-reply-message");
+  var targetText = document.getElementById("ws-reply-target-text");
+  if (msgInput) msgInput.value = text;
+  if (targetText) targetText.textContent = (text || "(无正文)").slice(0, 60) + (text.length > 60 ? "…" : "");
+  panel.hidden = false;
+  // 滚动到底部让回复面板可见
+  var msgBox = document.getElementById("messages");
+  if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+});
 // reply-workflow-optimization: 一键复制 (事件委托, 兼容 htmx 动态插入的 DOM)
 document.addEventListener("click", function (e) {
   var btn = e.target.closest ? e.target.closest("[data-copy]") : null;

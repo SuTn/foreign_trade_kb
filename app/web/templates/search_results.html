@@ -7,7 +7,7 @@
   <h2>客户 ({{ customers|length }})</h2>
   {% for c in customers %}
   <div class="result-card">
-    <a href="/customers/{{ c['id'] }}">{{ c['display_name'] or c['id'] }}</a>
+    <a href="/workspace?customer_id={{ c['id'] }}">{{ c['display_name'] or c['id'] }}</a>
     <div class="muted">{{ c['phone'] or '' }} · {{ c['company'] or '' }} · {{ c['country'] or '' }}</div>
   </div>
   {% else %}

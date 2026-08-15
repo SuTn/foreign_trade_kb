@@ -26,4 +26,23 @@
     <div class="ws-placeholder">选择客户后显示画像与 AI 建议</div>
   </aside>
 </div>
+<script>
+// workspace-deeplink: 支持 ?customer_id= 深链 — 页面加载后自动选中并加载该客户
+(function () {
+  function loadFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+    var cid = params.get("customer_id");
+    if (!cid) return;
+    var row = document.querySelector('.ws-customer[data-cid="' + cid + '"]');
+    if (!row) return;
+    // 触发 htmx 加载中栏 (与点击客户行为一致)
+    if (window.htmx) htmx.trigger(row, "click");
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", loadFromUrl);
+  } else {
+    loadFromUrl();
+  }
+})();
+</script>
 {% endblock %}

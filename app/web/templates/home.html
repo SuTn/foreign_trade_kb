@@ -38,7 +38,7 @@
     <ul class="recent-list">
       {% for rc in recent_chats %}
       <li>
-        {% if rc.customer_id %}<a href="/customers/{{ rc.customer_id }}/chat/{{ rc.chat_id }}">{% endif %}
+        {% if rc.customer_id %}<a href="/workspace?customer_id={{ rc.customer_id }}">{% endif %}
         {{ rc.display_name or rc.chat_id }} · {{ rc.last_ts }}
         {% if rc.customer_id %}</a>{% endif %}
       </li>

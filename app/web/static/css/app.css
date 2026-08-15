@@ -1032,6 +1032,74 @@ main.container:has(.workspace) {
   border-radius: 6px;
 }
 
+/* workspace-reply-panel: 底部固定回复面板 (点击消息"回复"后显示) */
+.ws-reply-panel {
+  flex: 0 0 auto;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, .06);
+  z-index: 2;
+}
+.ws-reply-panel[hidden] {
+  display: none;
+}
+.ws-reply-target {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: #f4f6fa;
+  border-radius: 8px;
+  border-left: 3px solid #f5c542;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-reply-panel .reply-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ws-reply-panel .reply-controls .input {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.ws-reply-panel .btn {
+  margin-left: auto;
+}
+.ws-reply-panel #reply-result {
+  margin-top: 10px;
+}
+.ws-reply-panel #reply-result .result-card {
+  box-shadow: none;
+  border: 1px solid var(--border);
+  background: #fbfcfe;
+}
+/* 消息上的"回复"小按钮 */
+.ws-chat-messages .ws-reply-btn {
+  margin-top: 8px;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  opacity: .7;
+  transition: opacity .15s ease;
+}
+.ws-chat-messages .chat-row:hover .ws-reply-btn {
+  opacity: 1;
+}
+.ws-chat-messages .chat-row.mine .ws-reply-btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, .4);
+}
+.ws-chat-messages .chat-row.mine .ws-reply-btn:hover {
+  background: rgba(255, 255, 255, .15);
+}
+
 /* ===== 右栏: 画像 + AI 建议 ===== */
 .ws-right {
   border-left: 1px solid var(--border);
