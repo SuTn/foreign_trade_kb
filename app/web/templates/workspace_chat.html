@@ -22,6 +22,12 @@
 </div>
 {% endif %}
 <div class="ws-chat-messages" id="messages" data-chat-id="{{ chat_id }}" data-customer-id="{{ customer_id }}">
+  {% if has_more %}
+  <div id="ws-load-earlier-wrap">
+    <button class="ws-load-earlier" hx-get="/workspace/customer/{{ customer_id }}/chat/earlier?before_ts={{ oldest_ts }}&chat_id={{ chat_id }}"
+            hx-target="#ws-load-earlier-wrap" hx-swap="outerHTML">加载更早消息</button>
+  </div>
+  {% endif %}
   {% for m in messages %}
   <div class="chat-row {{ 'mine' if m.from_me else 'theirs' }}" data-ts="{{ m.ts }}" data-msg-id="{{ m.id }}">
     <div class="chat-bubble {{ 'mine' if m.from_me else 'theirs' }}">

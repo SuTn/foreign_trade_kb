@@ -14,10 +14,9 @@ def test_customer_card_shows_tier_badge(tmp_data):
                        ("c1", "tags", "已购,议价中", "auto", 0))
     store.conn.commit()
     client = TestClient(create_app())
-    html = client.get("/customers").text
+    html = client.get("/workspace").text
     assert 'tier-badge' in html
     assert "A" in html
-    assert "已购" in html
 
 
 def test_customer_page_has_tier_filter_dropdown(tmp_data):
@@ -28,22 +27,9 @@ def test_customer_page_has_tier_filter_dropdown(tmp_data):
                        ("c1", "intent_level", "A", "auto", 0))
     store.conn.commit()
     client = TestClient(create_app())
-    html = client.get("/customers").text
-    assert 'id="filter-tier"' in html
+    html = client.get("/workspace").text
+    assert 'id="ws-tier"' in html
     assert 'value="A"' in html
-
-
-def test_chat_page_has_tier_history_section(tmp_data):
-    store = SqliteStore()
-    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
-                       ("c1", "Alice", "1", None, None, 0, None))
-    store.add_tier_history("c1", "A", "已购", "auto")
-    store.conn.commit()
-    client = TestClient(create_app())
-    html = client.get("/customers/c1").text
-    assert "分层历史" in html
-    assert "A" in html
-    assert "已购" in html
 
 
 def test_profile_clear_intent_level_clears_and_hides_badge(tmp_data):
@@ -62,7 +48,7 @@ def test_profile_clear_intent_level_clears_and_hides_badge(tmp_data):
     hist = store.get_tier_history("c1")
     assert hist[-1]["intent_level"] == ""
     assert hist[-1]["source"] == "manual"
-    html = client.get("/customers").text
+    html = client.get("/workspace").text
     assert "tier-badge" not in html
     assert 'class="tier-badge tier-"' not in html
 

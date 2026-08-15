@@ -71,7 +71,7 @@ def test_customers_page_has_tiering_levels(tmp_data):
                        ("c1", "intent_level", "A", "auto", 0))
     store.conn.commit()
     client = TestClient(create_app())
-    html = client.get("/customers").text
+    html = client.get("/workspace").text
     assert 'value="A"' in html  # 等级下拉含 A
 
 

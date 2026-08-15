@@ -352,30 +352,6 @@ async def stats(request: Request):
     return {**st, "collector": {"alive": is_alive(settings.status_path), "status": s or {}}}
 
 
-@router.get("/customers")
-async def customers(request: Request):
-    store = _store(request)
-    rows = store.conn.execute("SELECT * FROM customers").fetchall()
-    profiles_by_customer: dict[str, str] = {}
-    for r in store.conn.execute("SELECT customer_id, field, value FROM profiles").fetchall():
-        s = profiles_by_customer.setdefault(r["customer_id"], "")
-        profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
-    countries = [r[0] for r in store.conn.execute(
-        "SELECT DISTINCT value FROM profiles WHERE field='country' "
-        "AND value IS NOT NULL AND value != '' ORDER BY value").fetchall()]
-    companies = [r[0] for r in store.conn.execute(
-        "SELECT DISTINCT value FROM profiles WHERE field='company' "
-        "AND value IS NOT NULL AND value != '' ORDER BY value").fetchall()]
-    tiering_levels = [r[0] for r in store.conn.execute(
-        "SELECT DISTINCT value FROM profiles WHERE field='intent_level' "
-        "AND value IS NOT NULL AND value != '' ORDER BY value").fetchall()]
-    return request.app.state.templates.TemplateResponse(
-        request, "customers.html",
-        {"customers": rows, "profiles_by_customer": profiles_by_customer,
-         "countries": countries, "companies": companies,
-         "tiering_levels": tiering_levels})
-
-
 @router.get("/workspace")
 async def workspace(request: Request):
     """workspace-layout: 三栏工作台 — 左栏客户列表 + 空中栏/右栏 (点客户渐进加载)。
@@ -422,6 +398,14 @@ async def workspace_chat(customer_id: str, request: Request):
         chat_id = chat_list[0]["chat_id"] if chat_list else None
     msgs = store.list_messages(chat_id, limit=50) if chat_id else []
     msgs = sorted(msgs, key=lambda m: m.ts)
+    # workspace-load-earlier: 判断是否还有更早消息 (供"加载更早"按钮)
+    has_more = False
+    oldest_ts = None
+    if msgs:
+        oldest_ts = msgs[0].ts
+        has_more = store.conn.execute(
+            "SELECT 1 FROM messages WHERE chat_id=? AND ts<? LIMIT 1",
+            (chat_id, oldest_ts)).fetchone() is not None
     kind = None
     if chat_id:
         row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
@@ -434,7 +418,51 @@ async def workspace_chat(customer_id: str, request: Request):
         request, "workspace_chat.html",
         {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs, "kind": kind,
          "session_id": session_id, "chats": chat_list,
+         "has_more": has_more, "oldest_ts": oldest_ts,
          "customer": dict(customer) if customer else None})
+
+
+@router.get("/workspace/customer/{customer_id}/chat/earlier")
+async def workspace_chat_earlier(customer_id: str, request: Request):
+    """workspace-load-earlier: 中栏加载更早消息 — 返回 ts < before_ts 的消息气泡片段。
+    前端 prepend 到消息列表顶部 (hx-swap=outerHTML 替换加载按钮)。"""
+    store = _store(request)
+    before_raw = request.query_params.get("before_ts") or "0"
+    try:
+        before = int(before_raw)
+    except (TypeError, ValueError):
+        before = 0
+    chat_id = (request.query_params.get("chat_id") or "").strip()
+    if chat_id:
+        # 校验该会话确实属于该客户 (防越权读取其他客户会话)
+        owned = store.conn.execute(
+            "SELECT 1 FROM customer_chat_map WHERE customer_id=? AND chat_id=?",
+            (customer_id, chat_id)).fetchone()
+        if not owned:
+            chat_id = ""
+    if not chat_id:
+        chats = store.conn.execute(
+            "SELECT chat_id FROM customer_chat_map WHERE customer_id=? "
+            "ORDER BY match_confidence DESC", (customer_id,)).fetchall()
+        chat_id = chats[0]["chat_id"] if chats else None
+    if not chat_id:
+        return HTMLResponse("")
+    msgs = store.list_messages(chat_id, limit=50, before_ts=before)
+    msgs = sorted(msgs, key=lambda m: m.ts)
+    has_more = False
+    oldest_ts = None
+    if msgs:
+        oldest_ts = msgs[0].ts
+        has_more = store.conn.execute(
+            "SELECT 1 FROM messages WHERE chat_id=? AND ts<? LIMIT 1",
+            (chat_id, oldest_ts)).fetchone() is not None
+    kind = None
+    row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
+    kind = row["kind"] if row else None
+    return request.app.state.templates.TemplateResponse(
+        request, "workspace_chat_earlier.html",
+        {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs, "kind": kind,
+         "has_more": has_more, "oldest_ts": oldest_ts})
 
 
 @router.get("/workspace/customer/{customer_id}/chat/poll")
@@ -487,25 +515,6 @@ async def workspace_side(customer_id: str, request: Request):
          "profile": profile, "summary": summary})
 
 
-@router.get("/customers/{customer_id}")
-async def customer_detail(customer_id: str, request: Request):
-    store = _store(request)
-    customer = store.conn.execute(
-        "SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
-    chats = store.conn.execute(
-        "SELECT chat_id, match_confidence FROM customer_chat_map WHERE customer_id=?",
-        (customer_id,)).fetchall()
-    profile = store.get_profile(customer_id)
-    tier_history = store.get_tier_history(customer_id)
-    summary = store.get_customer_summary(customer_id)
-    return request.app.state.templates.TemplateResponse(
-        request, "chat.html",
-        {"customer_id": customer_id, "customer": dict(customer) if customer else None,
-         "chats": chats, "profile": profile, "tier_history": tier_history,
-         "summary": summary},
-    )
-
-
 @router.post("/customers/{customer_id}/summarize")
 async def customer_summarize(customer_id: str, request: Request):
     """customer-summary: 创建摘要任务 (worker 异步生成/增量更新), 返回轮询片段。
@@ -537,32 +546,6 @@ async def summary_status(task_id: str, request: Request):
     return request.app.state.templates.TemplateResponse(
         request, "summary.html",
         {"customer_id": task["customer_id"], "summary": summary, "error": None},
-    )
-
-
-@router.get("/customers/{customer_id}/chat/{chat_id}")
-async def customer_chat_messages(customer_id: str, chat_id: str, request: Request):
-    """web-app: 聊天浏览页 — 分页展示该会话历史消息 (含元数据与正文), 支持触发回复。"""
-    before_raw = request.query_params.get("before_ts")
-    before = int(before_raw) if before_raw and before_raw.isdigit() else None
-    store = _store(request)
-    msgs = store.list_messages(chat_id, limit=50, before_ts=before)
-    kind = None
-    try:
-        row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
-        if row:
-            kind = row["kind"]
-    except Exception:
-        kind = None
-    # 时间正序展示
-    msgs = sorted(msgs, key=lambda m: m.ts)
-    older_ts = msgs[0].ts if msgs else None
-    partial = request.query_params.get("partial") == "1"
-    return request.app.state.templates.TemplateResponse(
-        request, "chat_messages.html",
-        {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs,
-         "older_ts": older_ts, "partial": partial, "kind": kind,
-         "session_id": store.find_or_create_reply_session(customer_id, chat_id)},
     )
 
 

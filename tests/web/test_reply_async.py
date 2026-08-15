@@ -132,10 +132,10 @@ def test_chat_page_passes_session_id(tmp_data):
     from app.storage.interfaces import Message
     store.upsert_message(Message("m1", "a1", "c1", False, "x@w", 1, "chat", "hello", True, 0))
     client = TestClient(create_app())
-    html = client.get("/customers/cust1/chat/c1").text
+    html = client.get("/workspace/customer/cust1/chat").text
     sid = store.find_or_create_reply_session("cust1", "c1")
     assert sid in html  # 页面携带 session_id
-    assert "session_id" in html  # 生成回复按钮 hx-vals 透传
+    assert "session_id" in html  # 回复面板透传 session_id
 
 
 def test_reply_post_persists_generation_params(tmp_data):
@@ -168,7 +168,7 @@ def test_chat_page_has_generation_dimension_selects(tmp_data):
     from app.storage.interfaces import Message
     store.upsert_message(Message("m1", "a1", "c1", False, "x@w", 1, "chat", "hello", True, 0))
     client = TestClient(create_app())
-    html = client.get("/customers/cust1/chat/c1").text
+    html = client.get("/workspace/customer/cust1/chat").text
     assert 'name="language"' in html
     assert 'name="scenario"' in html
     assert 'name="formality"' in html

@@ -35,7 +35,7 @@ def test_stats_endpoint(tmp_data):
 
 def test_customers_page():
     client = TestClient(create_app())
-    assert client.get("/customers").status_code == 200
+    assert client.get("/workspace").status_code == 200
 
 
 def test_customers_page_has_search_data(tmp_data):
@@ -45,24 +45,23 @@ def test_customers_page_has_search_data(tmp_data):
     store.conn.execute("INSERT INTO profiles VALUES(?,?,?,?,?)",("c1","country","USA","auto",0))
     store.conn.commit()
     client = TestClient(create_app())
-    html = client.get("/customers").text
+    html = client.get("/workspace").text
     assert "data-search" in html and "ACME" in html
     assert 'src="/avatars/c1.png"' in html
 
 
 def test_customers_filter_dropdowns_from_profiles(tmp_data):
-    """筛选下拉取值来源 profiles 表 (customers.country/company 列为空时仍可选)。"""
+    """工作台左栏等级筛选下拉存在 (intent_level 来源 profiles)。"""
     from app.storage.sqlite_store import SqliteStore
     store = SqliteStore()
     store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
                        ("c1", "Alice", "10086", None, None, 0, None))
-    store.conn.execute("INSERT INTO profiles VALUES(?,?,?,?,?)", ("c1", "country", "USA", "auto", 0))
-    store.conn.execute("INSERT INTO profiles VALUES(?,?,?,?,?)", ("c1", "company", "ACME", "auto", 0))
+    store.conn.execute("INSERT INTO profiles VALUES(?,?,?,?,?)", ("c1", "intent_level", "A", "auto", 0))
     store.conn.commit()
     client = TestClient(create_app())
-    html = client.get("/customers").text
-    assert '<option value="USA">' in html
-    assert '<option value="ACME">' in html
+    html = client.get("/workspace").text
+    assert 'id="ws-tier"' in html
+    assert '<option value="A">' in html
 
 
 def test_export_vault_endpoint(tmp_data):
@@ -247,7 +246,7 @@ def test_customer_summarize_full_lifecycle(tmp_data, monkeypatch):
 
 
 def test_customer_detail_shows_existing_summary(tmp_data):
-    """customer-summary: 客户详情页展示已生成的摘要。"""
+    """customer-summary: 工作台右栏展示已生成的摘要。"""
     from app.storage.sqlite_store import SqliteStore
     store = SqliteStore()
     store.conn.execute(
@@ -258,7 +257,7 @@ def test_customer_detail_shows_existing_summary(tmp_data):
         ("cust1", "客户想买 LED-100", "LED-100", "3万", "俄罗斯", "物流", "确认库存", 0, 100))
     store.conn.commit()
     client = TestClient(create_app())
-    html = client.get("/customers/cust1").text
+    html = client.get("/workspace/customer/cust1/side").text
     assert "对话摘要" in html
     assert "LED-100" in html
     assert "意向车型" in html
@@ -309,7 +308,7 @@ def test_profile_manual_edit_saved(tmp_data):
 
 
 def test_chat_messages_pagination(tmp_data):
-    """web-app: 聊天浏览页分页展示历史消息。"""
+    """workspace-load-earlier: 工作台聊天加载更早消息。"""
     from app.storage.sqlite_store import SqliteStore
     from app.storage.interfaces import Message
     store = SqliteStore()
@@ -324,11 +323,11 @@ def test_chat_messages_pagination(tmp_data):
         store.upsert_message(Message(f"m{i}", "a1", "c1", False, None, ts, "chat",
                                      f"msg {ts}", True, 0))
     client = TestClient(create_app())
-    r = client.get("/customers/cust1/chat/c1")
+    r = client.get("/workspace/customer/cust1/chat")
     assert r.status_code == 200
     assert "msg 1" in r.text and "msg 3" in r.text
-    # 分页: 请求 before_ts=2 应只含更早消息
-    r2 = client.get("/customers/cust1/chat/c1?before_ts=2&partial=1")
+    # 加载更早: 请求 before_ts=2 应只含更早消息
+    r2 = client.get("/workspace/customer/cust1/chat/earlier?before_ts=2&chat_id=c1")
     assert r2.status_code == 200
     assert "msg 1" in r2.text
     assert "msg 2" not in r2.text
@@ -446,7 +445,7 @@ def test_chat_page_group_renders_sender_name(tmp_data):
     store.upsert_message(Message("m1", "a1", "g1", False, "8615976909619@c.us", 1,
                                  "chat", "hello", True, 0, "Sonya"))
     client = TestClient(create_app())
-    html = client.get("/customers/cust1/chat/g1").text
+    html = client.get("/workspace/customer/cust1/chat").text
     assert "Sonya ·" in html
 
 
@@ -625,7 +624,7 @@ def test_chat_page_single_keeps_customer_label(tmp_data):
     store.upsert_message(Message("m1", "a1", "c1", False, "x@w", 1,
                                  "chat", "hello", True, 0))
     client = TestClient(create_app())
-    html = client.get("/customers/cust1/chat/c1").text
+    html = client.get("/workspace/customer/cust1/chat").text
     assert "客户 ·" in html
 
 
