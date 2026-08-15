@@ -578,6 +578,37 @@ table.data-table {
   word-break: break-word;
 }
 
+/* ---- 客户分析卡片 (结构化) ---- */
+.analysis-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.analysis-card .analysis-summary {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.analysis-card .analysis-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 14px;
+}
+.analysis-card .analysis-fields dt {
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.analysis-card .analysis-fields dd {
+  margin: 0;
+  word-break: break-word;
+}
+
 /* ---- workspace-layout: 三栏工作台 (frontend-design: 贸易驾驶舱) ---- */
 /* 工作台页面: 容器全宽无 padding, 让工作台占满视口 */
 main.container:has(.workspace) {
@@ -658,6 +689,56 @@ main.container:has(.workspace) {
 .ws-tier-select option {
   color: #1a1a1a;
   background: #fff;
+}
+
+/* workspace-tiering: 批量分层按钮 + 进度 */
+.ws-tier-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ws-tier-btn {
+  background: linear-gradient(135deg, #f5c542, #d4a017);
+  color: #1a1a1a;
+  border: none;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: opacity .15s ease, transform .1s ease;
+}
+.ws-tier-btn:hover:not(:disabled) {
+  opacity: .9;
+  transform: translateY(-1px);
+}
+.ws-tier-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.ws-tier-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, .5);
+}
+.ws-tier-progress {
+  margin-top: 10px;
+}
+.ws-tier-progress .progress {
+  height: 6px;
+  background: rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ws-tier-progress .progress-bar {
+  background: linear-gradient(90deg, #f5c542, #d4a017);
+  height: 100%;
+  transition: width .3s ease;
+}
+.ws-tier-progress-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, .7);
+  display: block;
+  margin-bottom: 4px;
 }
 
 .ws-customer-list {

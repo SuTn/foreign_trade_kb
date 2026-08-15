@@ -1,1 +1,13 @@
-<pre>{{ analysis }}</pre>
+<div class="analysis-card">
+  {% if analysis['summary'] %}
+  <p class="analysis-summary">{{ analysis['summary'] }}</p>
+  {% endif %}
+  <dl class="analysis-fields">
+    {% if analysis['interests'] %}<dt>兴趣点</dt><dd>{{ analysis['interests'] }}</dd>{% endif %}
+    {% if analysis['activity'] %}<dt>活跃度</dt><dd>{{ analysis['activity'] }}</dd>{% endif %}
+    {% if analysis['followup'] %}<dt>跟进建议</dt><dd>{{ analysis['followup'] }}</dd>{% endif %}
+  </dl>
+  {% if not analysis['interests'] and not analysis['activity'] and not analysis['followup'] and not analysis['summary'] %}
+  <p class="muted">暂无分析，点击下方按钮生成</p>
+  {% endif %}
+</div>

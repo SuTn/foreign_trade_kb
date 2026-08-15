@@ -371,6 +371,23 @@ async def workspace(request: Request):
          "activity": activity})
 
 
+@router.get("/workspace/customers")
+async def workspace_customers(request: Request):
+    """workspace-tiering: 仅返回左栏客户列表片段 (供分层完成后局部刷新)。"""
+    store = _store(request)
+    rows = store.conn.execute("SELECT * FROM customers").fetchall()
+    profiles_by_customer: dict[str, str] = {}
+    for r in store.conn.execute("SELECT customer_id, field, value FROM profiles").fetchall():
+        s = profiles_by_customer.setdefault(r["customer_id"], "")
+        profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
+    activity = store.get_customers_recent_activity([r["id"] for r in rows])
+    customers = sorted(rows, key=lambda c: activity.get(c["id"], {}).get("last_ts", 0), reverse=True)
+    return request.app.state.templates.TemplateResponse(
+        request, "workspace_customers.html",
+        {"customers": customers, "profiles_by_customer": profiles_by_customer,
+         "activity": activity})
+
+
 @router.get("/workspace/customer/{customer_id}/chat")
 async def workspace_chat(customer_id: str, request: Request):
     """workspace-layout: 中栏客户聊天窗口 — 取该客户关联会话消息。
@@ -557,7 +574,8 @@ async def customer_analyze(customer_id: str, request: Request):
     try:
         analysis = analyze_customer_full(store, CloudLLM(), customer_id)
     except Exception as e:
-        analysis = f"分析失败: {e}"
+        analysis = {"interests": "", "activity": "", "followup": "",
+                    "summary": f"分析失败: {e}"}
     return request.app.state.templates.TemplateResponse(
         request, "analysis.html", {"customer_id": customer_id, "analysis": analysis},
     )
@@ -880,6 +898,7 @@ async def tiering_status(task_id: str, request: Request):
     if task is None:
         return {"status": "not_found"}
     return {"status": task["status"], "progress": task["progress"],
+            "total": len(task["customer_ids"]),
             "result": task["result"], "error": task["error"]}
 
 

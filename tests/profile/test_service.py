@@ -71,7 +71,8 @@ def test_analyze_customer_full(tmp_data):
     store.conn.commit()
     llm = FakeLLM("兴趣:LED; 活跃:高; 建议:报价")
     r = analyze_customer_full(store, llm, "cust1")
-    assert "LED" in r
+    assert isinstance(r, dict)
+    assert "LED" in r["summary"]
 
 def test_build_chat_summary_group_annotates_sender_name(tmp_data):
     store = SqliteStore()

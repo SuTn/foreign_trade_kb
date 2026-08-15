@@ -161,6 +161,87 @@ document.addEventListener("click", function (e) {
     copied();
   }
 });
+// workspace-tiering: 批量分层按钮 + 进度轮询 + 完成后刷新客户列表
+(function () {
+  function initTiering() {
+    var btn = document.getElementById("ws-tier-btn");
+    if (!btn) return;
+    var hint = document.getElementById("ws-tier-hint");
+    var progress = document.getElementById("ws-tier-progress");
+    var progressText = document.getElementById("ws-tier-progress-text");
+    var progressBar = document.getElementById("ws-tier-progress-bar");
+    var timer = null;
+
+    function setHint(msg) { if (hint) hint.textContent = msg || ""; }
+    function showProgress(show) { if (progress) progress.hidden = !show; }
+    function setProgress(text, pct) {
+      if (progressText) progressText.textContent = text;
+      if (progressBar) progressBar.style.width = (pct || 0) + "%";
+    }
+
+    function refreshCustomers() {
+      // 重新加载左栏客户列表 (htmx 局部刷新)
+      if (window.htmx) {
+        htmx.ajax("GET", "/workspace/customers", { target: "#ws-customer-list", swap: "innerHTML" });
+      } else {
+        window.location.reload();
+      }
+    }
+
+    function poll(taskId) {
+      fetch("/api/tiering/status/" + taskId)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.status === "running" || d.status === "pending") {
+            var cur = d.progress || 0;
+            var total = d.total || 0;
+            var pct = total > 0 ? Math.round((cur / total) * 100) : 0;
+            setProgress("分层中: " + cur + "/" + total, pct);
+            timer = setTimeout(function () { poll(taskId); }, 2000);
+          } else if (d.status === "done") {
+            var res = d.result ? JSON.parse(d.result) : {};
+            setProgress("分层完成: " + (res.tiered || 0) + " 已分层, " + (res.untiered || 0) + " 未分层", 100);
+            btn.disabled = false;
+            setTimeout(function () { setHint(""); setProgress("", 0); showProgress(false); }, 4000);
+            refreshCustomers();
+          } else if (d.status === "failed") {
+            setProgress("分层失败: " + (d.error || "未知错误"), 100);
+            btn.disabled = false;
+            setTimeout(function () { showProgress(false); }, 4000);
+          } else {
+            setProgress("任务不存在或已过期", 100);
+            btn.disabled = false;
+            setTimeout(function () { showProgress(false); }, 4000);
+          }
+        })
+        .catch(function () {
+          setProgress("网络错误，请重试", 100);
+          btn.disabled = false;
+          setTimeout(function () { showProgress(false); }, 4000);
+        });
+    }
+
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      showProgress(true);
+      setProgress("正在创建分层任务…", 0);
+      fetch("/api/tiering/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { setProgress(res.j.error || "请求被拒绝", 100); btn.disabled = false; return; }
+          if (!res.j.task_id) { setProgress(res.j.error || "无待分层客户", 100); btn.disabled = false; setTimeout(function () { showProgress(false); }, 3000); return; }
+          if (res.j.dropped) { setProgress("已截断 " + res.j.dropped + " 个客户", 0); }
+          poll(res.j.task_id);
+        })
+        .catch(function () { setProgress("网络错误，请重试", 100); btn.disabled = false; });
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initTiering);
+  } else {
+    initTiering();
+  }
+})();
 // batch2-search-cleanup-monitor: 采集器异常横幅 (D3, 自适应 15s/5s 轮询)
 // collector-settings-center: 合并为统一轮询 (横幅 + 状态区 + 扫描进度, 消除双轮询)
 (function () {

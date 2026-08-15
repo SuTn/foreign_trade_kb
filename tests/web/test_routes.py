@@ -682,6 +682,22 @@ def test_workspace_renders_customer_list(tmp_data):
     assert "选择左侧客户" in r.text
 
 
+def test_workspace_customers_fragment(tmp_data):
+    """workspace-tiering: /workspace/customers 返回左栏客户列表片段 (供分层后刷新)。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/workspace/customers")
+    assert r.status_code == 200
+    assert "ws-customer" in r.text
+    assert "Alice" in r.text
+    # 片段不应包含完整页面骨架 (左栏头部在 workspace.html, 不在片段)
+    assert "ws-left-header" not in r.text
+
+
 def test_workspace_chat_loads_messages(tmp_data):
     """workspace-layout: /workspace/customer/{id}/chat 加载中栏聊天。"""
     from app.storage.sqlite_store import SqliteStore
