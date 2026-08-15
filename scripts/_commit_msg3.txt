@@ -1,0 +1,9 @@
+fix: review 修复 — 轮询新消息缺回复按钮 + 模板末尾换行
+
+review 发现:
+- workspace_chat_poll.html 渲染的新消息没有"回复"按钮, 用户无法对实时轮询进来的新消息生成回复
+  → 补上 data-msg-id + 回复按钮 (事件委托兼容动态插入)
+- 多个模板缺末尾换行符 (workspace.html, workspace_chat.html, workspace_chat_earlier.html, workspace_customers.html)
+
+浏览器实测: 轮询新消息出现后带回复按钮, 点击正确填充回复面板
+测试: 318 passed
