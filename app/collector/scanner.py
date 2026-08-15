@@ -19,11 +19,11 @@ def is_alive(path: Path, timeout: float | None = None) -> bool:
     return (time.time() - s.get("last_heartbeat", 0)) < timeout
 
 def _msg_vector_key(chat_id: str, msg_id: str, ts: int) -> str:
-    """per-message 向量键; msg_id 缺失时回退 (chatId, day)。"""
+    """per-message 向量键; msg_id 缺失时回退 (chatId, day, ts) 避免同日多条消息互相覆盖。"""
     if msg_id:
         return f"{chat_id}:{msg_id}"
     day = time.strftime("%Y-%m-%d", time.gmtime(ts)) if ts else "unknown"
-    return f"{chat_id}:{day}"
+    return f"{chat_id}:{day}:{ts}"
 
 class Scanner:
     def __init__(self, cdp, store, vector_store, account_id="me", page=None, llm=None, pw=None, context=None):
@@ -36,6 +36,7 @@ class Scanner:
         self._last_dom_hash = None
         self._matched_chats: set[str] = set()
         self._profile_pending: set[tuple[str, str]] = set()  # (customer_id, chat_id) 待抽取画像
+        self._vector_pending: list[tuple[str, str, dict]] = []  # (key, text, metadata) 待向量化 (C1: 后台线程非阻塞)
         self._current_chat_id: str | None = None  # 由 slow_tick 推导的当前会话 JID
         self._cdp_failures = 0  # 连续致命 CDP 失败计数 (>=3 触发重建)
         self._pw = pw  # Playwright 实例 (重建时关闭旧实例)
@@ -266,13 +267,13 @@ class Scanner:
             except Exception:
                 pass  # 匹配失败不阻塞入库, 下次进程重启会重试
             self._matched_chats.add(chat_id)
-        # 异步向量化 (per-message 键, chatId/day 分组) — 失败不阻塞
+        # 向量化入队 (C1: 后台线程非阻塞, 不阻塞事件循环; 失败由 _flush_vectors_sync 静默跳过)
         try:
             key = _msg_vector_key(msg.chat_id, msg.id, msg.ts)
-            self.vector_store.upsert_message_vector(key, msg.body or "",
-                {"chat_id": msg.chat_id, "day": time.strftime("%Y-%m-%d", time.gmtime(msg.ts)) if msg.ts else "unknown"})
+            self._vector_pending.append((key, msg.body or "",
+                {"chat_id": msg.chat_id, "day": time.strftime("%Y-%m-%d", time.gmtime(msg.ts)) if msg.ts else "unknown"}))
         except Exception:
-            pass  # 下次 tick 重试
+            pass  # 入队失败不影响入库
         return True
 
     async def _capture_avatar(self, chat_id: str) -> None:
@@ -404,6 +405,7 @@ class Scanner:
                 await self._drain_scan_requests()
                 await self._drain_backfill_requests()
                 await self._drain_profile_updates()
+                await self._drain_vectors()
                 backoff = 1.0  # 成功一轮, 重置退避
             except Exception as e:
                 # 记录但不退出; CDP 致命失败连续累积触发重建
@@ -471,6 +473,27 @@ class Scanner:
                     None, self._extract_profile_sync, customer_id, chat_id)
             except Exception:
                 pass  # LLM 失败不阻塞采集, 下次新消息仍会尝试
+
+    def _flush_vectors_sync(self):
+        """同步消费待向量化队列 (在 executor 线程执行, 不阻塞事件循环)。
+        交换出当前队列再处理, 避免与主循环 append 并发修改; 单条失败静默跳过。"""
+        pending = self._vector_pending
+        self._vector_pending = []
+        for key, text, metadata in pending:
+            try:
+                self.vector_store.upsert_message_vector(key, text, metadata)
+            except Exception:
+                pass  # 单条失败不阻塞其余, 下次重建向量时补齐
+
+    async def _drain_vectors(self):
+        """把待向量化消息交给 executor 线程处理 (C1: 嵌入模型推理不阻塞事件循环)。"""
+        if not self._vector_pending:
+            return
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, self._flush_vectors_sync)
+        except Exception:
+            pass  # 向量化失败不阻塞采集主循环
 
     def _extract_profile_sync(self, customer_id: str, chat_id: str):
         """同步执行画像抽取 (供 executor 调用)。SQLite 连接不能跨线程, 故开新连接。"""

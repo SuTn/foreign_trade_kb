@@ -1,0 +1,20 @@
+{% if error %}
+<div class="summary-card">
+  <p><strong>摘要生成失败</strong></p>
+  <p class="muted">{{ error }}</p>
+</div>
+{% elif summary %}
+<div class="summary-card">
+  {% if summary['overview'] %}<p class="summary-overview">{{ summary['overview'] }}</p>{% endif %}
+  <dl class="summary-fields">
+    {% if summary['intent_vehicle'] %}<dt>意向车型</dt><dd>{{ summary['intent_vehicle'] }}</dd>{% endif %}
+    {% if summary['budget_range'] %}<dt>预算区间</dt><dd>{{ summary['budget_range'] }}</dd>{% endif %}
+    {% if summary['target_country'] %}<dt>目标国家</dt><dd>{{ summary['target_country'] }}</dd>{% endif %}
+    {% if summary['concerns'] %}<dt>核心顾虑</dt><dd>{{ summary['concerns'] }}</dd>{% endif %}
+    {% if summary['follow_up'] %}<dt>待跟进事项</dt><dd>{{ summary['follow_up'] }}</dd>{% endif %}
+  </dl>
+  {% if summary['updated_at'] %}<p class="muted">更新于 {{ summary['updated_at'] | fmt_ts }}</p>{% endif %}
+</div>
+{% else %}
+<p class="muted">暂无摘要，点击下方按钮生成</p>
+{% endif %}

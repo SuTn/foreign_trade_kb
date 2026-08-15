@@ -174,6 +174,96 @@ def test_customer_analyze_endpoint(tmp_data, monkeypatch):
     assert "LED" in r.text
 
 
+def test_customer_summarize_endpoint(tmp_data, monkeypatch):
+    """customer-summary: /customers/{id}/summarize 创建任务并返回轮询片段。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())  # 无 with → worker 不启动, 只验证提交侧
+    r = client.post("/customers/cust1/summarize")
+    assert r.status_code == 200
+    assert "正在生成摘要" in r.text
+    assert "every 1s" in r.text
+    import re
+    m = re.search(r"/api/summary/status/([0-9a-f]+)", r.text)
+    assert m, "未找到 task_id"
+    tid = m.group(1)
+    row = SqliteStore().conn.execute("SELECT * FROM summary_tasks WHERE id=?", (tid,)).fetchone()
+    assert row["status"] == "pending"
+    assert row["customer_id"] == "cust1"
+    r2 = client.get(f"/api/summary/status/{tid}")
+    assert r2.status_code == 200
+    assert "正在生成摘要" in r2.text
+
+
+def test_customer_summarize_full_lifecycle(tmp_data, monkeypatch):
+    """customer-summary: 提交→worker 生成→轮询 done, 展示结构化摘要。"""
+    from app.web import routes
+    from app.storage.sqlite_store import SqliteStore
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            return '{"overview": "客户想买 LED-100", "intent_vehicle": "LED-100", ' \
+                   '"budget_range": "3万", "target_country": "俄罗斯", ' \
+                   '"concerns": "物流", "follow_up": "确认库存"}'
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute(
+        "INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+        ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    from app.storage.interfaces import Message
+    store.upsert_message(Message("m1", "a1", "c1", False, None, 1, "chat", "want LED-100", True, 0))
+    with TestClient(create_app()) as client:
+        r = client.post("/customers/cust1/summarize")
+        assert r.status_code == 200
+        import re
+        m = re.search(r"/api/summary/status/([0-9a-f]+)", r.text)
+        assert m, "未找到 task_id"
+        tid = m.group(1)
+        # 轮询直到 done
+        import time as _time
+        deadline = _time.time() + 8
+        done = None
+        while _time.time() < deadline:
+            done = client.get(f"/api/summary/status/{tid}")
+            if "正在生成摘要" not in done.text:
+                break
+            _time.sleep(0.2)
+        assert done is not None and "正在生成摘要" not in done.text
+        assert "LED-100" in done.text
+        assert "意向车型" in done.text
+        assert "俄罗斯" in done.text
+        # 摘要已写入 customer_summaries
+        s = store.get_customer_summary("cust1")
+        assert s["intent_vehicle"] == "LED-100"
+
+
+def test_customer_detail_shows_existing_summary(tmp_data):
+    """customer-summary: 客户详情页展示已生成的摘要。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute(
+        "INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+        ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute(
+        "INSERT INTO customer_summaries VALUES(?,?,?,?,?,?,?,?,?)",
+        ("cust1", "客户想买 LED-100", "LED-100", "3万", "俄罗斯", "物流", "确认库存", 0, 100))
+    store.conn.commit()
+    client = TestClient(create_app())
+    html = client.get("/customers/cust1").text
+    assert "对话摘要" in html
+    assert "LED-100" in html
+    assert "意向车型" in html
+
+
 def test_customer_refresh_profile_endpoint(tmp_data, monkeypatch):
     """6.2: /customers/{id}/refresh-profile 手动重抽画像。"""
     from app.web import routes

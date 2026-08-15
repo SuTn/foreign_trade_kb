@@ -79,8 +79,24 @@ def _execute_tiering_task(app: FastAPI, store, task: dict) -> None:
         store.update_tiering_task(task_id, status="failed", error=str(e)[:300])
 
 
+def _execute_summary_task(app: FastAPI, store, task: dict) -> None:
+    """串行执行单个摘要任务: running → 生成/增量更新摘要 → done/failed。
+    结果写入 customer_summaries 表, task.result 存 JSON 摘要供轮询展示。"""
+    task_id = task["id"]
+    try:
+        store.update_summary_task(task_id, status="running")
+        from app.profile.summarizer import summarize_customer
+        llm = getattr(app.state, "llm", None) or CloudLLM()
+        result = summarize_customer(store, llm, task["customer_id"])
+        store.update_summary_task(task_id, status="done",
+                                  result=json.dumps(result, ensure_ascii=False))
+    except Exception as e:
+        log.warning("summary task %s 失败: %s", task_id, e)
+        store.update_summary_task(task_id, status="failed", error=str(e)[:300])
+
+
 def worker_loop(app: FastAPI) -> None:
-    """常驻循环: 串行消费 reply_tasks 与 tiering_tasks (回复优先); 空循环 sleep 1s。"""
+    """常驻循环: 串行消费 reply_tasks / tiering_tasks / summary_tasks (回复优先); 空循环 sleep 1s。"""
     store = _build_store()
     while True:
         try:
@@ -91,6 +107,10 @@ def worker_loop(app: FastAPI) -> None:
             tier_task = store.next_pending_tiering_task()
             if tier_task is not None:
                 _execute_tiering_task(app, store, tier_task)
+                continue
+            summary_task = store.next_pending_summary_task()
+            if summary_task is not None:
+                _execute_summary_task(app, store, summary_task)
                 continue
             time.sleep(POLL_INTERVAL_SEC)
         except Exception:

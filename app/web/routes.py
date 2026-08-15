@@ -379,10 +379,46 @@ async def customer_detail(customer_id: str, request: Request):
         (customer_id,)).fetchall()
     profile = store.get_profile(customer_id)
     tier_history = store.get_tier_history(customer_id)
+    summary = store.get_customer_summary(customer_id)
     return request.app.state.templates.TemplateResponse(
         request, "chat.html",
         {"customer_id": customer_id, "customer": dict(customer) if customer else None,
-         "chats": chats, "profile": profile, "tier_history": tier_history},
+         "chats": chats, "profile": profile, "tier_history": tier_history,
+         "summary": summary},
+    )
+
+
+@router.post("/customers/{customer_id}/summarize")
+async def customer_summarize(customer_id: str, request: Request):
+    """customer-summary: 创建摘要任务 (worker 异步生成/增量更新), 返回轮询片段。
+    仅生成不覆盖画像。"""
+    store = _store(request)
+    task_id = store.create_summary_task(customer_id)
+    return request.app.state.templates.TemplateResponse(
+        request, "summary_polling.html", {"task_id": task_id},
+    )
+
+
+@router.get("/api/summary/status/{task_id}")
+async def summary_status(task_id: str, request: Request):
+    """customer-summary: 轮询端点。pending/running → 处理中片段(继续轮询);
+    done → 摘要卡片(停止轮询); failed → 错误片段。"""
+    store = _store(request)
+    task = store.get_summary_task(task_id)
+    if task is None:
+        return HTMLResponse('<p class="muted">任务不存在或已过期</p>')
+    if task["status"] in ("pending", "running"):
+        return request.app.state.templates.TemplateResponse(
+            request, "summary_polling.html", {"task_id": task_id})
+    if task["status"] == "failed":
+        return request.app.state.templates.TemplateResponse(
+            request, "summary.html",
+            {"customer_id": task["customer_id"], "summary": None, "error": task["error"]})
+    # done: 从 customer_summaries 读最新摘要展示
+    summary = store.get_customer_summary(task["customer_id"])
+    return request.app.state.templates.TemplateResponse(
+        request, "summary.html",
+        {"customer_id": task["customer_id"], "summary": summary, "error": None},
     )
 
 

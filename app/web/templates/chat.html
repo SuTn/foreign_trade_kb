@@ -24,6 +24,11 @@
     <button class="btn" id="analyze-btn">生成客户分析</button>
   </section>
 </div>
+<h2>对话摘要</h2>
+<div id="summary">
+  {% with summary=summary %}{% include "summary.html" %}{% endwith %}
+</div>
+<button class="btn" hx-post="/customers/{{ customer_id }}/summarize" hx-target="#summary" hx-swap="innerHTML">生成/刷新摘要</button>
 <h2>分层历史</h2>
 <div id="tier-history">
   {% with history=tier_history %}{% include "tier_history.html" %}{% endwith %}

@@ -621,3 +621,34 @@ table.data-table {
   margin-bottom: 6px;
 }
 .reply-controls .input { width: auto; padding: 3px 8px; font-size: 12px; }
+
+/* ---- customer-summary: 对话摘要卡片 ---- */
+.summary-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.summary-card .summary-overview {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.summary-card .summary-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 14px;
+}
+.summary-card .summary-fields dt {
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.summary-card .summary-fields dd {
+  margin: 0;
+  word-break: break-word;
+}

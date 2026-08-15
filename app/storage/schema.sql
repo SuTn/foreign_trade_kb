@@ -81,3 +81,24 @@ CREATE TABLE IF NOT EXISTS customer_tier_history(
   source TEXT,                -- auto | manual
   created_at INTEGER);
 CREATE INDEX IF NOT EXISTS idx_tier_history_customer ON customer_tier_history(customer_id, created_at);
+-- 历史对话智能摘要 (customer-summary): 按客户聚合的结构化摘要
+CREATE TABLE IF NOT EXISTS customer_summaries(
+  customer_id TEXT PRIMARY KEY,
+  overview TEXT,          -- 自由文本概述
+  intent_vehicle TEXT,    -- 意向车型
+  budget_range TEXT,      -- 预算区间
+  target_country TEXT,    -- 目标国家
+  concerns TEXT,          -- 核心顾虑
+  follow_up TEXT,         -- 待跟进事项
+  updated_at INTEGER,
+  last_ts INTEGER);       -- 增量游标: 已处理到的最大消息时间戳 (0=尚未增量)
+-- 摘要异步任务 (customer-summary): 与 reply_tasks 同构, worker 串行消费
+CREATE TABLE IF NOT EXISTS summary_tasks(
+  id TEXT PRIMARY KEY,
+  customer_id TEXT,
+  status TEXT,            -- pending | running | done | failed
+  result TEXT,            -- JSON 摘要
+  error TEXT,
+  created_at INTEGER,
+  updated_at INTEGER);
+CREATE INDEX IF NOT EXISTS idx_summary_tasks_status ON summary_tasks(status, created_at);

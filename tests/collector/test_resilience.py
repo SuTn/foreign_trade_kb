@@ -132,18 +132,21 @@ def test_run_once_transient_between_fatals_resets_count(tmp_data):
 
 
 def test_message_vector_key_is_per_message():
-    """同会话同日多条消息使用独立向量键, 互不覆盖; 无 msg_id 回退 (chatId, day)。"""
+    """同会话同日多条消息使用独立向量键, 互不覆盖; 无 msg_id 回退 (chatId, day, ts) 含时间戳防碰撞。"""
     from app.collector.scanner import _msg_vector_key
     assert _msg_vector_key("c1", "m1", 1700000000) != _msg_vector_key("c1", "m2", 1700000000)
     assert _msg_vector_key("c1", "m1", 1700000000).startswith("c1:")
     assert _msg_vector_key("c1", "m1", 1700000000) == "c1:m1"
     assert _msg_vector_key("c1", "", 1700000000) == _msg_vector_key("c1", None, 1700000000)
-    assert _msg_vector_key("c1", None, 1700000000) == f"c1:{__import__('time').strftime('%Y-%m-%d', __import__('time').gmtime(1700000000))}"
-    assert _msg_vector_key("c1", None, 0) == "c1:unknown"
+    # 无 msg_id 时含时间戳, 同日不同 ts 不碰撞
+    assert _msg_vector_key("c1", None, 1700000000) != _msg_vector_key("c1", None, 1700000001)
+    assert _msg_vector_key("c1", None, 1700000000) == f"c1:{__import__('time').strftime('%Y-%m-%d', __import__('time').gmtime(1700000000))}:1700000000"
+    assert _msg_vector_key("c1", None, 0) == "c1:unknown:0"
 
 
 def test_upsert_uses_per_message_vector_key(tmp_data):
-    """_upsert_one 向量键改为 per-message; metadata 保持 chat_id/day。"""
+    """_upsert_one 向量键改为 per-message; metadata 保持 chat_id/day。
+    C1: 向量化入队, 由 _flush_vectors_sync 后台消费。"""
     from app.collector.scanner import Scanner
     seen = []
 
@@ -160,8 +163,47 @@ def test_upsert_uses_per_message_vector_key(tmp_data):
     sc = Scanner(None, RecStore(), RecVector())
     sc._upsert_one({"chatId": "c1", "id": "m1", "fromMe": False, "body": "hello",
                     "timestamp": 1700000000, "type": "chat", "body_present": True})
+    # 向量化已入队, 尚未消费
+    assert len(sc._vector_pending) == 1
+    assert sc._vector_pending[0][0] == "c1:m1"
+    assert sc._vector_pending[0][2] == {"chat_id": "c1", "day": "2023-11-14"}
+    # 后台消费后写入向量库
+    sc._flush_vectors_sync()
     assert seen and seen[0][0] == "c1:m1"
     assert seen[0][2] == {"chat_id": "c1", "day": "2023-11-14"}
+    assert sc._vector_pending == []
+
+
+def test_drain_vectors_flushes_in_executor(tmp_data):
+    """C1: _drain_vectors 把待向量化队列交给 executor 消费, 不阻塞事件循环。"""
+    import asyncio
+    from app.collector.scanner import Scanner
+    seen = []
+
+    class RecVector:
+        def upsert_message_vector(self, key, text, metadata):
+            seen.append((key, text, metadata))
+
+    class RecStore:
+        def upsert_chat(self, c):
+            pass
+        def upsert_message(self, m):
+            pass
+
+    sc = Scanner(None, RecStore(), RecVector())
+    sc._vector_pending.append(("c1:m1", "hello", {"chat_id": "c1", "day": "2023-11-14"}))
+    sc._vector_pending.append(("c1:m2", "world", {"chat_id": "c1", "day": "2023-11-14"}))
+    asyncio.run(sc._drain_vectors())
+    assert len(seen) == 2
+    assert sc._vector_pending == []
+
+
+def test_drain_vectors_skips_when_empty(tmp_data):
+    """C1: 队列为空时 _drain_vectors 直接返回, 不启动 executor。"""
+    import asyncio
+    from app.collector.scanner import Scanner
+    sc = Scanner(None, None, None)
+    asyncio.run(sc._drain_vectors())  # 不应抛异常
 
 
 def test_clear_message_vectors_only_msg_col(tmp_data):

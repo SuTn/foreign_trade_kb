@@ -78,6 +78,7 @@ async def lifespan(app: FastAPI):
     app.state.llm = routes.CloudLLM()  # D3 单例; 走 routes 名字以便测试 monkeypatch 替换
     app.state.embedding_ready = threading.Event()
     store.mark_legacy_reply_tasks_failed()  # D7 (worker 起跑前清理)
+    store.mark_legacy_summary_tasks_failed()  # 摘要任务同构清理
     app.state.reply_worker = threading.Thread(target=worker_loop, args=(app,), daemon=True)
     app.state.reply_worker.start()
     threading.Thread(target=_warmup_models, args=(app,), daemon=True).start()
@@ -97,6 +98,16 @@ def create_app() -> FastAPI:
     settings.avatars_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/avatars", StaticFiles(directory=str(settings.avatars_dir.resolve())), name="avatars")
     templates = Jinja2Templates(directory=str(base/"templates"))
+    templates.env.filters["fmt_ts"] = _fmt_ts
     app.state.templates = templates
     app.include_router(router)
     return app
+
+
+def _fmt_ts(ts) -> str:
+    """把 unix 时间戳格式化为可读日期 (YYYY-MM-DD HH:MM); 非法/空返回原样。"""
+    import datetime
+    try:
+        return datetime.datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d %H:%M")
+    except (TypeError, ValueError, OSError):
+        return str(ts) if ts else ""

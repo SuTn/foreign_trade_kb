@@ -6,6 +6,19 @@ from app.config import settings
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
+# 版本化迁移 (S1): 每个 (user_version, [sql]) 表示一次 schema 变更。
+# schema.sql 是"当前完整 schema" (新库直接建全表); 旧库经此列表升级到当前版本。
+# 每个 ALTER 幂等 (列已存在时忽略), 用 PRAGMA user_version 记录已应用到的版本。
+MIGRATIONS: list[tuple[int, list[str]]] = [
+    (1, ["ALTER TABLE customers ADD COLUMN avatar_path TEXT"]),
+    (2, ["ALTER TABLE messages ADD COLUMN sender_name TEXT"]),
+    (3, ["ALTER TABLE backfill_requests ADD COLUMN attempts INTEGER DEFAULT 0"]),
+    (4, ["ALTER TABLE reply_tasks ADD COLUMN language TEXT"]),
+    (5, ["ALTER TABLE reply_tasks ADD COLUMN scenario TEXT"]),
+    (6, ["ALTER TABLE reply_tasks ADD COLUMN formality TEXT"]),
+    (7, ["ALTER TABLE customer_summaries ADD COLUMN last_ts INTEGER"]),
+]
+
 class SqliteStore(StructuredStore):
     def __init__(self, path: Path | None = None):
         self.path = path or settings.sqlite_path
@@ -17,38 +30,23 @@ class SqliteStore(StructuredStore):
         self._init_schema()
 
     def _init_schema(self):
+        # 1. 建全表 (幂等; IF NOT EXISTS) — 新库直接得到当前完整 schema
         self.conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
         self.conn.commit()
-        try:
-            self.conn.execute("ALTER TABLE customers ADD COLUMN avatar_path TEXT")
+        # 2. 版本化迁移: 从当前 user_version 应用到最新 (旧库补列)
+        current = self.conn.execute("PRAGMA user_version").fetchone()[0]
+        for version, statements in MIGRATIONS:
+            if version <= current:
+                continue
+            for stmt in statements:
+                try:
+                    self.conn.execute(stmt)
+                    self.conn.commit()
+                except sqlite3.OperationalError:
+                    pass  # 列已存在 (新库 schema.sql 已含) — 幂等
+            # version 为 int, f-string 无注入风险
+            self.conn.execute(f"PRAGMA user_version = {version}")
             self.conn.commit()
-        except sqlite3.OperationalError:
-            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
-        try:
-            self.conn.execute("ALTER TABLE messages ADD COLUMN sender_name TEXT")
-            self.conn.commit()
-        except sqlite3.OperationalError:
-            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
-        try:
-            self.conn.execute("ALTER TABLE backfill_requests ADD COLUMN attempts INTEGER DEFAULT 0")
-            self.conn.commit()
-        except sqlite3.OperationalError:
-            pass  # 列已存在 (新库 schema.sql 已含; 旧库由旧版 routes 建表缺列) — 幂等
-        try:
-            self.conn.execute("ALTER TABLE reply_tasks ADD COLUMN language TEXT")
-            self.conn.commit()
-        except sqlite3.OperationalError:
-            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
-        try:
-            self.conn.execute("ALTER TABLE reply_tasks ADD COLUMN scenario TEXT")
-            self.conn.commit()
-        except sqlite3.OperationalError:
-            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
-        try:
-            self.conn.execute("ALTER TABLE reply_tasks ADD COLUMN formality TEXT")
-            self.conn.commit()
-        except sqlite3.OperationalError:
-            pass  # 列已存在 (新库 schema.sql 已含) — 幂等
 
     def upsert_chat(self, chat: Chat):
         # 显示名/类型缺省 (如纯 DOM 增量) 时保留已有值, 仅刷新同步时间
@@ -97,6 +95,13 @@ class SqliteStore(StructuredStore):
         else:
             rows = self.conn.execute("SELECT * FROM messages WHERE chat_id=? ORDER BY ts DESC LIMIT ?",
                                      (chat_id, limit)).fetchall()
+        return [self._row_to_msg(r) for r in rows]
+
+    def list_messages_after(self, chat_id, after_ts, limit=200):
+        """取某会话 ts > after_ts 的消息 (时间正序), 供增量摘要取新消息。"""
+        rows = self.conn.execute(
+            "SELECT * FROM messages WHERE chat_id=? AND ts>? ORDER BY ts ASC LIMIT ?",
+            (chat_id, after_ts, limit)).fetchall()
         return [self._row_to_msg(r) for r in rows]
 
     def search_fts(self, table, query, limit=20):
@@ -399,3 +404,71 @@ class SqliteStore(StructuredStore):
             "JOIN messages m ON m.chat_id = cm.chat_id "
             "WHERE m.ts >= ?", (cutoff,)).fetchall()
         return [r["customer_id"] for r in rows]
+
+    # ---- customer-summary: 历史对话结构化摘要 ----
+    def upsert_customer_summary(self, customer_id: str, data: dict, last_ts: int | None = None) -> None:
+        """写入/更新客户结构化摘要 (customer_summaries 表)。data 含 overview/intent_vehicle 等字段。
+        last_ts 为增量游标 (已处理到的最大消息时间戳); 缺省保留原值。"""
+        if last_ts is None:
+            cur = self.conn.execute(
+                "SELECT last_ts FROM customer_summaries WHERE customer_id=?", (customer_id,)).fetchone()
+            last_ts = cur["last_ts"] if cur else 0
+        self.conn.execute(
+            "INSERT INTO customer_summaries VALUES(?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(customer_id) DO UPDATE SET "
+            "overview=excluded.overview, intent_vehicle=excluded.intent_vehicle, "
+            "budget_range=excluded.budget_range, target_country=excluded.target_country, "
+            "concerns=excluded.concerns, follow_up=excluded.follow_up, updated_at=excluded.updated_at, "
+            "last_ts=excluded.last_ts",
+            (customer_id, data.get("overview", ""), data.get("intent_vehicle", ""),
+             data.get("budget_range", ""), data.get("target_country", ""),
+             data.get("concerns", ""), data.get("follow_up", ""), int(time.time()), last_ts))
+        self.conn.commit()
+
+    def get_customer_summary(self, customer_id: str) -> dict | None:
+        """读取客户结构化摘要; 无则返回 None。"""
+        r = self.conn.execute(
+            "SELECT * FROM customer_summaries WHERE customer_id=?", (customer_id,)).fetchone()
+        if not r:
+            return None
+        return dict(r)
+
+    def get_customer_summary_last_ts(self, customer_id: str) -> int:
+        """读取客户摘要的增量游标 (已处理到的最大消息 ts); 无摘要返回 0。"""
+        r = self.conn.execute(
+            "SELECT last_ts FROM customer_summaries WHERE customer_id=?", (customer_id,)).fetchone()
+        return r["last_ts"] if r and r["last_ts"] is not None else 0
+
+    # ---- customer-summary: 摘要异步任务 (worker 串行消费) ----
+    def create_summary_task(self, customer_id: str) -> str:
+        task_id = uuid.uuid4().hex
+        now = int(time.time())
+        self.conn.execute(
+            "INSERT INTO summary_tasks VALUES(?,?,?,?,?,?,?)",
+            (task_id, customer_id, "pending", None, None, now, now))
+        self.conn.commit()
+        return task_id
+
+    def get_summary_task(self, task_id: str) -> dict | None:
+        r = self.conn.execute("SELECT * FROM summary_tasks WHERE id=?", (task_id,)).fetchone()
+        return dict(r) if r else None
+
+    def next_pending_summary_task(self) -> dict | None:
+        r = self.conn.execute(
+            "SELECT * FROM summary_tasks WHERE status='pending' "
+            "ORDER BY created_at ASC, rowid ASC LIMIT 1").fetchone()
+        return dict(r) if r else None
+
+    def update_summary_task(self, task_id: str, *, status=None, result=None, error=None):
+        self.conn.execute(
+            "UPDATE summary_tasks SET status=COALESCE(?,status), result=COALESCE(?,result), "
+            "error=COALESCE(?,error), updated_at=? WHERE id=?",
+            (status, result, error, int(time.time()), task_id))
+        self.conn.commit()
+
+    def mark_legacy_summary_tasks_failed(self):
+        self.conn.execute(
+            "UPDATE summary_tasks SET status='failed', "
+            "error='进程重启遗留任务已清理', updated_at=? "
+            "WHERE status IN ('pending','running')", (int(time.time()),))
+        self.conn.commit()
