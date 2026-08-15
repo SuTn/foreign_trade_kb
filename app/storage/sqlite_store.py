@@ -439,6 +439,43 @@ class SqliteStore(StructuredStore):
             "SELECT last_ts FROM customer_summaries WHERE customer_id=?", (customer_id,)).fetchone()
         return r["last_ts"] if r and r["last_ts"] is not None else 0
 
+    # ---- workspace-live-refresh: 客户最近活跃 + 未读 (settings 表记最后查看时间) ----
+    def get_last_seen(self, customer_id: str) -> int:
+        """读取客户工作台最后查看时间 (settings.ws_last_seen:{customer_id}); 无则 0。"""
+        r = self.conn.execute(
+            "SELECT value FROM settings WHERE key=?", (f"ws_last_seen:{customer_id}",)).fetchone()
+        if not r or not r["value"]:
+            return 0
+        try:
+            return int(r["value"])
+        except (TypeError, ValueError):
+            return 0
+
+    def set_last_seen(self, customer_id: str, ts: int):
+        """记录客户工作台最后查看时间 (视为已读)。"""
+        self.conn.execute(
+            "INSERT INTO settings(key, value, updated_at) VALUES(?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            (f"ws_last_seen:{customer_id}", str(ts), int(time.time())))
+        self.conn.commit()
+
+    def get_customer_recent_activity(self, customer_id: str) -> dict:
+        """返回客户最近活跃信息: 最近消息时间 + 未读数 (非我方且 ts > 最后查看时间)。
+        未读定义: from_me=0 且 ts > last_seen。"""
+        last_seen = self.get_last_seen(customer_id)
+        # 该客户全部关联会话的最近消息时间
+        recent = self.conn.execute(
+            "SELECT MAX(m.ts) AS last_ts FROM messages m "
+            "JOIN customer_chat_map c ON c.chat_id=m.chat_id "
+            "WHERE c.customer_id=?", (customer_id,)).fetchone()
+        last_ts = recent["last_ts"] if recent and recent["last_ts"] is not None else 0
+        # 未读数: 非我方且 ts > last_seen
+        unread = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM messages m "
+            "JOIN customer_chat_map c ON c.chat_id=m.chat_id "
+            "WHERE c.customer_id=? AND m.from_me=0 AND m.ts>?", (customer_id, last_seen)).fetchone()
+        return {"last_ts": last_ts, "unread": unread["n"] if unread else 0}
+
     # ---- customer-summary: 摘要异步任务 (worker 串行消费) ----
     def create_summary_task(self, customer_id: str) -> str:
         task_id = uuid.uuid4().hex

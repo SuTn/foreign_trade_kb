@@ -378,16 +378,23 @@ async def customers(request: Request):
 
 @router.get("/workspace")
 async def workspace(request: Request):
-    """workspace-layout: 三栏工作台 — 左栏客户列表 + 空中栏/右栏 (点客户渐进加载)。"""
+    """workspace-layout: 三栏工作台 — 左栏客户列表 + 空中栏/右栏 (点客户渐进加载)。
+    workspace-live-refresh: 左栏按最近活跃降序, 附最近消息时间与未读数。"""
     store = _store(request)
     rows = store.conn.execute("SELECT * FROM customers").fetchall()
     profiles_by_customer: dict[str, str] = {}
     for r in store.conn.execute("SELECT customer_id, field, value FROM profiles").fetchall():
         s = profiles_by_customer.setdefault(r["customer_id"], "")
         profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
+    # 每个客户最近活跃 (最近消息时间 + 未读数), 按最近活跃降序
+    activity: dict[str, dict] = {}
+    for r in rows:
+        activity[r["id"]] = store.get_customer_recent_activity(r["id"])
+    customers = sorted(rows, key=lambda c: activity.get(c["id"], {}).get("last_ts", 0), reverse=True)
     return request.app.state.templates.TemplateResponse(
         request, "workspace.html",
-        {"customers": rows, "profiles_by_customer": profiles_by_customer})
+        {"customers": customers, "profiles_by_customer": profiles_by_customer,
+         "activity": activity})
 
 
 @router.get("/workspace/customer/{customer_id}/chat")
@@ -422,11 +429,44 @@ async def workspace_chat(customer_id: str, request: Request):
         row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
         kind = row["kind"] if row else None
     session_id = store.find_or_create_reply_session(customer_id, chat_id) if chat_id else None
+    # workspace-live-refresh: 打开聊天视为已读, 记录最后查看时间
+    if chat_id:
+        store.set_last_seen(customer_id, int(time.time()))
     return request.app.state.templates.TemplateResponse(
         request, "workspace_chat.html",
         {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs, "kind": kind,
          "session_id": session_id, "chats": chat_list,
          "customer": dict(customer) if customer else None})
+
+
+@router.get("/workspace/customer/{customer_id}/chat/poll")
+async def workspace_chat_poll(customer_id: str, request: Request):
+    """workspace-live-refresh: 中栏增量拉取 — 返回 ts > after_ts 的新消息气泡片段。
+    前端轮询追加 (hx-swap=beforeend)。无新消息返回空片段。"""
+    store = _store(request)
+    after_raw = request.query_params.get("after_ts") or "0"
+    try:
+        after_ts = int(after_raw)
+    except (TypeError, ValueError):
+        after_ts = 0
+    chat_id = (request.query_params.get("chat_id") or "").strip()
+    if not chat_id:
+        # 缺省取该客户置信度最高会话
+        chats = store.conn.execute(
+            "SELECT chat_id FROM customer_chat_map WHERE customer_id=? "
+            "ORDER BY match_confidence DESC", (customer_id,)).fetchall()
+        chat_id = chats[0]["chat_id"] if chats else None
+    if not chat_id:
+        return HTMLResponse("")
+    msgs = store.list_messages_after(chat_id, after_ts, limit=200)
+    if not msgs:
+        return HTMLResponse("")
+    kind = None
+    row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
+    kind = row["kind"] if row else None
+    return request.app.state.templates.TemplateResponse(
+        request, "workspace_chat_poll.html",
+        {"messages": msgs, "kind": kind})
 
 
 @router.get("/workspace/customer/{customer_id}/side")
@@ -532,6 +572,21 @@ async def customer_analyze(customer_id: str, request: Request):
         analysis = f"分析失败: {e}"
     return request.app.state.templates.TemplateResponse(
         request, "analysis.html", {"customer_id": customer_id, "analysis": analysis},
+    )
+
+
+@router.post("/customers/{customer_id}/followup")
+async def customer_followup(customer_id: str, request: Request):
+    """workspace-reply-profile: 生成结构化跟进建议 (优先级/下一步/话术/时机/依据)。"""
+    store = _store(request)
+    from app.profile.followup import generate_followup
+    try:
+        followup = generate_followup(store, CloudLLM(), customer_id)
+    except Exception as e:
+        followup = {"priority": "medium", "next_action": f"生成失败: {e}",
+                    "suggested_message": "", "best_time": "", "reason": ""}
+    return request.app.state.templates.TemplateResponse(
+        request, "followup.html", {"customer_id": customer_id, "followup": followup},
     )
 
 

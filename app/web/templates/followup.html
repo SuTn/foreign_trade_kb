@@ -1,0 +1,31 @@
+<div class="followup-card">
+  <div class="followup-head">
+    <span class="followup-label">跟进建议</span>
+    <span class="followup-priority priority-{{ followup['priority'] }}">{{ {'high':'高优先级','medium':'中优先级','low':'低优先级'}.get(followup['priority'], followup['priority']) }}</span>
+  </div>
+  {% if followup['next_action'] %}
+  <div class="followup-row">
+    <span class="followup-key">下一步动作</span>
+    <span class="followup-val">{{ followup['next_action'] }}</span>
+  </div>
+  {% endif %}
+  {% if followup['suggested_message'] %}
+  <div class="followup-row">
+    <span class="followup-key">建议话术</span>
+    <span class="followup-val followup-msg" id="followup-msg-{{ customer_id }}">{{ followup['suggested_message'] }}</span>
+    <button class="btn btn-sm btn-ghost" data-copy="followup-msg-{{ customer_id }}">复制</button>
+  </div>
+  {% endif %}
+  {% if followup['best_time'] %}
+  <div class="followup-row">
+    <span class="followup-key">最佳时机</span>
+    <span class="followup-val">{{ followup['best_time'] }}</span>
+  </div>
+  {% endif %}
+  {% if followup['reason'] %}
+  <div class="followup-row">
+    <span class="followup-key">判断依据</span>
+    <span class="followup-val">{{ followup['reason'] }}</span>
+  </div>
+  {% endif %}
+</div>

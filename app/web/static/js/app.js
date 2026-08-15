@@ -46,6 +46,7 @@ function initCustomerFilter() {
 document.addEventListener("DOMContentLoaded", function () {
   initCustomerFilter();
   initWorkspaceFilter();
+  initWorkspacePoll();
   // workspace-layout: 左栏客户选中态 (事件委托, 兼容 htmx 动态插入)
   document.addEventListener("click", function (e) {
     var row = e.target.closest ? e.target.closest(".ws-customer") : null;
@@ -74,16 +75,68 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 // workspace-layout: 左栏客户搜索过滤
+// workspace-reply-profile: 扩展支持意向等级筛选 (与搜索叠加)
 function initWorkspaceFilter() {
   var input = document.getElementById("ws-search");
+  var tier = document.getElementById("ws-tier");
   if (!input) return;
-  input.addEventListener("input", function () {
+  function apply() {
     var q = (input.value || "").trim().toLowerCase();
+    var tt = tier ? tier.value : "";
     document.querySelectorAll(".ws-customer").forEach(function (row) {
       var hay = (row.getAttribute("data-search") || "").toLowerCase();
-      row.style.display = (!q || hay.indexOf(q) >= 0) ? "" : "none";
+      var tierMatch = true;
+      if (tt) {
+        var m = hay.match(/intent_level=([a-d])/);
+        var cur = m ? m[1].toUpperCase() : "";
+        tierMatch = (tt === "untiered") ? (cur === "") : (cur === tt);
+      }
+      var ok = (!q || hay.indexOf(q) >= 0) && tierMatch;
+      row.style.display = ok ? "" : "none";
     });
-  });
+  }
+  input.addEventListener("input", apply);
+  if (tier) tier.addEventListener("change", apply);
+}
+// workspace-live-refresh: 中栏聊天增量轮询 (JS setInterval + htmx.ajax, 5s)
+function initWorkspacePoll() {
+  var POLL_MS = 5000;
+  var pollEl = document.querySelector(".ws-chat-poll");
+  if (!pollEl) return;
+  var chatId = pollEl.getAttribute("data-chat-id");
+  var customerId = pollEl.getAttribute("data-customer-id");
+  if (!chatId || !customerId) return;
+  var msgBox = document.getElementById("messages");
+  if (!msgBox) return;
+  function latestTs() {
+    var rows = msgBox.querySelectorAll(".chat-row[data-ts]");
+    var max = 0;
+    rows.forEach(function (r) {
+      var t = parseInt(r.getAttribute("data-ts"), 10);
+      if (!isNaN(t) && t > max) max = t;
+    });
+    return max;
+  }
+  function poll() {
+    var after = latestTs();
+    var url = "/workspace/customer/" + customerId + "/chat/poll?after_ts=" + after + "&chat_id=" + encodeURIComponent(chatId);
+    var done = false;
+    function onSwap() {
+      if (done) return;
+      done = true;
+      document.removeEventListener("htmx:afterSwap", onSwap);
+      // 新消息入场动画 + 滚动到底部
+      var rows = msgBox.querySelectorAll(".chat-row[data-ts]");
+      var last = rows[rows.length - 1];
+      if (last) {
+        last.classList.add("new-msg");
+        msgBox.scrollTop = msgBox.scrollHeight;
+      }
+    }
+    document.addEventListener("htmx:afterSwap", onSwap);
+    htmx.ajax("GET", url, { target: "#messages", swap: "beforeend" });
+  }
+  setInterval(poll, POLL_MS);
 }
 // reply-workflow-optimization: 一键复制 (事件委托, 兼容 htmx 动态插入的 DOM)
 document.addEventListener("click", function (e) {

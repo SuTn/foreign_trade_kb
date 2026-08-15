@@ -1,5 +1,8 @@
 {% for c in customers %}
-<div class="ws-customer"
+{% set act = activity.get(c['id'], {}) if activity else {} %}
+{% set last_ts = act.get('last_ts', 0) %}
+{% set unread = act.get('unread', 0) %}
+<div class="ws-customer {{ 'has-unread' if unread else '' }}"
      data-search="{{ c['display_name'] or '' }} {{ c['phone'] or '' }} {{ c['company'] or '' }} {{ c['country'] or '' }} {{ profiles_by_customer.get(c['id'], '') }}"
      hx-get="/workspace/customer/{{ c['id'] }}/chat"
      hx-target="#ws-center" hx-swap="innerHTML"
@@ -15,6 +18,10 @@
       {% set tier_val = tier.split('intent_level=')[1].split(' ')[0] %}
       {% if tier_val %}<span class="tier-badge tier-{{ tier_val }}">{{ tier_val }}</span>{% endif %}
     {% endif %}
+  </div>
+  <div class="ws-customer-meta">
+    {% if last_ts %}<span class="ws-customer-time muted">{{ last_ts|int|ws_time }}</span>{% endif %}
+    {% if unread %}<span class="ws-unread-badge">{{ unread }}</span>{% endif %}
   </div>
 </div>
 {% else %}

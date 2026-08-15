@@ -6,6 +6,14 @@
     <div class="ws-left-header">
       <h2>客户</h2>
       <input id="ws-search" class="input" type="text" placeholder="搜索客户...">
+      <select id="ws-tier" class="input ws-tier-select">
+        <option value="">全部等级</option>
+        <option value="A">A · 高意向</option>
+        <option value="B">B · 中意向</option>
+        <option value="C">C · 低意向</option>
+        <option value="D">D · 观望</option>
+        <option value="untiered">未分层</option>
+      </select>
     </div>
     <div class="ws-customer-list" id="ws-customer-list">
       {% include "workspace_customers.html" %}

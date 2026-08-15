@@ -99,6 +99,7 @@ def create_app() -> FastAPI:
     app.mount("/avatars", StaticFiles(directory=str(settings.avatars_dir.resolve())), name="avatars")
     templates = Jinja2Templates(directory=str(base/"templates"))
     templates.env.filters["fmt_ts"] = _fmt_ts
+    templates.env.filters["ws_time"] = _ws_time
     app.state.templates = templates
     app.include_router(router)
     return app
@@ -111,3 +112,20 @@ def _fmt_ts(ts) -> str:
         return datetime.datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d %H:%M")
     except (TypeError, ValueError, OSError):
         return str(ts) if ts else ""
+
+
+def _ws_time(ts) -> str:
+    """工作台左栏相对时间: 今天显示 HH:MM, 昨天显示 '昨天', 更早显示 MM-DD。"""
+    import datetime
+    try:
+        dt = datetime.datetime.fromtimestamp(int(ts))
+    except (TypeError, ValueError, OSError):
+        return ""
+    now = datetime.datetime.now()
+    if dt.date() == now.date():
+        return dt.strftime("%H:%M")
+    if (now.date() - dt.date()).days == 1:
+        return "昨天"
+    if dt.year == now.year:
+        return dt.strftime("%m-%d")
+    return dt.strftime("%Y-%m-%d")

@@ -723,3 +723,132 @@ def test_workspace_side_loads_profile_and_summary(tmp_data):
     assert "画像" in r.text
     assert "LED-100" in r.text
 
+
+def test_workspace_live_poll_returns_new_messages(tmp_data):
+    """workspace-live-refresh: /chat/poll?after_ts= 增量拉取新消息。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                       ("c1", "a1", "c1", "Alice", "single", 0))
+    store.conn.execute(
+        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        ("m1", "a1", "c1", 0, None, 1000, "chat", "旧消息", 1, 0, None))
+    store.conn.execute(
+        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        ("m2", "a1", "c1", 0, None, 2000, "chat", "新消息", 1, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    # after_ts=1000 → 只返回 ts>1000 的新消息
+    r = client.get("/workspace/customer/cust1/chat/poll?after_ts=1000&chat_id=c1")
+    assert r.status_code == 200
+    assert "新消息" in r.text
+    assert "旧消息" not in r.text
+    # after_ts=2000 → 无新消息, 返回空
+    r2 = client.get("/workspace/customer/cust1/chat/poll?after_ts=2000&chat_id=c1")
+    assert r2.status_code == 200
+    assert r2.text.strip() == ""
+
+
+def test_workspace_orders_by_activity_and_unread(tmp_data):
+    """workspace-live-refresh: /workspace 左栏按最近活跃降序 + 未读徽标。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust2", "Bob", "10087", None, None, 0, None))
+    # cust1 有会话 + 新消息 (未读), cust2 无会话
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                       ("c1", "a1", "c1", "Alice", "single", 0))
+    store.conn.execute(
+        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        ("m1", "a1", "c1", 0, None, 2000, "chat", "客户新消息", 1, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/workspace")
+    assert r.status_code == 200
+    # cust1 有未读徽标 (非我方消息且 ts>last_seen=0)
+    assert "ws-unread-badge" in r.text
+    # cust1 (有活跃) 排在 cust2 (无活跃) 之前
+    assert r.text.index("Alice") < r.text.index("Bob")
+
+
+def test_workspace_chat_sets_last_seen(tmp_data):
+    """workspace-live-refresh: 打开聊天记录 last_seen, 未读清零。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                       ("c1", "a1", "c1", "Alice", "single", 0))
+    store.conn.execute(
+        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        ("m1", "a1", "c1", 0, None, 2000, "chat", "客户消息", 1, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    client.get("/workspace/customer/cust1/chat")
+    # 打开后 last_seen 已更新, 未读应为 0
+    act = store.get_customer_recent_activity("cust1")
+    assert act["unread"] == 0
+    assert act["last_ts"] == 2000
+
+
+def test_workspace_has_tier_filter(tmp_data):
+    """workspace-reply-profile: /workspace 左栏含意向等级筛选下拉。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/workspace")
+    assert r.status_code == 200
+    assert 'id="ws-tier"' in r.text
+    assert "全部等级" in r.text
+    assert "未分层" in r.text
+
+
+def test_customer_followup_endpoint(tmp_data, monkeypatch):
+    """workspace-reply-profile: /customers/{id}/followup 生成结构化跟进建议。"""
+    from app.web import routes
+    from app.storage.sqlite_store import SqliteStore
+
+    class FakeLLM:
+        def generate(self, s, u, max_tokens=1024):
+            return ('{"priority": "high", "next_action": "今天报价", '
+                    '"suggested_message": "您好, 报价如下", "best_time": "今天下午", '
+                    '"reason": "客户询价意向高"}')
+
+    monkeypatch.setattr(routes, "CloudLLM", FakeLLM)
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.commit()
+    from app.storage.interfaces import Message
+    store.upsert_message(Message("m1", "a1", "c1", False, None, 1, "chat", "want LED", True, 0))
+    client = TestClient(create_app())
+    r = client.post("/customers/cust1/followup")
+    assert r.status_code == 200
+    assert "跟进建议" in r.text
+    assert "高优先级" in r.text
+    assert "今天报价" in r.text
+    assert "建议话术" in r.text
+
+
+def test_followup_parse_fallback_on_bad_json():
+    """workspace-reply-profile: LLM 输出非 JSON 时回退为文本展示。"""
+    from app.profile.followup import _parse_followup
+    d = _parse_followup("客户意向很高, 建议尽快跟进")
+    assert d["priority"] == "medium"
+    assert "客户意向很高" in d["reason"]
+

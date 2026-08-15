@@ -21,9 +21,9 @@
   {% endfor %}
 </div>
 {% endif %}
-<div class="ws-chat-messages" id="messages">
+<div class="ws-chat-messages" id="messages" data-chat-id="{{ chat_id }}" data-customer-id="{{ customer_id }}">
   {% for m in messages %}
-  <div class="chat-row {{ 'mine' if m.from_me else 'theirs' }}">
+  <div class="chat-row {{ 'mine' if m.from_me else 'theirs' }}" data-ts="{{ m.ts }}">
     <div class="chat-bubble {{ 'mine' if m.from_me else 'theirs' }}">
       <div class="chat-meta">{% if kind == 'group' %}{{ '我' if m.from_me else (m.sender_name or '未知') }} · {{ m.ts }}{% else %}{{ '我' if m.from_me else '客户' }} · {{ m.ts }}{% endif %}</div>
       <div class="chat-text">{{ m.body or '(无正文)' }}</div>
@@ -59,6 +59,8 @@
   <p class="empty">该客户暂无关联会话或消息</p>
   {% endfor %}
 </div>
+<!-- workspace-live-refresh: 中栏增量轮询 (JS 驱动, 见 app.js) -->
+<div class="ws-chat-poll" data-chat-id="{{ chat_id }}" data-customer-id="{{ customer_id }}"></div>
 <!-- 中栏加载完成后自动加载右栏 (workspace-layout) -->
 <div hx-get="/workspace/customer/{{ customer_id }}/side"
      hx-target="#ws-right" hx-swap="innerHTML"

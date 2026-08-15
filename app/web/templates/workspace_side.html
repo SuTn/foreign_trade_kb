@@ -32,7 +32,14 @@
 <!-- AI 建议 -->
 <div class="ws-tab-pane" id="pane-analysis" role="tabpanel">
   <section class="ws-side-block">
-    <h3>AI 建议</h3>
+    <h3>跟进建议</h3>
+    <div id="followup">
+      <p class="muted">点击下方按钮生成结构化跟进建议（优先级/下一步/话术/时机）</p>
+    </div>
+    <button class="btn btn-sm" hx-post="/customers/{{ customer_id }}/followup" hx-target="#followup" hx-swap="innerHTML">生成跟进建议</button>
+  </section>
+  <section class="ws-side-block">
+    <h3>客户分析</h3>
     <div id="analysis" hx-post="/customers/{{ customer_id }}/analyze" hx-trigger="click from:#analyze-btn" hx-swap="innerHTML">
       <p class="muted">点击下方按钮生成客户分析（兴趣点/活跃度/跟进建议）</p>
     </div>
