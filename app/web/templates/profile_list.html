@@ -1,37 +1,71 @@
-<h3>意向等级 / 标签（人工编辑标记为 manual）</h3>
-<form hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
-  <input type="hidden" name="field" value="intent_level">
-  <select name="value">
-    <option value="">未分层</option>
-    <option value="A">A</option>
-    <option value="B">B</option>
-    <option value="C">C</option>
-    <option value="D">D</option>
-  </select>
-  <button type="submit">保存等级</button>
-</form>
-<form hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
-  <input type="hidden" name="field" value="tags">
-  <input type="text" name="value" placeholder="标签,逗号分隔" size="30">
-  <button type="submit">保存标签</button>
-</form>
-<h3>画像（人工编辑标记为 manual）</h3>
-<ul>
-  {% for p in profile %}
-  <li>
-    <form hx-post="/customers/{{ p.customer_id }}/profile" hx-target="closest li" hx-swap="outerHTML" style="display:inline">
-      <input type="hidden" name="field" value="{{ p.field }}">
-      <input type="text" name="value" value="{{ p.value }}" size="30">
-      <span>({{ p.source }}, {{ p.updated_at }})</span>
-      <button type="submit">保存</button>
-    </form>
-  </li>
-  {% else %}
-  <li>暂无画像</li>
-  {% endfor %}
-</ul>
-<form hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
-  <input type="text" name="field" placeholder="新字段名" required>
-  <input type="text" name="value" placeholder="字段值" required>
-  <button type="submit">新增字段</button>
-</form>
+{% set level = profile|selectattr('field','equalto','intent_level')|map(attribute='value')|first|default('') %}
+{% set tags_raw = profile|selectattr('field','equalto','tags')|map(attribute='value')|first|default('') %}
+{% set tags = tags_raw.split(',') if tags_raw else [] %}
+
+<!-- 意向等级 -->
+<div class="profile-tier">
+  <div class="profile-tier-head">
+    <span class="profile-tier-label">意向等级</span>
+    <span class="tier-badge tier-{{ level if level else 'none' }}">{{ level if level else '未分层' }}</span>
+  </div>
+  <form class="profile-inline-form" hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
+    <input type="hidden" name="field" value="intent_level">
+    <select name="value" class="input profile-tier-select">
+      <option value="" {% if not level %}selected{% endif %}>未分层</option>
+      <option value="A" {% if level=='A' %}selected{% endif %}>A · 高意向</option>
+      <option value="B" {% if level=='B' %}selected{% endif %}>B · 中意向</option>
+      <option value="C" {% if level=='C' %}selected{% endif %}>C · 低意向</option>
+      <option value="D" {% if level=='D' %}selected{% endif %}>D · 观望</option>
+    </select>
+    <button type="submit" class="btn btn-sm">保存</button>
+  </form>
+</div>
+
+<!-- 标签 -->
+<div class="profile-tags">
+  <div class="profile-tags-head">
+    <span class="profile-tags-label">标签</span>
+    <button class="btn btn-ghost btn-sm" type="button" onclick="this.closest('.profile-tags').querySelector('.profile-tags-edit').classList.toggle('hidden')">编辑</button>
+  </div>
+  <div class="profile-tags-cloud">
+    {% for t in tags %}
+      {% if t %}<span class="profile-tag">{{ t }}</span>{% endif %}
+    {% else %}
+      <span class="muted">暂无标签</span>
+    {% endfor %}
+  </div>
+  <form class="profile-inline-form profile-tags-edit hidden" hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
+    <input type="hidden" name="field" value="tags">
+    <input type="text" name="value" class="input" placeholder="标签,逗号分隔" value="{{ profile|selectattr('field','equalto','tags')|map(attribute='value')|first|default('') }}">
+    <button type="submit" class="btn btn-sm">保存</button>
+  </form>
+</div>
+
+<!-- 画像字段 -->
+<div class="profile-fields">
+  <div class="profile-fields-head">
+    <span class="profile-fields-label">画像字段</span>
+    <button class="btn btn-ghost btn-sm" type="button" onclick="this.closest('.profile-fields').querySelector('.profile-fields-add').classList.toggle('hidden')">新增字段</button>
+  </div>
+  <div class="profile-fields-grid">
+    {% for p in profile %}
+      {% if p.field not in ('intent_level', 'tags') %}
+      <div class="profile-field">
+        <span class="profile-field-name">{{ p.field }}</span>
+        <form class="profile-field-edit" hx-post="/customers/{{ p.customer_id }}/profile" hx-target="closest .profile-field" hx-swap="outerHTML">
+          <input type="hidden" name="field" value="{{ p.field }}">
+          <input type="text" name="value" value="{{ p.value }}" class="input profile-field-input">
+          <button type="submit" class="btn btn-sm">保存</button>
+        </form>
+      </div>
+      {% endif %}
+    {% else %}
+      <div class="muted">暂无画像字段</div>
+    {% endfor %}
+  </div>
+  <form class="profile-fields-add hidden" hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
+    <input type="text" name="field" class="input" placeholder="新字段名" required>
+    <input type="text" name="value" class="input" placeholder="字段值" required>
+    <button type="submit" class="btn btn-sm">新增</button>
+  </form>
+</div>

@@ -1,0 +1,22 @@
+{% for c in customers %}
+<div class="ws-customer"
+     data-search="{{ c['display_name'] or '' }} {{ c['phone'] or '' }} {{ c['company'] or '' }} {{ c['country'] or '' }} {{ profiles_by_customer.get(c['id'], '') }}"
+     hx-get="/workspace/customer/{{ c['id'] }}/chat"
+     hx-target="#ws-center" hx-swap="innerHTML"
+     hx-trigger="click">
+  <div class="avatar-holder" data-name="{{ c['display_name'] or c['id'] }}">
+    {% if c['avatar_path'] %}<img class="avatar" src="{{ c['avatar_path'] }}" alt="头像">{% endif %}
+  </div>
+  <div class="ws-customer-body">
+    <div class="ws-customer-name">{{ c['display_name'] or c['id'] }}</div>
+    <div class="ws-customer-sub muted">{{ c['company'] or c['country'] or c['phone'] or '-' }}</div>
+    {% set tier = profiles_by_customer.get(c['id'], '') %}
+    {% if 'intent_level=' in tier %}
+      {% set tier_val = tier.split('intent_level=')[1].split(' ')[0] %}
+      {% if tier_val %}<span class="tier-badge tier-{{ tier_val }}">{{ tier_val }}</span>{% endif %}
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<p class="empty">暂无客户</p>
+{% endfor %}

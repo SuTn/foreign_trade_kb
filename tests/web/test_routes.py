@@ -666,3 +666,60 @@ def test_reply_session_history_passed_on_second_generate(tmp_data, monkeypatch):
     assert "第一问" in prompts[1]     # 历史 user 进入上下文
     assert "第一轮回复" in prompts[1]  # 历史 assistant 进入上下文
 
+
+def test_workspace_renders_customer_list(tmp_data):
+    """workspace-layout: /workspace 渲染三栏骨架 + 左栏客户列表。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/workspace")
+    assert r.status_code == 200
+    assert "ws-center" in r.text
+    assert "ws-right" in r.text
+    assert "Alice" in r.text
+    assert "选择左侧客户" in r.text
+
+
+def test_workspace_chat_loads_messages(tmp_data):
+    """workspace-layout: /workspace/customer/{id}/chat 加载中栏聊天。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                       ("c1", "a1", "c1", "Alice", "single", 0))
+    store.conn.execute(
+        "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        ("m1", "a1", "c1", 0, None, 1000, "chat", "想买 LED-100", 1, 0, None))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/workspace/customer/cust1/chat")
+    assert r.status_code == 200
+    assert "ws-chat-messages" in r.text
+    assert "想买 LED-100" in r.text
+    assert "生成回复" in r.text
+
+
+def test_workspace_side_loads_profile_and_summary(tmp_data):
+    """workspace-layout: /workspace/customer/{id}/side 加载右栏画像+摘要。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute(
+        "INSERT INTO customer_summaries VALUES(?,?,?,?,?,?,?,?,?)",
+        ("cust1", "客户想买 LED-100", "LED-100", "3万", "俄罗斯", "物流", "确认库存", 0, 100))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/workspace/customer/cust1/side")
+    assert r.status_code == 200
+    assert "对话摘要" in r.text
+    assert "AI 建议" in r.text
+    assert "画像" in r.text
+    assert "LED-100" in r.text
+

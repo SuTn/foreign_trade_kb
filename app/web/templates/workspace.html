@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}客户工作台{% endblock %}
+{% block content %}
+<div class="workspace">
+  <aside class="ws-left">
+    <div class="ws-left-header">
+      <h2>客户</h2>
+      <input id="ws-search" class="input" type="text" placeholder="搜索客户...">
+    </div>
+    <div class="ws-customer-list" id="ws-customer-list">
+      {% include "workspace_customers.html" %}
+    </div>
+  </aside>
+  <section class="ws-center" id="ws-center">
+    <div class="ws-placeholder">← 选择左侧客户查看聊天</div>
+  </section>
+  <aside class="ws-right" id="ws-right">
+    <div class="ws-placeholder">选择客户后显示画像与 AI 建议</div>
+  </aside>
+</div>
+{% endblock %}

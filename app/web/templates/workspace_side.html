@@ -1,0 +1,41 @@
+<div class="ws-side-header">
+  <h2>{{ customer['display_name'] or customer_id if customer else customer_id }}</h2>
+  <div class="muted">{{ customer['phone'] or '-' }} · {{ customer['company'] or '-' }} · {{ customer['country'] or '-' }}</div>
+</div>
+
+<div class="ws-tabs" role="tablist">
+  <button class="ws-tab active" data-tab="profile" role="tab">画像</button>
+  <button class="ws-tab" data-tab="summary" role="tab">摘要</button>
+  <button class="ws-tab" data-tab="analysis" role="tab">AI 建议</button>
+</div>
+
+<!-- 画像 -->
+<div class="ws-tab-pane active" id="pane-profile" role="tabpanel">
+  <section class="ws-side-block">
+    <h3>意向等级 / 标签</h3>
+    <div id="profile">{% include "profile_list.html" %}</div>
+    <button class="btn btn-sm" hx-post="/customers/{{ customer_id }}/refresh-profile" hx-target="#profile" hx-swap="innerHTML">重新抽取画像</button>
+  </section>
+</div>
+
+<!-- 摘要 -->
+<div class="ws-tab-pane" id="pane-summary" role="tabpanel">
+  <section class="ws-side-block">
+    <h3>对话摘要</h3>
+    <div id="summary">
+      {% with summary=summary %}{% include "summary.html" %}{% endwith %}
+    </div>
+    <button class="btn btn-sm" hx-post="/customers/{{ customer_id }}/summarize" hx-target="#summary" hx-swap="innerHTML">生成/刷新摘要</button>
+  </section>
+</div>
+
+<!-- AI 建议 -->
+<div class="ws-tab-pane" id="pane-analysis" role="tabpanel">
+  <section class="ws-side-block">
+    <h3>AI 建议</h3>
+    <div id="analysis" hx-post="/customers/{{ customer_id }}/analyze" hx-trigger="click from:#analyze-btn" hx-swap="innerHTML">
+      <p class="muted">点击下方按钮生成客户分析（兴趣点/活跃度/跟进建议）</p>
+    </div>
+    <button class="btn btn-sm" id="analyze-btn">生成客户分析</button>
+  </section>
+</div>

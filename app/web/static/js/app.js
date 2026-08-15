@@ -45,10 +45,46 @@ function initCustomerFilter() {
 }
 document.addEventListener("DOMContentLoaded", function () {
   initCustomerFilter();
+  initWorkspaceFilter();
+  // workspace-layout: 左栏客户选中态 (事件委托, 兼容 htmx 动态插入)
+  document.addEventListener("click", function (e) {
+    var row = e.target.closest ? e.target.closest(".ws-customer") : null;
+    if (!row) return;
+    document.querySelectorAll(".ws-customer.active").forEach(function (r) {
+      r.classList.remove("active");
+    });
+    row.classList.add("active");
+  });
+  // workspace-layout: 右栏 Tab 切换 (事件委托, 兼容 htmx 动态插入)
+  document.addEventListener("click", function (e) {
+    var tab = e.target.closest ? e.target.closest(".ws-tab") : null;
+    if (!tab) return;
+    var name = tab.getAttribute("data-tab");
+    if (!name) return;
+    var scope = tab.closest(".ws-right");
+    if (!scope) return;
+    scope.querySelectorAll(".ws-tab").forEach(function (t) { t.classList.remove("active"); });
+    scope.querySelectorAll(".ws-tab-pane").forEach(function (p) { p.classList.remove("active"); });
+    tab.classList.add("active");
+    var pane = scope.querySelector("#pane-" + name);
+    if (pane) pane.classList.add("active");
+  });
   document.querySelectorAll(".avatar-holder[data-name]").forEach(function (h) {
     if (!h.querySelector("img")) { h.appendChild(placeholderAvatar(h.getAttribute("data-name"), h.getAttribute("data-avatar-class"))); }
   });
 });
+// workspace-layout: 左栏客户搜索过滤
+function initWorkspaceFilter() {
+  var input = document.getElementById("ws-search");
+  if (!input) return;
+  input.addEventListener("input", function () {
+    var q = (input.value || "").trim().toLowerCase();
+    document.querySelectorAll(".ws-customer").forEach(function (row) {
+      var hay = (row.getAttribute("data-search") || "").toLowerCase();
+      row.style.display = (!q || hay.indexOf(q) >= 0) ? "" : "none";
+    });
+  });
+}
 // reply-workflow-optimization: 一键复制 (事件委托, 兼容 htmx 动态插入的 DOM)
 document.addEventListener("click", function (e) {
   var btn = e.target.closest ? e.target.closest("[data-copy]") : null;

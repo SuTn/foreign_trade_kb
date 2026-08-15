@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Request, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from app.config import settings
 from app.collector.scanner import read_status, is_alive
@@ -260,8 +260,9 @@ async def search_page(request: Request):
     return request.app.state.templates.TemplateResponse(request, "search.html", {})
 
 
-async def _cleanup_params(request: Request) -> dict:
-    """从 JSON body 或表单解析 {mode, chat_id, days} (htmx 表单默认 form-encoded)。"""
+async def _parse_body(request: Request) -> dict:
+    """统一解析请求体: JSON body 或表单 (htmx 默认 form-encoded) → dict。
+    JSON 解析失败或非 dict 时回退空 dict。"""
     if request.headers.get("content-type", "").startswith("application/json"):
         try:
             body = await request.json()
@@ -271,6 +272,12 @@ async def _cleanup_params(request: Request) -> dict:
             body = {}
     else:
         body = await request.form()
+    return body
+
+
+async def _cleanup_params(request: Request) -> dict:
+    """从 JSON body 或表单解析 {mode, chat_id, days} (htmx 表单默认 form-encoded)。"""
+    body = await _parse_body(request)
 
     def _safe_str(v):
         return v if isinstance(v, str) else ""
@@ -367,6 +374,72 @@ async def customers(request: Request):
         {"customers": rows, "profiles_by_customer": profiles_by_customer,
          "countries": countries, "companies": companies,
          "tiering_levels": tiering_levels})
+
+
+@router.get("/workspace")
+async def workspace(request: Request):
+    """workspace-layout: 三栏工作台 — 左栏客户列表 + 空中栏/右栏 (点客户渐进加载)。"""
+    store = _store(request)
+    rows = store.conn.execute("SELECT * FROM customers").fetchall()
+    profiles_by_customer: dict[str, str] = {}
+    for r in store.conn.execute("SELECT customer_id, field, value FROM profiles").fetchall():
+        s = profiles_by_customer.setdefault(r["customer_id"], "")
+        profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
+    return request.app.state.templates.TemplateResponse(
+        request, "workspace.html",
+        {"customers": rows, "profiles_by_customer": profiles_by_customer})
+
+
+@router.get("/workspace/customer/{customer_id}/chat")
+async def workspace_chat(customer_id: str, request: Request):
+    """workspace-layout: 中栏客户聊天窗口 — 取该客户关联会话消息。
+    支持 ?chat_id= 指定会话; 缺省取置信度最高会话。返回全部会话供切换。"""
+    store = _store(request)
+    customer = store.conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
+    chats = store.conn.execute(
+        "SELECT chat_id, match_confidence FROM customer_chat_map WHERE customer_id=? "
+        "ORDER BY match_confidence DESC", (customer_id,)).fetchall()
+    # 补充每个会话的显示名与类型 (群聊/私聊)
+    chat_list = []
+    for c in chats:
+        row = store.conn.execute("SELECT display_name, kind FROM chats WHERE id=?", (c["chat_id"],)).fetchone()
+        chat_list.append({
+            "chat_id": c["chat_id"],
+            "match_confidence": c["match_confidence"],
+            "name": (row["display_name"] if row and row["display_name"] else c["chat_id"]),
+            "kind": (row["kind"] if row else "single"),
+        })
+    # 指定会话或取置信度最高
+    req_chat = (request.query_params.get("chat_id") or "").strip()
+    if req_chat and any(c["chat_id"] == req_chat for c in chat_list):
+        chat_id = req_chat
+    else:
+        chat_id = chat_list[0]["chat_id"] if chat_list else None
+    msgs = store.list_messages(chat_id, limit=50) if chat_id else []
+    msgs = sorted(msgs, key=lambda m: m.ts)
+    kind = None
+    if chat_id:
+        row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
+        kind = row["kind"] if row else None
+    session_id = store.find_or_create_reply_session(customer_id, chat_id) if chat_id else None
+    return request.app.state.templates.TemplateResponse(
+        request, "workspace_chat.html",
+        {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs, "kind": kind,
+         "session_id": session_id, "chats": chat_list,
+         "customer": dict(customer) if customer else None})
+
+
+@router.get("/workspace/customer/{customer_id}/side")
+async def workspace_side(customer_id: str, request: Request):
+    """workspace-layout: 右栏客户画像 + 对话摘要 + AI 建议。"""
+    store = _store(request)
+    customer = store.conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
+    profile = store.get_profile(customer_id)
+    summary = store.get_customer_summary(customer_id)
+    return request.app.state.templates.TemplateResponse(
+        request, "workspace_side.html",
+        {"customer_id": customer_id, "customer": dict(customer) if customer else None,
+         "profile": profile, "summary": summary})
 
 
 @router.get("/customers/{customer_id}")
@@ -563,10 +636,7 @@ async def knowledge_search(request: Request):
 async def _reply_params(request: Request) -> dict:
     """从 JSON body 或表单解析 {customer_id, chat_id, message, style, session_id,
     language, scenario, formality}。"""
-    if request.headers.get("content-type", "").startswith("application/json"):
-        body = await request.json()
-    else:
-        body = await request.form()
+    body = await _parse_body(request)
     keys = ("customer_id", "chat_id", "message", "style", "session_id",
             "language", "scenario", "formality")
     return {k: (body.get(k) or "") for k in keys}
@@ -602,34 +672,33 @@ async def _reply_session(request: Request, customer_id: str, chat_id: str,
     return store.find_or_create_reply_session(customer_id, chat_id)
 
 
-@router.post("/api/reply")
-async def reply(request: Request):
+async def _create_reply_task(request: Request, mode: str) -> Response:
+    """创建回复任务 (W3 合并逻辑): mode=generate 追加会话历史;
+    mode=regenerate 只读历史不追加, 并用 NEXT_STYLE 轮换风格。"""
     p = await _reply_params(request)
     store = _store(request)
     session_id = await _reply_session(request, p["customer_id"], p["chat_id"], p.get("session_id"))
+    style = p.get("style") or "default"
+    if mode == "regenerate":
+        style = NEXT_STYLE.get(style, "default")
     task_id = store.create_reply_task(
-        p["customer_id"], p["chat_id"], p["message"],
-        p.get("style") or "default", session_id, mode="generate",
+        p["customer_id"], p["chat_id"], p["message"], style, session_id, mode=mode,
         language=p.get("language") or None, scenario=p.get("scenario") or None,
         formality=p.get("formality") or None)
     return request.app.state.templates.TemplateResponse(
         request, "reply_polling.html", {"task_id": task_id})
+
+
+@router.post("/api/reply")
+async def reply(request: Request):
+    """reply-assist: 创建回复任务 (mode=generate, 追加会话历史)。"""
+    return await _create_reply_task(request, "generate")
 
 
 @router.post("/api/reply/regenerate")
 async def reply_regenerate(request: Request):
-    """reply-assist: 重生成任务 (mode=regenerate, worker 不追加会话历史);
-    保留语种/场景/语气 (D3)。"""
-    p = await _reply_params(request)
-    store = _store(request)
-    session_id = await _reply_session(request, p["customer_id"], p["chat_id"], p.get("session_id"))
-    next_style = NEXT_STYLE.get(p.get("style") or "default", "default")
-    task_id = store.create_reply_task(
-        p["customer_id"], p["chat_id"], p["message"], next_style, session_id, mode="regenerate",
-        language=p.get("language") or None, scenario=p.get("scenario") or None,
-        formality=p.get("formality") or None)
-    return request.app.state.templates.TemplateResponse(
-        request, "reply_polling.html", {"task_id": task_id})
+    """reply-assist: 重生成别名 — 强制 mode=regenerate (向后兼容)。"""
+    return await _create_reply_task(request, "regenerate")
 
 
 @router.get("/api/reply/status/{task_id}")
