@@ -380,6 +380,7 @@ class Scanner:
         if self.page is None:
             return 0
         max_chats = max_chats or settings.auto_scan_max_chats
+        max_chats = min(max_chats, 200)  # 防御: 硬上限 200, 避免设置被改成超大值导致扫描卡死
         settle = settle or settings.auto_scan_settle_sec
         from app.collector.idb_walk import walk_idb
         data = await walk_idb(self.cdp, self.account_id)
@@ -623,15 +624,12 @@ class Scanner:
             self._scan_runtime = None
 
     def _chat_lookup_query(self, chat_id: str) -> str | None:
-        """发送/跟随时用于搜索框的查询串: 显示名, 回退手机号。@lid 先经 contacts 归一。"""
+        """发送/跟随时用于搜索框的查询串。手机号唯一, 优先用手机号 (避免同名联系人搜错);
+        @lid 先经 contacts 归一; 最后回退显示名。"""
         from app.profile.matcher import phone_from_jid
-        try:
-            r = self.store.conn.execute(
-                "SELECT display_name FROM chats WHERE id=?", (chat_id,)).fetchone()
-            if r and r["display_name"]:
-                return r["display_name"]
-        except Exception:
-            pass
+        phone = phone_from_jid(chat_id)
+        if phone:
+            return phone
         if chat_id and str(chat_id).endswith("@lid"):
             try:
                 r2 = self.store.conn.execute(
@@ -640,7 +638,14 @@ class Scanner:
                     return r2["phone"]
             except Exception:
                 pass
-        return phone_from_jid(chat_id)
+        try:
+            r = self.store.conn.execute(
+                "SELECT display_name FROM chats WHERE id=?", (chat_id,)).fetchone()
+            if r and r["display_name"]:
+                return r["display_name"]
+        except Exception:
+            pass
+        return None
 
     async def _drain_send_requests(self):
         """消费发送任务 (纯文字)。send_enabled 关闭时直接 failed (防绕过)。"""

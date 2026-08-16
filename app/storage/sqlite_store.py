@@ -433,14 +433,18 @@ class SqliteStore(StructuredStore):
         return result
 
     def resolve_chat_ids_by_names(self, names: list[str]) -> dict[str, str]:
-        """按显示名反查 chat_id (chats + contacts)。返回 {name: chat_id}。"""
+        """按显示名反查 chat_id (chats + contacts)。返回 {name: chat_id}。
+        @lid 经 contacts.phone 归一为 @c.us, 保证与 customer_chat_map 的 chat_id 一致。"""
         out = {}
         for r in self.conn.execute(
                 "SELECT id, display_name FROM chats WHERE display_name IS NOT NULL").fetchall():
             out.setdefault(r["display_name"], r["id"])
         for r in self.conn.execute(
-                "SELECT jid, display_name FROM contacts WHERE display_name IS NOT NULL").fetchall():
-            out.setdefault(r["display_name"], r["jid"])
+                "SELECT jid, display_name, phone FROM contacts WHERE display_name IS NOT NULL").fetchall():
+            jid = r["jid"]
+            if jid and str(jid).endswith("@lid") and r["phone"]:
+                jid = f'{r["phone"]}@c.us'
+            out.setdefault(r["display_name"], jid)
         return out
 
     # ---- customer-intent-tiering: 分层历史 + 分层任务 ----
