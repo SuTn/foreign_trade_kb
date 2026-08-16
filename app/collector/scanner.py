@@ -684,19 +684,34 @@ class Scanner:
             return
         query = self._chat_lookup_query(follow)
         if not query:
-            print(f"[follow] 无法定位会话 {follow} (无显示名/手机号)", flush=True)
+            msg = f"无法定位会话 {follow}"
+            print(f"[follow] {msg}", flush=True)
+            self._record_follow(msg)
             return
         from app.collector.sender import open_chat
         try:
             opened = await open_chat(self.page, query)
         except Exception as e:
-            print(f"[follow] 打开会话异常 {follow}: {e}", flush=True)
+            msg = f"打开会话异常 {follow}: {e}"
+            print(f"[follow] {msg}", flush=True)
+            self._record_follow(msg)
             return
         if opened:
             self._current_chat_id = follow  # 仅切换成功才更新, 避免消息归属错位
-            print(f"[follow] 已切换到 {follow} (query={query})", flush=True)
+            msg = f"已切换到 {follow} (query={query})"
         else:
-            print(f"[follow] 打开会话失败 {follow} (query={query})", flush=True)
+            msg = f"打开会话失败 {follow} (query={query})"
+        print(f"[follow] {msg}", flush=True)
+        self._record_follow(msg)
+
+    def _record_follow(self, msg: str):
+        """把 follow 结果写进 status.json 便于诊断 (不覆盖其他字段)。"""
+        try:
+            s = read_status(settings.status_path) or {}
+            s["follow"] = {"msg": msg, "ts": time.time()}
+            write_status(settings.status_path, s)
+        except Exception:
+            pass
 
     async def _sync_chat_previews(self):
         """读左栏会话列表 → 映射 chat_id → 写 chat_previews。失败静默。"""

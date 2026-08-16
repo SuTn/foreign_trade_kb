@@ -42,24 +42,31 @@ async def send_text(page: Page, text: str) -> bool:
 async def open_chat(page: Page, query: str) -> bool:
     """点击聊天列表里标题匹配的会话行打开会话 (query 为显示名)。
 
-    用与 scan_all_chats 相同的行选择器 (已验证可用), 通过 JS 匹配标题并点击,
-    避免搜索框选择器在 WhatsApp 改版后失效。
+    先用 JS 找到标题匹配的行索引, 再用 Playwright 原生 click (真实鼠标事件,
+    React 应用可靠触发), 避免合成点击不生效。行选择器与 scan_all_chats 一致。
     """
-    js = (
+    find_js = (
         "(function(){"
-        "var target=" + json.dumps(query) + ";"
+        "var target=" + json.dumps(query, ensure_ascii=False) + ";"
         "var rows=document.querySelectorAll('[data-testid=\"chat-list\"] div[role=\"row\"]');"
         "for(var i=0;i<rows.length;i++){"
         "var t=rows[i].querySelector('span[title]');"
         "var name=t?(t.getAttribute('title')||'').trim():'';"
         "if(name && (name===target || name.indexOf(target)!==-1 || target.indexOf(name)!==-1)){"
-        "rows[i].click();return true;"
+        "return i;"
         "}"
         "}"
-        "return false;"
+        "return -1;"
         "})()"
     )
     try:
-        return bool(await page.evaluate(js))
+        idx = await page.evaluate(find_js)
+    except Exception:
+        return False
+    if not isinstance(idx, int) or idx < 0:
+        return False
+    try:
+        await page.locator(CHAT_LIST_ROW_SELECTOR).nth(idx).click(timeout=8000)
+        return True
     except Exception:
         return False
