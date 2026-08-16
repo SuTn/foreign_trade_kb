@@ -363,6 +363,86 @@ class SqliteStore(StructuredStore):
             "UPDATE scan_requests SET attempts=attempts+1, status='failed' WHERE id=?", (req_id,))
         self.conn.commit()
 
+    # ---- whatsapp-bidirectional-chat: 发送任务 (send_requests, 镜像 scan_requests) ----
+    def create_send_request(self, chat_id: str, text: str) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO send_requests(chat_id, text, requested_at, updated_at) VALUES(?,?,?,?)",
+            (chat_id, text, int(time.time()), int(time.time())))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def get_send_request(self, req_id: int) -> dict | None:
+        r = self.conn.execute("SELECT * FROM send_requests WHERE id=?", (req_id,)).fetchone()
+        return dict(r) if r else None
+
+    def next_pending_send_request(self) -> dict | None:
+        r = self.conn.execute(
+            "SELECT * FROM send_requests WHERE done=0 AND attempts<3 ORDER BY id ASC LIMIT 1").fetchone()
+        return dict(r) if r else None
+
+    def mark_send_request_running(self, req_id: int):
+        self.conn.execute(
+            "UPDATE send_requests SET status='running', updated_at=? WHERE id=?",
+            (int(time.time()), req_id))
+        self.conn.commit()
+
+    def mark_send_request_done(self, req_id: int):
+        self.conn.execute(
+            "UPDATE send_requests SET status='done', done=1, updated_at=? WHERE id=?",
+            (int(time.time()), req_id))
+        self.conn.commit()
+
+    def mark_send_request_failed(self, req_id: int, error: str):
+        """直接失败并终止重试 (如开关关闭)。"""
+        self.conn.execute(
+            "UPDATE send_requests SET status='failed', error=?, done=1, updated_at=? WHERE id=?",
+            (error, int(time.time()), req_id))
+        self.conn.commit()
+
+    def bump_send_request_attempts(self, req_id: int, error: str):
+        """瞬时失败 attempts+1; 满 3 次后 next_pending 不再取 (done 保持 0, 与 scan 同口径)。"""
+        self.conn.execute(
+            "UPDATE send_requests SET attempts=attempts+1, status='failed', error=?, updated_at=? WHERE id=?",
+            (error, int(time.time()), req_id))
+        self.conn.commit()
+
+    # ---- whatsapp-bidirectional-chat: 会话列表实时预览 ----
+    def upsert_chat_previews(self, previews: list[dict]):
+        now = int(time.time())
+        for p in previews:
+            self.conn.execute(
+                "INSERT INTO chat_previews VALUES(?,?,?,?) ON CONFLICT(chat_id) DO UPDATE SET "
+                "unread_count=excluded.unread_count, preview=excluded.preview, updated_at=excluded.updated_at",
+                (p["chat_id"], p.get("unread_count") or 0, p.get("preview"), now))
+        self.conn.commit()
+
+    def get_customers_chat_preview(self, customer_ids: list[str]) -> dict[str, dict]:
+        """批量返回 {customer_id: {unread, preview}}; unread 为各会话未读之和。"""
+        if not customer_ids:
+            return {}
+        result = {cid: {"unread": 0, "preview": None} for cid in customer_ids}
+        ph = ",".join("?" * len(customer_ids))
+        for r in self.conn.execute(
+            "SELECT cm.customer_id, p.unread_count, p.preview FROM chat_previews p "
+            "JOIN customer_chat_map cm ON cm.chat_id=p.chat_id "
+            "WHERE cm.customer_id IN (%s)" % ph, customer_ids).fetchall():
+            cur = result[r["customer_id"]]
+            cur["unread"] += r["unread_count"] or 0
+            if r["preview"] and cur["preview"] is None:
+                cur["preview"] = r["preview"]
+        return result
+
+    def resolve_chat_ids_by_names(self, names: list[str]) -> dict[str, str]:
+        """按显示名反查 chat_id (chats + contacts)。返回 {name: chat_id}。"""
+        out = {}
+        for r in self.conn.execute(
+                "SELECT id, display_name FROM chats WHERE display_name IS NOT NULL").fetchall():
+            out.setdefault(r["display_name"], r["id"])
+        for r in self.conn.execute(
+                "SELECT jid, display_name FROM contacts WHERE display_name IS NOT NULL").fetchall():
+            out.setdefault(r["display_name"], r["jid"])
+        return out
+
     # ---- customer-intent-tiering: 分层历史 + 分层任务 ----
     def add_tier_history(self, customer_id, intent_level, tags, source):
         self.conn.execute(
