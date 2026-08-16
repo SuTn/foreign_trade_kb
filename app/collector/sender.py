@@ -42,6 +42,9 @@ async def open_chat(page: Page, query: str) -> bool:
     """通过搜索框定位并打开会话 (query 为显示名或手机号)。返回是否成功。"""
     search = await _first(page, SEARCH_BOX_SELECTORS)
     await search.click()
+    # 清空可能残留的旧查询, 避免新 query 被追加导致匹配失败
+    await page.keyboard.press("Control+A")
+    await page.keyboard.press("Backspace")
     await page.keyboard.type(query)
     await page.wait_for_timeout(800)  # 等搜索结果出现
     row = page.locator(CHAT_LIST_ROW_SELECTOR).first

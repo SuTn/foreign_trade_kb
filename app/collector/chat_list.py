@@ -21,8 +21,13 @@ _CHAT_LIST_JS = """
       var n = parseInt((badge.textContent || '').trim(), 10);
       unread = isNaN(n) ? 1 : n;
     }
-    var p = r.querySelector('span[dir="auto"]');
-    var preview = p ? (p.textContent || '').trim() : '';
+    var spans = r.querySelectorAll('span[dir="auto"]');
+    var preview = '';
+    for (var k = spans.length - 1; k >= 0; k--) {
+      var tx = (spans[k].textContent || '').trim();
+      if (tx && tx !== name) { preview = tx; break; }
+    }
+    if (!preview && spans.length) preview = (spans[spans.length - 1].textContent || '').trim();
     out.push({name: name, unread: unread, preview: preview});
   }
   return out;

@@ -23,7 +23,8 @@
         <div class="progress"><div id="ws-tier-progress-bar" class="progress-bar" style="width:0%"></div></div>
       </div>
     </div>
-    <div class="ws-customer-list" id="ws-customer-list">
+    <div class="ws-customer-list" id="ws-customer-list"
+         hx-get="/workspace/customers" hx-trigger="every 3s" hx-swap="innerHTML">
       {% include "workspace_customers.html" %}
     </div>
   </aside>

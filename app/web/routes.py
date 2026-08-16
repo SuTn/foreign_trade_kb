@@ -1040,11 +1040,13 @@ async def send_status(task_id: str, request: Request):
     task = store.get_send_request(int(task_id)) if task_id.isdigit() else None
     if task is None:
         return HTMLResponse('<p class="muted">任务不存在或已过期</p>')
-    if task["status"] in ("pending", "running"):
+    if not task["done"]:
+        # done=0: pending/running 或失败待重试, 统一展示"发送中"继续轮询 (避免误报失败导致重复发送)
         return request.app.state.templates.TemplateResponse(
             request, "send_polling.html", {"task_id": task["id"]})
     if task["status"] == "failed":
-        return HTMLResponse(f'<p class="error">发送失败: {task["error"] or "未知错误"}</p>')
+        import html as _html
+        return HTMLResponse(f'<p class="error">发送失败: {_html.escape(task["error"] or "未知错误")}</p>')
     return HTMLResponse('<p class="ok">已发送</p>')
 
 

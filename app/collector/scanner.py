@@ -641,8 +641,14 @@ class Scanner:
         try:
             from app.collector.sender import open_chat, send_text
             query = self._chat_lookup_query(req["chat_id"])
-            if query:
-                await open_chat(self.page, query)
+            if not query:
+                self.store.mark_send_request_failed(req["id"], "无法定位会话 (无显示名/手机号)")
+                return
+            opened = await open_chat(self.page, query)
+            if not opened:
+                # 打不开目标会话就绝不发送, 防止发到当前打开的其他会话
+                self.store.mark_send_request_failed(req["id"], "无法打开目标会话 (搜索结果为空)")
+                return
             await send_text(self.page, req["text"])
             self.store.mark_send_request_done(req["id"])
         except Exception as e:
@@ -660,10 +666,11 @@ class Scanner:
             return
         from app.collector.sender import open_chat
         try:
-            await open_chat(self.page, query)
-            self._current_chat_id = follow
+            opened = await open_chat(self.page, query)
         except Exception:
-            pass  # 切换失败下轮重试
+            return  # 切换失败下轮重试
+        if opened:
+            self._current_chat_id = follow  # 仅切换成功才更新, 避免消息归属错位
 
     async def _sync_chat_previews(self):
         """读左栏会话列表 → 映射 chat_id → 写 chat_previews。失败静默。"""

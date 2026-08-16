@@ -23,6 +23,7 @@ document.addEventListener("DOMContentLoaded", function () {
       r.classList.remove("active");
     });
     row.classList.add("active");
+    _activeCustomerId = row.getAttribute("data-cid");
   });
   // workspace-layout: 右栏 Tab 切换 (事件委托, 兼容 htmx 动态插入)
   document.addEventListener("click", function (e) {
@@ -69,6 +70,7 @@ function initWorkspaceFilter() {
 // workspace-live-refresh: 中栏聊天增量轮询 (JS setInterval + htmx.ajax, 5s)
 // 注意: .ws-chat-poll 是点击客户后由 htmx 动态插入的, 需在每次 #ws-center 更新后重新初始化。
 var _wsPollTimer = null;
+var _activeCustomerId = null;
 function initWorkspacePoll() {
   var POLL_MS = 1000;
   // 清理旧轮询 (切换客户/会话时避免重复 setInterval)
@@ -114,6 +116,13 @@ function initWorkspacePoll() {
 document.addEventListener("htmx:afterSwap", function (e) {
   if (e.target && e.target.id === "ws-center") {
     initWorkspacePoll();
+  }
+});
+// whatsapp-bidirectional-chat: 左栏 3s 轮询刷新后恢复选中态
+document.addEventListener("htmx:afterSwap", function (e) {
+  if (e.target && e.target.id === "ws-customer-list" && _activeCustomerId) {
+    var row = document.querySelector('.ws-customer[data-cid="' + _activeCustomerId + '"]');
+    if (row) row.classList.add("active");
   }
 });
 // workspace-reply-panel: 点击消息"回复"按钮 → 填充底部回复面板并显示 (事件委托)
@@ -485,8 +494,9 @@ document.addEventListener("click", function (e) {
     if (sendBtn) {
       var ta = document.getElementById("ws-send-text");
       var chatId = document.getElementById("messages").getAttribute("data-chat-id");
-      doSend(chatId, ta ? ta.value.trim() : "");
-      if (ta) ta.value = "";
+      doSend(chatId, ta ? ta.value.trim() : "", null, function (ok) {
+        if (ok && ta) ta.value = "";  // 仅成功时清空, 失败保留文本便于重发
+      });
       return;
     }
     var direct = e.target.closest ? e.target.closest("[data-send-text]") : null;
