@@ -4,7 +4,9 @@ import re, uuid
 from app.storage.interfaces import StructuredStore
 
 def phone_from_jid(jid: str) -> str | None:
-    m = re.match(r"^(\d+)@", jid or "")
+    """从手机号 JID 提取数字。@c.us / @s.whatsapp.net 返回数字; @lid/@g.us 返回 None,
+    避免把 LID/群号误当成手机号 (这是 @lid 会话混入 customer_chat_map 的根源之一)。"""
+    m = re.match(r"^(\d+)@(?!lid$|g\.us$)", jid or "")
     return m.group(1) if m else None
 
 def is_lid_jid(jid: str) -> bool:

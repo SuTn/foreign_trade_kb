@@ -466,7 +466,7 @@ async def workspace_chat(customer_id: str, request: Request):
     customer = store.conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
     chats = store.conn.execute(
         "SELECT chat_id, match_confidence FROM customer_chat_map WHERE customer_id=? "
-        "ORDER BY match_confidence DESC", (customer_id,)).fetchall()
+        "ORDER BY match_confidence DESC, (chat_id LIKE '%@lid') ASC", (customer_id,)).fetchall()
     # 补充每个会话的显示名与类型 (群聊/私聊)
     chat_list = []
     for c in chats:

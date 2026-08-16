@@ -237,6 +237,15 @@ class Scanner:
                 from_me = (rec.get("from") == our_jid) if our_jid else from_me
             chat = _resolve_chat(rec, our_jid, self._current_chat_id)
             phone_chat = _resolve_phone_chat(chat, phone_by_lid, lids)
+            if phone_chat and str(phone_chat).endswith("@lid"):
+                # lid_to_phone 缺映射时回退查 contacts 表, 避免 @lid 会话 id 入库
+                try:
+                    r = self.store.conn.execute(
+                        "SELECT phone FROM contacts WHERE jid=?", (phone_chat,)).fetchone()
+                    if r and r["phone"]:
+                        phone_chat = f'{r["phone"]}@c.us'
+                except Exception:
+                    pass
             name = _resolve_chat_name(chat, phone_chat, groups, data["chats"],
                                       data["contacts"], dom_sender_name)
             sender_jid = (rec or {}).get("from") if rec else None
@@ -614,7 +623,7 @@ class Scanner:
             self._scan_runtime = None
 
     def _chat_lookup_query(self, chat_id: str) -> str | None:
-        """发送/跟随时用于搜索框的查询串: 显示名, 回退手机号。"""
+        """发送/跟随时用于搜索框的查询串: 显示名, 回退手机号。@lid 先经 contacts 归一。"""
         from app.profile.matcher import phone_from_jid
         try:
             r = self.store.conn.execute(
@@ -623,6 +632,14 @@ class Scanner:
                 return r["display_name"]
         except Exception:
             pass
+        if chat_id and str(chat_id).endswith("@lid"):
+            try:
+                r2 = self.store.conn.execute(
+                    "SELECT phone FROM contacts WHERE jid=?", (chat_id,)).fetchone()
+                if r2 and r2["phone"]:
+                    return r2["phone"]
+            except Exception:
+                pass
         return phone_from_jid(chat_id)
 
     async def _drain_send_requests(self):
