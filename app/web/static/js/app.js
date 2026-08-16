@@ -70,7 +70,7 @@ function initWorkspaceFilter() {
 // 注意: .ws-chat-poll 是点击客户后由 htmx 动态插入的, 需在每次 #ws-center 更新后重新初始化。
 var _wsPollTimer = null;
 function initWorkspacePoll() {
-  var POLL_MS = 5000;
+  var POLL_MS = 1000;
   // 清理旧轮询 (切换客户/会话时避免重复 setInterval)
   if (_wsPollTimer) { clearInterval(_wsPollTimer); _wsPollTimer = null; }
   var pollEl = document.querySelector(".ws-chat-poll");
@@ -454,5 +454,46 @@ document.addEventListener("click", function (e) {
   document.addEventListener("DOMContentLoaded", function () {
     initSettings();
     initScanControl();
+  });
+})();
+// whatsapp-bidirectional-chat: 发送 (输入框 + 建议卡片, 均带确认)
+(function () {
+  function doSend(chatId, text, statusEl, onDone) {
+    if (!text) return;
+    if (!window.confirm("发送给该客户：\n\n" + text)) return;
+    var box = statusEl || document.getElementById("ws-send-status");
+    if (box) box.innerHTML = '<div class="muted">发送中…</div>';
+    fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: text }) })
+      .then(function (r) { return r.text().then(function (t) { return { ok: r.ok, html: t }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          if (box) box.innerHTML = '<p class="error">发送被拒绝</p>';
+          if (onDone) onDone(false);
+          return;
+        }
+        if (box) {
+          box.innerHTML = res.html;
+          if (window.htmx) htmx.process(box);
+        }
+        if (onDone) onDone(true);
+      })
+      .catch(function () { if (box) box.innerHTML = '<p class="error">网络错误</p>'; if (onDone) onDone(false); });
+  }
+  document.addEventListener("click", function (e) {
+    var sendBtn = e.target.closest ? e.target.closest("#ws-send-btn") : null;
+    if (sendBtn) {
+      var ta = document.getElementById("ws-send-text");
+      var chatId = document.getElementById("messages").getAttribute("data-chat-id");
+      doSend(chatId, ta ? ta.value.trim() : "");
+      if (ta) ta.value = "";
+      return;
+    }
+    var direct = e.target.closest ? e.target.closest("[data-send-text]") : null;
+    if (direct) {
+      var old = direct.textContent;
+      doSend(direct.getAttribute("data-send-chat"), direct.getAttribute("data-send-text"), null,
+             function (ok) { direct.textContent = ok ? "已发送" : old; });
+    }
   });
 })();

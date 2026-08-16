@@ -77,3 +77,10 @@
 <div hx-get="/workspace/customer/{{ customer_id }}/side?chat_id={{ chat_id }}"
      hx-target="#ws-right" hx-swap="innerHTML"
      hx-trigger="load" hidden></div>
+{% if send_enabled %}
+<div class="ws-send-bar">
+  <textarea id="ws-send-text" class="input" rows="2" placeholder="输入要发送的消息…"></textarea>
+  <button class="btn" id="ws-send-btn" type="button">发送</button>
+  <div id="ws-send-status"></div>
+</div>
+{% endif %}

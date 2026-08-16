@@ -20,6 +20,11 @@
     <input type="hidden" name="scenario" value="{{ scenario|default('', true) }}">
     <input type="hidden" name="formality" value="{{ formality|default('', true) }}">
     <button class="btn" type="button" data-copy="reply-text">复制</button>
+    {% if send_enabled %}
+    <button class="btn" type="button"
+            data-send-text="{{ reply }}" data-send-chat="{{ chat_id }}"
+            data-send-customer="{{ customer_id }}">直接发送</button>
+    {% endif %}
     <button class="btn" hx-post="/api/reply/regenerate"
             hx-include="closest div"
             hx-target="closest div" hx-swap="innerHTML">重新生成</button>

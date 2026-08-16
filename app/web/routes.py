@@ -432,11 +432,12 @@ async def workspace(request: Request):
         profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
     # 每个客户最近活跃 (最近消息时间 + 未读数), 按最近活跃降序 (批量查询避免 N+1)
     activity = store.get_customers_recent_activity([r["id"] for r in rows])
+    previews = store.get_customers_chat_preview([r["id"] for r in rows])
     customers = sorted(rows, key=lambda c: activity.get(c["id"], {}).get("last_ts", 0), reverse=True)
     return request.app.state.templates.TemplateResponse(
         request, "workspace.html",
         {"customers": customers, "profiles_by_customer": profiles_by_customer,
-         "activity": activity})
+         "activity": activity, "previews": previews})
 
 
 @router.get("/workspace/customers")
@@ -449,11 +450,12 @@ async def workspace_customers(request: Request):
         s = profiles_by_customer.setdefault(r["customer_id"], "")
         profiles_by_customer[r["customer_id"]] = f"{s} {r['field']}={r['value']}"
     activity = store.get_customers_recent_activity([r["id"] for r in rows])
+    previews = store.get_customers_chat_preview([r["id"] for r in rows])
     customers = sorted(rows, key=lambda c: activity.get(c["id"], {}).get("last_ts", 0), reverse=True)
     return request.app.state.templates.TemplateResponse(
         request, "workspace_customers.html",
         {"customers": customers, "profiles_by_customer": profiles_by_customer,
-         "activity": activity})
+         "activity": activity, "previews": previews})
 
 
 @router.get("/workspace/customer/{customer_id}/chat")
