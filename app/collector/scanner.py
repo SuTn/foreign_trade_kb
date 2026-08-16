@@ -688,14 +688,19 @@ class Scanner:
             return
         query = self._chat_lookup_query(follow)
         if not query:
+            print(f"[follow] 无法定位会话 {follow} (无显示名/手机号)", flush=True)
             return
         from app.collector.sender import open_chat
         try:
             opened = await open_chat(self.page, query)
-        except Exception:
-            return  # 切换失败下轮重试
+        except Exception as e:
+            print(f"[follow] 打开会话异常 {follow}: {e}", flush=True)
+            return
         if opened:
             self._current_chat_id = follow  # 仅切换成功才更新, 避免消息归属错位
+            print(f"[follow] 已切换到 {follow} (query={query})", flush=True)
+        else:
+            print(f"[follow] 打开会话失败 {follow} (query={query})", flush=True)
 
     async def _sync_chat_previews(self):
         """读左栏会话列表 → 映射 chat_id → 写 chat_previews。失败静默。"""

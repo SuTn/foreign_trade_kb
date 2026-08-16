@@ -14,7 +14,7 @@ def test_settings_get_returns_effective_and_defaults(tmp_data):
     assert j["values"]["fast_tick_sec"] == 3.5    # DB 值生效 (typed)
     assert j["defaults"]["fast_tick_sec"] == 2.0  # .env 默认
     assert set(j["values"]) == set(j["defaults"])  # 六项齐全
-    assert j["values"]["auto_scan_chats"] is True  # bool typed
+    assert j["values"]["auto_scan_chats"] is False  # bool typed (默认关闭, 只扫未读+点谁同步谁)
 
 
 def test_settings_post_saves_and_returns_new_values(tmp_data):

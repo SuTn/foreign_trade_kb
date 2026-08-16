@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     slow_tick_sec: float = 30.0
     slow_tick_jitter: float = 5.0
     # 自动扫描全部会话 (逐会话打开读取正文; 注意会把未读消息标记为已读)
-    auto_scan_chats: bool = True
+    # 默认关闭: 全量扫描会阻塞采集器、导致实时失效与心跳超时; 改为「未读列表监控 + 点谁同步谁」
+    auto_scan_chats: bool = False
     auto_scan_interval_sec: float = 600.0
     auto_scan_max_chats: int = 100
     auto_scan_settle_sec: float = 1.5
