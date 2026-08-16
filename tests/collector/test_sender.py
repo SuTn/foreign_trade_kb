@@ -19,11 +19,13 @@ class FakeLocator:
 
 
 class FakePage:
-    def __init__(self, box_found=True, row_found=True):
+    def __init__(self, box_found=True, row_found=True, evaluate_result=True):
         self.typed = []
         self.pressed = []
+        self.last_evaluate_js = None
         self._box_found = box_found
         self._row_found = row_found
+        self._evaluate_result = evaluate_result
 
     def locator(self, sel):
         if "row" in sel:
@@ -43,6 +45,10 @@ class FakePage:
     async def wait_for_timeout(self, ms):
         pass
 
+    async def evaluate(self, js):
+        self.last_evaluate_js = js
+        return self._evaluate_result
+
 
 def test_send_text_types_and_enters():
     page = FakePage()
@@ -58,7 +64,13 @@ def test_send_text_no_box_raises():
         asyncio.run(send_text(page, "hello"))
 
 
-def test_open_chat_types_query_and_clicks_row():
-    page = FakePage()
+def test_open_chat_matches_title_and_clicks_row():
+    page = FakePage(evaluate_result=True)
     assert asyncio.run(open_chat(page, "Alice")) is True
-    assert page.typed == ["Alice"]
+    assert "Alice" in page.last_evaluate_js  # JS 里含查询串
+    assert "chat-list" in page.last_evaluate_js  # 用验证过的行选择器
+
+
+def test_open_chat_no_match_returns_false():
+    page = FakePage(evaluate_result=False)
+    assert asyncio.run(open_chat(page, "Nobody")) is False

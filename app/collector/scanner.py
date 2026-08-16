@@ -627,12 +627,15 @@ class Scanner:
             self._scan_runtime = None
 
     def _chat_lookup_query(self, chat_id: str) -> str | None:
-        """发送/跟随时用于搜索框的查询串。手机号唯一, 优先用手机号 (避免同名联系人搜错);
-        @lid 先经 contacts 归一; 最后回退显示名。"""
+        """发送/跟随时用于定位会话的查询串 (聊天列表行标题匹配): 显示名优先, 回退手机号。"""
         from app.profile.matcher import phone_from_jid
-        phone = phone_from_jid(chat_id)
-        if phone:
-            return phone
+        try:
+            r = self.store.conn.execute(
+                "SELECT display_name FROM chats WHERE id=?", (chat_id,)).fetchone()
+            if r and r["display_name"]:
+                return r["display_name"]
+        except Exception:
+            pass
         if chat_id and str(chat_id).endswith("@lid"):
             try:
                 r2 = self.store.conn.execute(
@@ -641,14 +644,7 @@ class Scanner:
                     return r2["phone"]
             except Exception:
                 pass
-        try:
-            r = self.store.conn.execute(
-                "SELECT display_name FROM chats WHERE id=?", (chat_id,)).fetchone()
-            if r and r["display_name"]:
-                return r["display_name"]
-        except Exception:
-            pass
-        return None
+        return phone_from_jid(chat_id)
 
     async def _drain_send_requests(self):
         """消费发送任务 (纯文字)。send_enabled 关闭时直接 failed (防绕过)。"""

@@ -1,8 +1,9 @@
 # app/collector/sender.py
-"""发送文字 + 打开会话 (搜索框切换) 的页面操作。
+"""发送文字 + 打开会话 (点击聊天列表行) 的页面操作。
 
 只做页面 DOM 操作, 不持有 store。选择器集中在此, WhatsApp Web 改版时单点修补。
 """
+import json
 from playwright.async_api import Page
 
 MESSAGE_BOX_SELECTORS = [
@@ -39,16 +40,26 @@ async def send_text(page: Page, text: str) -> bool:
 
 
 async def open_chat(page: Page, query: str) -> bool:
-    """通过搜索框定位并打开会话 (query 为显示名或手机号)。返回是否成功。"""
-    search = await _first(page, SEARCH_BOX_SELECTORS)
-    await search.click()
-    # 清空可能残留的旧查询, 避免新 query 被追加导致匹配失败
-    await page.keyboard.press("Control+A")
-    await page.keyboard.press("Backspace")
-    await page.keyboard.type(query)
-    await page.wait_for_timeout(800)  # 等搜索结果出现
-    row = page.locator(CHAT_LIST_ROW_SELECTOR).first
-    if await row.count() == 0:
+    """点击聊天列表里标题匹配的会话行打开会话 (query 为显示名)。
+
+    用与 scan_all_chats 相同的行选择器 (已验证可用), 通过 JS 匹配标题并点击,
+    避免搜索框选择器在 WhatsApp 改版后失效。
+    """
+    js = (
+        "(function(){"
+        "var target=" + json.dumps(query) + ";"
+        "var rows=document.querySelectorAll('[data-testid=\"chat-list\"] div[role=\"row\"]');"
+        "for(var i=0;i<rows.length;i++){"
+        "var t=rows[i].querySelector('span[title]');"
+        "var name=t?(t.getAttribute('title')||'').trim():'';"
+        "if(name && (name===target || name.indexOf(target)!==-1 || target.indexOf(name)!==-1)){"
+        "rows[i].click();return true;"
+        "}"
+        "}"
+        "return false;"
+        "})()"
+    )
+    try:
+        return bool(await page.evaluate(js))
+    except Exception:
         return False
-    await row.click()
-    return True
