@@ -75,6 +75,20 @@ def test_upsert_message_idempotent(tmp_data):
     rows = s.list_messages("c1")
     assert len(rows) == 1
 
+
+def test_upsert_message_from_me_not_downgraded(tmp_data):
+    """from_me 只升不降: fast_tick 的 DOM tail 误判 from_me=0 不得覆盖 slow_tick 已纠正的 1。"""
+    s = SqliteStore()
+    # slow_tick (IDB 权威) 先写 from_me=1
+    s.upsert_message(Message("m1", "a1", "c1", True, "me@c.us", 1000, "chat", "hello", True, 0))
+    # fast_tick (DOM tail 启发式) 再写 from_me=0, 不应降级
+    s.upsert_message(Message("m1", "a1", "c1", False, "me@c.us", 1000, "chat", "hello", True, 0))
+    assert s.list_messages("c1")[0].from_me is True
+    # 反向: 0 → 1 应升级
+    s.upsert_message(Message("m2", "a1", "c1", False, "x@w", 2000, "chat", "hi", True, 0))
+    s.upsert_message(Message("m2", "a1", "c1", True, "x@w", 2000, "chat", "hi", True, 0))
+    assert s.list_messages("c1")[1].from_me is True
+
 def test_profile_manual_not_overwritten(tmp_data):
     s = SqliteStore()
     s.upsert_profile_field("cust1", "country", "USA", "manual")
@@ -253,3 +267,27 @@ def test_scan_requests_insert_pending_done_attempts(tmp_data):
     assert row["id"] == r2 and row["attempts"] == 1
     s.bump_scan_request_attempts(r2); s.bump_scan_request_attempts(r2)
     assert s.next_pending_scan_request() is None  # attempts=3 达到上限不再取
+
+
+def test_resolve_chat_ids_by_names_prefers_customer_over_corrupted_chats(tmp_data):
+    """chats 表 display_name 被 IDB 串名污染 (Lucas 会话显示成「苏童」) 时,
+    反查应按 customers(画像名) + customer_chat_map 解析到正确会话, 而不是损坏的 chats。"""
+    s = SqliteStore()
+    # 两个客户: 苏童(8615071290277) 与 Lucas(8618963126542)
+    s.conn.execute("INSERT INTO customers VALUES(?,?,?,NULL,NULL,?,NULL)",
+                   ("sutong", "苏童", "8615071290277", 0))
+    s.conn.execute("INSERT INTO customers VALUES(?,?,?,NULL,NULL,?,NULL)",
+                   ("lucas", "Lucas", "8618963126542", 0))
+    # chat→customer 映射正确
+    s.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                   ("me", "8615071290277@c.us", "sutong", 0.9, 0, 0))
+    s.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                   ("me", "8618963126542@c.us", "lucas", 0.9, 0, 0))
+    # chats 表损坏: Lucas 的会话被写成了「苏童」, 且插在正确苏童之前
+    s.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                   ("8618963126542@c.us", "me", "8618963126542@c.us", "苏童", "single", 0))
+    s.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                   ("8615071290277@c.us", "me", "8615071290277@c.us", "苏童", "single", 0))
+    s.conn.commit()
+    m = s.resolve_chat_ids_by_names(["苏童"])
+    assert m["苏童"] == "8615071290277@c.us"  # 应解析到正确苏童, 而非损坏的 Lucas 会话

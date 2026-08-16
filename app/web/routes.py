@@ -485,6 +485,13 @@ async def workspace_chat(customer_id: str, request: Request):
         chat_id = chat_list[0]["chat_id"] if chat_list else None
     msgs = store.list_messages(chat_id, limit=50) if chat_id else []
     msgs = sorted(msgs, key=lambda m: m.ts)
+    # workspace-live-refresh: 底部固定回复面板的 AI 上下文默认取「最新一条客户消息」
+    default_message = ""
+    if msgs:
+        for m in reversed(msgs):
+            if not m.from_me and m.body:
+                default_message = m.body
+                break
     # workspace-load-earlier: 判断是否还有更早消息 (供"加载更早"按钮)
     has_more = False
     oldest_ts = None
@@ -512,6 +519,7 @@ async def workspace_chat(customer_id: str, request: Request):
         {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs, "kind": kind,
          "session_id": session_id, "chats": chat_list,
          "has_more": has_more, "oldest_ts": oldest_ts,
+         "default_message": default_message,
          "customer": dict(customer) if customer else None,
          "send_enabled": bool(RuntimeSettings(store).get_typed("send_enabled", False))})
 

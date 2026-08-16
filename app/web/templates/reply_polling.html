@@ -1,6 +1,7 @@
 <div class="result-card" id="reply-task-{{ task_id }}"
      hx-get="/api/reply/status/{{ task_id }}"
      hx-trigger="every 1s"
+     hx-target="this"
      hx-swap="outerHTML">
-  <p class="muted">正在生成回复…</p>
+  <p class="muted">正在生成回复… <small>(通常几秒到几十秒，请稍候)</small></p>
 </div>

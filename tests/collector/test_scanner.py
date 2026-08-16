@@ -1,6 +1,7 @@
 # tests/collector/test_scanner.py
 import asyncio, time
-from app.collector.scanner import write_status, read_status, is_alive, Scanner
+from app.collector.scanner import (write_status, read_status, is_alive, Scanner,
+                                   _aggregate_chat_previews)
 from app.config import settings
 
 def test_status_heartbeat(tmp_data):
@@ -38,6 +39,17 @@ def test_fast_tick_skips_unchanged(tmp_data, monkeypatch):
     sc = Scanner(FakeCDP([{}]), FakeStore(), FakeVector())
     import asyncio
     asyncio.run(sc.fast_tick())  # 空 dom, hash 一致
+
+
+def test_aggregate_chat_previews_max_unread_and_keeps_preview():
+    """重名会话多行解析到同一 chat_id 时, 取未读最大值, 避免 unread=0 行覆盖真实未读。"""
+    name_to_id = {"苏童": "8615071290277@c.us"}
+    rows = [
+        {"name": "苏童", "unread": 1, "preview": "我要一台"},
+        {"name": "苏童", "unread": 0, "preview": None},
+    ]
+    out = _aggregate_chat_previews(rows, name_to_id)
+    assert out == [{"chat_id": "8615071290277@c.us", "unread_count": 1, "preview": "我要一台"}]
 
 
 class BackfillCDP:
@@ -681,6 +693,49 @@ def test_build_idb_index_extracts_hex_and_our_jid():
     assert set(idx.keys()) == {"abc123", "def456"}
 
 
+def test_build_idb_index_our_jid_prefers_fromme_sender():
+    """our_jid 判定: fromMe=True 的 from=自己优先 (出站消息的 to=对方, 不能当作自己)。"""
+    from app.collector.scanner import _build_idb_index
+    data = {"messages": [
+        {"id": "false_me_OUT1", "to": "cust@c.us", "from": "me@c.us", "fromMe": True},
+        {"id": "false_cust_IN1", "to": "me@c.us", "from": "cust@c.us", "fromMe": False},
+    ]}
+    idx, our = _build_idb_index(data)
+    assert our == "me@c.us"  # 不是 cust@c.us
+
+
+def test_build_idb_index_our_jid_skips_group_to():
+    """our_jid 判定: 群消息的 to=群 JID 不能当作自己。"""
+    from app.collector.scanner import _build_idb_index
+    data = {"messages": [
+        {"id": "false_grp_G1", "to": "grp@g.us", "from": "cust@c.us", "fromMe": False},
+        {"id": "false_me_OUT1", "to": "cust@c.us", "from": "me@c.us", "fromMe": True},
+    ]}
+    idx, our = _build_idb_index(data)
+    assert our == "me@c.us"
+
+
+def test_merge_sent_message_attributed_to_me():
+    """网页发送的消息 fromMe 归属: 即便 IDB 首条为出站 (旧启发式会把 our_jid 误判为对方),
+    也要用 IDB 记录的 fromMe 归属为我。"""
+    sc = Scanner(None, None, None)
+    data = {
+        "chats": {}, "contacts": {}, "groups": {},
+        "lid_to_phone": {}, "phone_by_lid": {},
+        "messages": [
+            {"id": "false_me_OUT1", "t": 1000, "from": "me@c.us", "to": "cust@c.us",
+             "type": "chat", "fromMe": True},
+            {"id": "false_cust_IN1", "t": 900, "from": "cust@c.us", "to": "me@c.us",
+             "type": "chat", "fromMe": False},
+        ],
+    }
+    dom = [{"id": "OUT1", "fromMe": True, "from": None, "timestamp": 1000,
+            "body": "我发的", "body_present": True}]
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["fromMe"] is True
+    assert merged[0]["chatId"] == "cust@c.us"
+
+
 def test_resolve_chat_private_and_group():
     from app.collector.scanner import _resolve_chat
     # 私聊入站: from 非我方 → chat=from
@@ -727,3 +782,149 @@ def test_resolve_sender_name_contacts_then_dom():
                                 {}, {}, {}) == "Bob"
     # 出站消息 (from_me) → None
     assert _resolve_sender_name(rec, True, "cust@c.us", contacts, {}, None, {}, {}, {}, {}) is None
+
+
+def test_merge_idb_dom_prefers_idb_t_over_dom_minute_ts():
+    """时间戳: IDB 秒级 m.t 优先于 DOM 分钟级 timestamp, 避免同分钟多条消息排序错乱。"""
+    sc = Scanner(None, None, None)
+    data = {
+        "chats": {}, "contacts": {}, "groups": {},
+        "lid_to_phone": {}, "phone_by_lid": {},
+        "messages": [
+            {"id": "false_me_HEX1", "t": 1786883467, "from": "cust@c.us",
+             "to": "me@c.us", "type": "chat", "fromMe": False},
+        ],
+    }
+    dom = [{"id": "HEX1", "fromMe": False, "from": None, "timestamp": 1786883460,
+            "body": "hi", "body_present": True}]
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["timestamp"] == 1786883467  # IDB 秒级优先
+
+
+def test_reconcile_idb_metadata_upgrades_from_me_and_ts(tmp_data):
+    """IDB 权威纠偏: from_me 0→1 (网页发送被 DOM 误判) 且 ts 用秒级精确值覆盖分钟截断值。"""
+    from app.storage.sqlite_store import SqliteStore
+    from app.storage.interfaces import Message
+    store = SqliteStore()
+    store.upsert_message(Message("HEX1", "me", "c1", False, None, 1786883460,
+                                 "chat", "我发的", True, 0, "Sonya"))
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    data = {"messages": [
+        {"id": "false_me_HEX1", "t": 1786883467, "from": "me@c.us",
+         "to": "cust@c.us", "type": "chat", "fromMe": True},
+    ]}
+    changed = sc._reconcile_idb_metadata(data)
+    assert changed == 1
+    row = store.conn.execute(
+        "SELECT from_me, ts, sender_name FROM messages WHERE id='HEX1'").fetchone()
+    assert row["from_me"] == 1
+    assert row["ts"] == 1786883467
+    assert row["sender_name"] is None  # 我方消息清掉残留发送人名
+
+
+def test_reconcile_idb_metadata_skips_unmatched(tmp_data):
+    """IDB 无对应 hex 的消息保持不变 (不做臆测纠偏)。"""
+    from app.storage.sqlite_store import SqliteStore
+    from app.storage.interfaces import Message
+    store = SqliteStore()
+    store.upsert_message(Message("UNKNOWN", "me", "c1", False, None, 1786883460,
+                                 "chat", "x", True, 0, "Sonya"))
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    changed = sc._reconcile_idb_metadata({"messages": [
+        {"id": "false_me_HEX9", "t": 1786883467, "from": "me@c.us",
+         "to": "cust@c.us", "type": "chat", "fromMe": True},
+    ]})
+    assert changed == 0
+    row = store.conn.execute(
+        "SELECT from_me, ts, sender_name FROM messages WHERE id='UNKNOWN'").fetchone()
+    assert row["from_me"] == 0
+    assert row["ts"] == 1786883460
+    assert row["sender_name"] == "Sonya"
+
+
+def test_reconcile_idb_metadata_normalizes_millis_ts(tmp_data):
+    """IDB m.t 若为毫秒 (13 位) 归一为秒, 防止与秒级 DOM ts 混排。"""
+    from app.storage.sqlite_store import SqliteStore
+    from app.storage.interfaces import Message
+    store = SqliteStore()
+    store.upsert_message(Message("HEX1", "me", "c1", False, None, 0,
+                                 "chat", "x", True, 0))
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    sc._reconcile_idb_metadata({"messages": [
+        {"id": "false_me_HEX1", "t": 1786883467000, "from": "me@c.us",
+         "to": "cust@c.us", "type": "chat", "fromMe": False},
+    ]})
+    row = store.conn.execute("SELECT ts FROM messages WHERE id='HEX1'").fetchone()
+    assert row["ts"] == 1786883467
+
+
+def test_reconcile_idb_metadata_moves_message_to_authoritative_chat(tmp_data):
+    """chat_id 纠偏: 消息被 fast_tick 误写进错误会话, IDB msgKey 的 chatJid 把它搬回正确会话。"""
+    from app.storage.sqlite_store import SqliteStore
+    from app.storage.interfaces import Message
+    store = SqliteStore()
+    store.upsert_message(Message("HEX1", "me", "447974905044@c.us", False, None,
+                                 1786886970, "chat", "长续航版", True, 0, "苏童"))
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    changed = sc._reconcile_idb_metadata({"messages": [
+        {"id": "false_8615071290277@c.us_HEX1", "t": 1786886973, "from": None,
+         "to": None, "type": "chat", "fromMe": False, "chatJid": "8615071290277@c.us"},
+    ]})
+    assert changed == 1
+    row = store.conn.execute(
+        "SELECT chat_id, ts FROM messages WHERE id='HEX1'").fetchone()
+    assert row["chat_id"] == "8615071290277@c.us"
+    assert row["ts"] == 1786886973
+
+
+def test_reconcile_idb_metadata_lid_chatjid_normalized(tmp_data):
+    """chatJid 为 @lid 时经 lid_to_phone 归一为 @c.us 再搬会话。"""
+    from app.storage.sqlite_store import SqliteStore
+    from app.storage.interfaces import Message
+    store = SqliteStore()
+    store.upsert_message(Message("HEX1", "me", "447974905044@c.us", False, None,
+                                 1786886970, "chat", "x", True, 0, None))
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    sc._reconcile_idb_metadata({
+        "messages": [{"id": "false_31916774395984@lid_HEX1", "t": 1786886973,
+                      "from": None, "to": None, "type": "chat", "fromMe": False,
+                      "chatJid": "31916774395984@lid"}],
+        "lid_to_phone": {"31916774395984@lid": "8615071290277@c.us"},
+        "phone_by_lid": {},
+    })
+    row = store.conn.execute("SELECT chat_id FROM messages WHERE id='HEX1'").fetchone()
+    assert row["chat_id"] == "8615071290277@c.us"
+
+
+def test_reconcile_idb_metadata_no_chatjid_keeps_chat(tmp_data):
+    """无 chatJid 时不搬会话 (只纠正 from_me/ts), 避免臆测搬错。"""
+    from app.storage.sqlite_store import SqliteStore
+    from app.storage.interfaces import Message
+    store = SqliteStore()
+    store.upsert_message(Message("HEX1", "me", "c1", False, None, 1786886970,
+                                 "chat", "x", True, 0, "苏童"))
+    sc = Scanner(FakeCDP([{}]), store, FakeVector())
+    sc._reconcile_idb_metadata({"messages": [
+        {"id": "false_me_HEX1", "t": 1786886973, "from": None, "to": None,
+         "type": "chat", "fromMe": True},  # 无 chatJid
+    ]})
+    row = store.conn.execute(
+        "SELECT chat_id, from_me FROM messages WHERE id='HEX1'").fetchone()
+    assert row["chat_id"] == "c1"
+    assert row["from_me"] == 1
+
+
+def test_merge_idb_dom_prefers_chatjid_over_resolve_chat():
+    """合并时 chatId 优先取 msgKey 的 chatJid (权威), 而非 from/to 启发式 + current_chat_id。"""
+    sc = Scanner(None, None, None)
+    data = {
+        "chats": {}, "contacts": {}, "groups": {},
+        "lid_to_phone": {}, "phone_by_lid": {},
+        "messages": [{"id": "false_8615071290277@c.us_ABC123", "t": 1710000000,
+                      "from": "8615071290277@c.us", "to": "me@c.us",
+                      "type": "chat", "fromMe": False, "chatJid": "8615071290277@c.us"}],
+    }
+    dom = [{"id": "ABC123", "fromMe": False, "from": None, "timestamp": 0,
+            "body": "hi", "body_present": True}]
+    merged = sc._merge_idb_dom(data, dom)
+    assert merged[0]["chatId"] == "8615071290277@c.us"

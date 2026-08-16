@@ -1,6 +1,12 @@
 <div class="ws-side-header">
   <h2>{{ customer['display_name'] or customer_id if customer else customer_id }}</h2>
-  <div class="muted">{{ customer['phone'] or '-' }} · {{ customer['company'] or '-' }} · {{ customer['country'] or '-' }}</div>
+  {% if customer %}
+  <dl class="ws-side-meta">
+    <dt>电话</dt><dd>{{ customer['phone'] or '—' }}</dd>
+    <dt>公司</dt><dd>{{ customer['company'] or '—' }}</dd>
+    <dt>国家</dt><dd>{{ customer['country'] or '—' }}</dd>
+  </dl>
+  {% endif %}
 </div>
 
 {% if match %}
@@ -45,9 +51,9 @@
 <!-- 画像 -->
 <div class="ws-tab-pane active" id="pane-profile" role="tabpanel">
   <section class="ws-side-block">
-    <h3>意向等级 / 标签</h3>
+    <h3>客户画像</h3>
     <div id="profile">{% include "profile_list.html" %}</div>
-    <button class="btn btn-sm" hx-post="/customers/{{ customer_id }}/refresh-profile" hx-target="#profile" hx-swap="innerHTML">重新抽取画像</button>
+    <button class="btn btn-sm btn-ghost" hx-post="/customers/{{ customer_id }}/refresh-profile" hx-target="#profile" hx-swap="innerHTML">重新抽取画像</button>
   </section>
   <section class="ws-side-block">
     <h3>分层历史</h3>

@@ -84,6 +84,9 @@ def test_reply_polling_template_has_every_1s(tmp_data):
     assert "/api/reply/status/abc123" in html
     assert "every 1s" in html
     assert 'hx-swap="outerHTML"' in html
+    # reply-poll-self-target: 轮询节点必须显式 hx-target="this", 防止继承外层 form 的 hx-target
+    # 把 outerHTML 交换到错误目标 (会移除 #reply-result, 导致永远卡在「正在生成回复」)
+    assert 'hx-target="this"' in html
 
 
 def test_reply_result_has_copy_button_and_session(tmp_data, monkeypatch):

@@ -29,15 +29,27 @@ def _msg_vector_key(chat_id: str, msg_id: str, ts: int) -> str:
 # ---- _merge_idb_dom 归一化辅助 (F: 拆成可测试小函数) ----
 
 def _build_idb_index(data: dict) -> tuple[dict, str | None]:
-    """从 IDB messages 建 hex→消息 索引, 并取自身账号 (恒定的 to)。"""
+    """从 IDB messages 建 hex→消息 索引, 并取自身账号 (our_jid)。
+
+    our_jid 判定优先级 (避免把出站消息的 to=对方 / 群消息的 to=群 误当自己):
+    1. fromMe=True 的消息: from=自己 (私聊与群聊都成立);
+    2. fromMe=False 且 to 非群: to=自己 (私聊入站);
+    3. 无 fromMe 字段 (旧数据/测试): 沿用 to 启发式。
+    """
     idb_by_hex = {}
     our_jid = None
     for m in data.get("messages", []):
         hex_part = (m.get("id") or "").rsplit("_", 1)[-1]
         if hex_part and hex_part not in idb_by_hex:
             idb_by_hex[hex_part] = m
-        if our_jid is None and m.get("to"):
-            our_jid = m["to"]
+        if our_jid is None:
+            from_me = m.get("fromMe")
+            if from_me is True and m.get("from"):
+                our_jid = m["from"]
+            elif from_me is False and m.get("to") and not str(m.get("to")).endswith("@g.us"):
+                our_jid = m["to"]
+            elif from_me is None and m.get("to"):
+                our_jid = m["to"]
     return idb_by_hex, our_jid
 
 
@@ -106,6 +118,26 @@ def _resolve_chat_name(chat, phone_chat, groups, chats, contacts, dom_sender_nam
     if not name:
         name = dom_sender_name
     return name
+
+
+def _aggregate_chat_previews(rows: list[dict], name_to_id: dict[str, str]) -> list[dict]:
+    """把左栏会话行按 chat_id 聚合为 chat_previews 行。
+
+    重名/损坏名的会话可能多行解析到同一 chat_id (如两个「苏童」), 若逐行直写,
+    后到的 unread=0 行会覆盖掉真实未读。这里按 chat_id 取未读最大值, 保留首个非空
+    preview, 避免通知丢失/错位。
+    """
+    agg: dict[str, dict] = {}
+    for r in rows:
+        cid = name_to_id.get(r.get("name"))
+        if not cid:
+            continue
+        cur = agg.setdefault(cid, {"unread": 0, "preview": None})
+        cur["unread"] = max(cur["unread"], r.get("unread") or 0)
+        if r.get("preview") and cur["preview"] is None:
+            cur["preview"] = r["preview"]
+    return [{"chat_id": cid, "unread_count": v["unread"], "preview": v["preview"]}
+            for cid, v in agg.items()]
 
 
 def _resolve_sender_name(rec, from_me, sender_jid, contacts, groups, chat, dom,
@@ -183,7 +215,92 @@ class Scanner:
         merged = self._merge_idb_dom(data, dom_msgs)
         for m in merged:
             self._upsert_one(m)
+        try:
+            self._reconcile_idb_metadata(data)
+        except Exception:
+            pass  # 元数据纠偏失败不阻塞采集 (与 IDB 校准同口径)
         self._write_status_keep_scan({"state": "running", "last_sync": time.time()})
+
+    def _reconcile_idb_metadata(self, data: dict) -> int:
+        """用 IDB 权威元数据纠正已入库消息的 from_me / ts / chat_id (不依赖当前打开的会话)。
+
+        fast_tick 走 DOM tail 启发式: 连续出站消息只有最后一条带 tail-out, 前面的会误判
+        from_me=0; DOM data-pre-plain-text 时间戳只有分钟精度 (秒恒为 0), 同分钟多条消息
+        ts 相同导致排序错乱; 会话归因靠 _current_chat_id (会漂移/串会话)。IDB 的
+        m.id.fromMe / m.t / msgKey 里的会话 JID 才是权威值。本方法按 hex id 匹配 DB 行:
+        from_me 只升不降 (与 upsert_message 同口径), ts 用精确秒覆盖, chat_id 用 msgKey
+        的会话 JID 纠正 (搬回正确会话), 并清掉我方消息残留的 sender_name。不动 body。
+        """
+        if not hasattr(self.store, "conn"):
+            return 0
+        idb_by_hex, _ = _build_idb_index(data)
+        if not idb_by_hex:
+            return 0
+        phone_by_lid = data.get("phone_by_lid", {})
+        lids = data.get("lid_to_phone", {})
+        rows = self.store.conn.execute(
+            "SELECT id, chat_id, from_me, ts FROM messages WHERE account_id=?",
+            (self.account_id,)).fetchall()
+        changed = 0
+        for r in rows:
+            rec = idb_by_hex.get(r["id"])
+            if not rec:
+                continue
+            ts = rec.get("t") or 0
+            if ts <= 0:
+                continue
+            if ts > 10_000_000_000:  # 13 位毫秒时间戳 → 归一为秒
+                ts //= 1000
+            me = 1 if rec.get("fromMe") else 0
+            new_me = max(r["from_me"], me)
+            new_chat = self._resolve_authoritative_chat(rec, phone_by_lid, lids)
+            if (ts == r["ts"] and new_me == r["from_me"]
+                    and (not new_chat or new_chat == r["chat_id"])):
+                continue
+            moved = bool(new_chat and new_chat != r["chat_id"])
+            self.store.conn.execute(
+                "UPDATE messages SET from_me=?, ts=?, chat_id=COALESCE(?, chat_id), "
+                "sender_name=CASE WHEN ?=1 THEN NULL ELSE sender_name END "
+                "WHERE id=? AND account_id=?",
+                (new_me, ts, new_chat, new_me, r["id"], self.account_id))
+            if moved:
+                self._requeue_message_vector(r["id"], new_chat)
+            changed += 1
+        if changed:
+            self.store.conn.commit()
+        return changed
+
+    def _resolve_authoritative_chat(self, rec: dict, phone_by_lid: dict, lids: dict):
+        """从 IDB 记录取权威会话 JID 并归一为 @c.us (LID→phone)。无 chatJid 返回 None。
+        @lid 缺映射时回退查 contacts 表 (phone 列)。"""
+        chat = rec.get("chatJid") if rec else None
+        if not chat:
+            return None
+        chat = _resolve_phone_chat(chat, phone_by_lid, lids)
+        if chat and str(chat).endswith("@lid"):
+            try:
+                r2 = self.store.conn.execute(
+                    "SELECT phone FROM contacts WHERE jid=?", (chat,)).fetchone()
+                if r2 and r2["phone"]:
+                    chat = f'{r2["phone"]}@c.us'
+            except Exception:
+                pass
+        return chat
+
+    def _requeue_message_vector(self, msg_id: str, new_chat: str) -> None:
+        """消息搬会话后, 把其向量重新入队到新会话 (body 从 DB 取, IDB body 加密)。
+        旧会话里的向量成为陈旧数据, 仅影响旧会话 RAG 召回 (轻微, 重建向量时可清)。"""
+        try:
+            row = self.store.conn.execute(
+                "SELECT body, ts FROM messages WHERE id=? AND account_id=?",
+                (msg_id, self.account_id)).fetchone()
+            if row and row["body"]:
+                key = _msg_vector_key(new_chat, msg_id, row["ts"])
+                self._vector_pending.append((key, row["body"],
+                    {"chat_id": new_chat,
+                     "day": time.strftime("%Y-%m-%d", time.gmtime(row["ts"])) if row["ts"] else "unknown"}))
+        except Exception:
+            pass  # 向量重入队失败不影响归属纠正
 
     def _write_status_keep_scan(self, status: dict):
         """写 status.json, 但若全量扫描进行中 (self._scan_runtime), 合并保留 scan 进度,
@@ -217,7 +334,8 @@ class Scanner:
 
     def _merge_idb_dom(self, data: dict, dom_msgs: list[dict]) -> list[dict]:
         """IDB 消息 (id 形如 false_<jid>_<hex>) 与 DOM 消息 (hex id) 合并:
-        our_jid = IDB 消息恒定的 to (自身账号); chat 取"不是自己"的一方 (入站=from, 出站=to);
+        fromMe 优先取 IDB 记录的 fromMe (WhatsApp 权威方向位), 缺省回退 DOM tail 信号;
+        chat 取"不是自己"的一方 (入站=from, 出站=to)。
         正文/发送人/时间优先取 DOM, 缺省回退 IDB。
         chat 名: 优先 chats[jid] → contacts[jid] (含 LID 索引) → DOM 发送人显示名。
         返回的 chatId 为真实手机号 JID (LID 经 lid_to_phone 解析), 便于客户匹配。
@@ -234,8 +352,14 @@ class Scanner:
             rec = idb_by_hex.get(dom.get("id"))
             from_me = bool(dom.get("fromMe"))
             if rec:
-                from_me = (rec.get("from") == our_jid) if our_jid else from_me
+                # IDB 记录自带 fromMe (WhatsApp 权威方向位), 优先用之;
+                # 不要用 from==our_jid 反推 (our_jid 启发式对出站/群消息会错)
+                from_me = bool(rec.get("fromMe", from_me))
             chat = _resolve_chat(rec, our_jid, self._current_chat_id)
+            if rec and rec.get("chatJid"):
+                # 权威: msgKey 里的会话 JID (私聊=对方/群=群), 不依赖「当前打开的是哪个会话」,
+                # 避免 follow/重名导致串会话 (消息写进错误客户)
+                chat = rec["chatJid"]
             phone_chat = _resolve_phone_chat(chat, phone_by_lid, lids)
             if phone_chat and str(phone_chat).endswith("@lid"):
                 # lid_to_phone 缺映射时回退查 contacts 表, 避免 @lid 会话 id 入库
@@ -255,7 +379,9 @@ class Scanner:
             merged.append({
                 "id": dom.get("id"), "chatId": phone_chat, "fromMe": from_me,
                 "from": dom.get("from") or (rec or {}).get("from"),
-                "timestamp": dom.get("timestamp") or (rec or {}).get("t") or 0,
+                # 时间戳优先 IDB 的 m.t (秒级精确), 回退 DOM data-pre-plain-text (仅分钟精度):
+                # 否则同分钟多条消息 ts 相同, 排序错乱
+                "timestamp": (rec or {}).get("t") or dom.get("timestamp") or 0,
                 "type": dom.get("type") or "chat", "body": dom.get("body") or "",
                 "body_present": bool(dom.get("body")), "name": name,
                 "sender_name": sender_name, "kind": kind,
@@ -431,6 +557,9 @@ class Scanner:
                 except Exception:
                     self._rt = None  # settings 表不可用则降级为 .env 默认
             try:
+                # 优先响应「点谁同步谁」: 先切到 Web 正在查看的会话并立即抓取,
+                # 再跑常规 fast_tick, 减少点开会话后的等待。
+                await self._sync_follow()
                 await self.fast_tick()
                 slow_sec = (self._rt.get_typed("slow_tick_sec", settings.slow_tick_sec)
                             if self._rt is not None else settings.slow_tick_sec)
@@ -457,7 +586,6 @@ class Scanner:
                     self.last_scan = time.time()
                 await self._drain_scan_requests()
                 await self._drain_send_requests()
-                await self._sync_follow()
                 await self._sync_chat_previews()
                 await self._drain_backfill_requests()
                 await self._drain_profile_updates()
@@ -699,10 +827,25 @@ class Scanner:
         if opened:
             self._current_chat_id = follow  # 仅切换成功才更新, 避免消息归属错位
             msg = f"已切换到 {follow} (query={query})"
+            await self._sync_open_chat_now()  # 打开后立即抓取, 不等下一轮 fast_tick
         else:
             msg = f"打开会话失败 {follow} (query={query})"
         print(f"[follow] {msg}", flush=True)
         self._record_follow(msg)
+
+    async def _sync_open_chat_now(self):
+        """打开会话后立即抓一次 DOM 入库, 缩短「点进去等半天才出消息」的延迟。
+
+        等 WhatsApp 切换并渲染消息后立刻 capture+upsert; 失败静默, 下一轮 fast_tick 兜底。
+        """
+        try:
+            settle = (self._rt.get_typed("auto_scan_settle_sec", settings.auto_scan_settle_sec)
+                      if self._rt is not None else settings.auto_scan_settle_sec)
+            await asyncio.sleep(min(settle, 1.0))  # 给 WhatsApp 渲染消息留出时间 (上限 1s)
+            self._last_dom_hash = None  # 强制重抓新会话 DOM (越过 hash 去重)
+            await self.fast_tick()
+        except Exception:
+            pass  # 立即抓取失败不阻塞主循环; 下一轮 fast_tick 会再试
 
     def _record_follow(self, msg: str):
         """把 follow 结果写进 status.json 便于诊断 (不覆盖其他字段)。"""
@@ -729,13 +872,7 @@ class Scanner:
                 [r.get("name") for r in rows if r.get("name")])
         except Exception:
             return
-        previews = []
-        for r in rows:
-            cid = name_to_id.get(r.get("name"))
-            if not cid:
-                continue
-            previews.append({"chat_id": cid, "unread_count": r.get("unread") or 0,
-                             "preview": r.get("preview")})
+        previews = _aggregate_chat_previews(rows, name_to_id)
         if previews:
             try:
                 self.store.upsert_chat_previews(previews)

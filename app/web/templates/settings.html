@@ -2,22 +2,34 @@
 {% block title %}采集器设置{% endblock %}
 {% block content %}
 <h1 class="page-title">采集器设置</h1>
-<p class="page-sub">参数保存后即时生效，无需重启；未配置项使用 .env 默认值。</p>
+<p class="page-sub">开关类配置直接切换即可；参数保存后即时生效，无需重启；未配置项使用 .env 默认值。</p>
 <form id="settings-form" class="result-card">
   <div id="settings-error" class="form-error" hidden></div>
+
   <section class="settings-group">
-    <h2>同步频次</h2>
+    <h2>发送</h2>
     <p class="settings-item">
-      <label>消息检查间隔（秒）<input class="input" data-key="fast_tick_sec" data-type="number" step="0.1" min="0.1"></label>
-      <span class="muted settings-hint">多久检查一次新消息。越小越及时，但更耗资源；一般保持默认即可。</span>
-    </p>
-    <p class="settings-item">
-      <label>缓存校准间隔（秒）<input class="input" data-key="slow_tick_sec" data-type="number" step="0.1" min="0.1"></label>
-      <span class="muted settings-hint">多久校准一次本地缓存，确保数据一致。一般保持默认即可。</span>
+      <label class="switch">
+        <input type="checkbox" class="switch-input" data-key="send_enabled" data-type="checkbox">
+        <span class="switch-slider" aria-hidden="true"></span>
+        <span class="switch-text">启用发送功能</span>
+        <span class="switch-state muted"></span>
+      </label>
+      <span class="muted settings-hint">开启后可在工作台直接发送文字消息（主动发送封号风险更高，需谨慎）。默认关闭（只读）。</span>
     </p>
   </section>
+
   <section class="settings-group">
     <h2>自动扫描</h2>
+    <p class="settings-item">
+      <label class="switch">
+        <input type="checkbox" class="switch-input" data-key="auto_scan_chats" data-type="checkbox">
+        <span class="switch-slider" aria-hidden="true"></span>
+        <span class="switch-text">启用自动扫描</span>
+        <span class="switch-state muted"></span>
+      </label>
+      <span class="muted settings-hint">开启后自动扫描新会话并抓取消息。关闭则需手动扫描（推荐关闭，避免占用采集器）。</span>
+    </p>
     <p class="settings-item">
       <label>扫描间隔（秒）<input class="input" data-key="auto_scan_interval_sec" data-type="number" step="1" min="1"></label>
       <span class="muted settings-hint">多久自动扫描一次会话，抓取新消息。越小越频繁。</span>
@@ -30,18 +42,20 @@
       <label>会话停留时长（秒）<input class="input" data-key="auto_scan_settle_sec" data-type="number" step="0.1" min="0.1" max="30"></label>
       <span class="muted settings-hint">打开会话后停留多久再读取，确保消息加载完成。</span>
     </p>
-    <p class="settings-item">
-      <label>启用自动扫描 <input class="input" data-key="auto_scan_chats" data-type="checkbox"></label>
-      <span class="muted settings-hint">开启后自动扫描新会话并抓取消息。关闭则需手动扫描。</span>
-    </p>
   </section>
+
   <section class="settings-group">
-    <h2>发送</h2>
+    <h2>同步频次</h2>
     <p class="settings-item">
-      <label>启用发送功能 <input class="input" data-key="send_enabled" data-type="checkbox"></label>
-      <span class="muted settings-hint">开启后可在工作台直接发送文字消息（主动发送封号风险更高，需谨慎）。默认关闭（只读）。</span>
+      <label>消息检查间隔（秒）<input class="input" data-key="fast_tick_sec" data-type="number" step="0.1" min="0.1"></label>
+      <span class="muted settings-hint">多久检查一次新消息。越小越及时，但更耗资源；一般保持默认即可。</span>
+    </p>
+    <p class="settings-item">
+      <label>缓存校准间隔（秒）<input class="input" data-key="slow_tick_sec" data-type="number" step="0.1" min="0.1"></label>
+      <span class="muted settings-hint">多久校准一次本地缓存，确保数据一致。一般保持默认即可。</span>
     </p>
   </section>
+
   <div class="toolbar">
     <button class="btn" type="submit">保存</button>
     <span class="muted" id="settings-saved" hidden>已保存</span>

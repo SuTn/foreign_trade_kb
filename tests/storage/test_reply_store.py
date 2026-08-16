@@ -60,6 +60,35 @@ def test_legacy_tasks_marked_failed(tmp_data):
     assert "清理" in store.get_reply_task(tid)["error"]
 
 
+def test_stuck_running_tasks_marked_failed(tmp_data):
+    """回复看门狗: 超时的 running 任务标记 failed, 让前端轮询退出「正在生成…」。"""
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate")
+    store.update_reply_task(tid, status="running")
+    old = int(time.time()) - 200
+    store.conn.execute("UPDATE reply_tasks SET updated_at=? WHERE id=?", (old, tid))
+    store.conn.commit()
+    n = store.mark_stuck_reply_tasks_failed(timeout_sec=180)
+    assert n == 1
+    t = store.get_reply_task(tid)
+    assert t["status"] == "failed"
+    assert "超时" in t["error"]
+
+
+def test_stuck_watchdog_ignores_pending(tmp_data):
+    """回复看门狗: pending (排队中) 任务不被误杀, 仅杀 running。"""
+    store = SqliteStore()
+    sid = store.find_or_create_reply_session("cust1", "c1")
+    tid = store.create_reply_task("cust1", "c1", "hi", "default", sid, "generate")
+    old = int(time.time()) - 1000
+    store.conn.execute("UPDATE reply_tasks SET updated_at=? WHERE id=?", (old, tid))
+    store.conn.commit()
+    n = store.mark_stuck_reply_tasks_failed(timeout_sec=180)
+    assert n == 0
+    assert store.get_reply_task(tid)["status"] == "pending"
+
+
 def test_create_reply_task_persists_generation_params(tmp_data):
     store = SqliteStore()
     sid = store.find_or_create_reply_session("cust1", "c1")

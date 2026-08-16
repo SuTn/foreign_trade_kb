@@ -76,6 +76,24 @@ def test_generate_reply_includes_session_history(tmp_data):
     assert "报价$5" in seen["system"]
 
 
+def test_generate_reply_includes_recent_chat(tmp_data):
+    """reply-context: 最近聊天记录注入 system, 让 AI 结合完整对话而非只盯最后一句话。"""
+    seen = {}
+
+    class CapturingLLM(LLM):
+        def generate(self, s, u, max_tokens=1024):
+            seen["system"] = s
+            return "回复"
+
+    store = SqliteStore()
+    vs = ChromaStore(embedding_fn=fake_embed)
+    pipe = RagPipeline(store, vs, FakeReranker(), CapturingLLM())
+    generate_reply(pipe, "cust1", "c1", "要500个", recent_chat="客户: 要500个\n我: 5美元一个")
+    assert "最近聊天记录" in seen["system"]
+    assert "要500个" in seen["system"]
+    assert "5美元一个" in seen["system"]
+
+
 def _capture(store, language="zh", scenario="auto", formality="casual", style="default"):
     seen = {}
 

@@ -18,6 +18,8 @@ from app.reply.generator import generate_reply
 from app.web.routes import _build_store, _get_chroma_store, get_reranker, CloudLLM
 
 POLL_INTERVAL_SEC = 1.0  # 空循环 sleep (Design Doc Open Question 已定 1s)
+REPLY_STUCK_TIMEOUT_SEC = 180  # 回复生成超时兜底: 超过则标记 failed, 避免前端永久「正在生成…」
+WATCHDOG_INTERVAL_SEC = 10
 log = logging.getLogger("reply.worker")
 
 
@@ -29,6 +31,22 @@ def _resources(app: FastAPI, store):
     return RagPipeline(store, chroma, reranker, llm)
 
 
+def _recent_chat_context(store, chat_id: str, limit: int = 15) -> str | None:
+    """取最近 N 条聊天记录拼成文本 (我: / 客户:), 供 AI 结合完整对话上下文。
+    失败静默返回 None (不阻塞回复生成)。"""
+    try:
+        msgs = store.list_messages(chat_id, limit=limit)  # ts DESC
+        msgs = sorted(msgs, key=lambda m: m.ts)           # 转 ASC 时间序
+        lines = []
+        for m in msgs:
+            if not m.body:
+                continue
+            lines.append(f"{'我' if m.from_me else '客户'}: {m.body}")
+        return "\n".join(lines) or None
+    except Exception:
+        return None
+
+
 def _execute_reply_task(app: FastAPI, store, task: dict) -> None:
     """串行执行单个回复任务: running → 生成 → done/failed。
     mode=generate 追加 user+assistant 到会话; mode=regenerate 只读历史不追加 (D4)。"""
@@ -37,12 +55,13 @@ def _execute_reply_task(app: FastAPI, store, task: dict) -> None:
         store.update_reply_task(task_id, status="running")
         pipe = _resources(app, store)
         history = store.get_session_history(task["session_id"]) if task["session_id"] else []
+        recent_chat = _recent_chat_context(store, task["chat_id"])
         result = generate_reply(pipe, task["customer_id"], task["chat_id"], task["message"],
                                 style=task["style"],
                                 language=task.get("language") or "zh",
                                 scenario=task.get("scenario") or "auto",
                                 formality=task.get("formality") or "casual",
-                                history=history)
+                                history=history, recent_chat=recent_chat)
         if task["mode"] == "generate":
             store.append_session_message(task["session_id"], "user", task["message"])
             store.append_session_message(task["session_id"], "assistant", result["reply"])
@@ -128,9 +147,29 @@ def _background_loop(app: FastAPI) -> None:
             time.sleep(POLL_INTERVAL_SEC)
 
 
+def _reply_watchdog(app: FastAPI) -> None:
+    """看门狗线程: 独立于回复线程, 周期性把卡死的 running 回复任务标记 failed。
+
+    回复线程串行执行 _execute_reply_task, 若其中模型加载/LLM 调用卡死,
+    回复线程本身会被阻塞而无法自愈; 本线程用独立 SQLite 连接兜底, 让前端
+    轮询能拿到 failed 结果并退出「正在生成回复…」, 而非永久等待。
+    """
+    store = _build_store()
+    while True:
+        try:
+            n = store.mark_stuck_reply_tasks_failed(REPLY_STUCK_TIMEOUT_SEC)
+            if n:
+                log.warning("回复看门狗: %d 个 running 任务超时已标记 failed", n)
+        except Exception:
+            log.exception("回复看门狗循环异常")
+        time.sleep(WATCHDOG_INTERVAL_SEC)
+
+
 def start_worker(app: FastAPI) -> None:
     """启动双线程 worker: 回复线程 + 后台线程 (分层/摘要)。
-    回复永不阻塞于分层/摘要; 各线程独立 SQLite 连接 (WAL + busy_timeout 兜底并发写)。"""
+    回复永不阻塞于分层/摘要; 各线程独立 SQLite 连接 (WAL + busy_timeout 兜底并发写)。
+    另起看门狗线程兜底「回复生成卡死」, 保证前端轮询终态可达。"""
     import threading
     threading.Thread(target=_reply_loop, args=(app,), daemon=True).start()
     threading.Thread(target=_background_loop, args=(app,), daemon=True).start()
+    threading.Thread(target=_reply_watchdog, args=(app,), daemon=True).start()

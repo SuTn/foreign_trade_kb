@@ -20,11 +20,17 @@ def retrieve_bm25(store: StructuredStore, query: str, top_k=5) -> list[dict]:
            [{"text": c.get("text", ""), "source": "bm25_chunk"} for c in chunks]
 
 def retrieve_multi(store, vector_store, query, customer_id=None, chat_id=None, top_k=5) -> list[dict]:
-    """4 路并行召回合并。"""
+    """4 路并行召回合并。向量召回失败时降级 (ChromaDB 并发/损坏不阻塞回复, 仅用 BM25)。"""
     results = []
     if customer_id:
         results += retrieve_profile(store, customer_id)
-    results += retrieve_message_vector(vector_store, query, chat_id, top_k)
-    results += retrieve_chunk_vector(vector_store, query, top_k)
+    try:
+        results += retrieve_message_vector(vector_store, query, chat_id, top_k)
+    except Exception:
+        pass  # 向量库不可用时静默降级, BM25 仍提供关键词上下文
+    try:
+        results += retrieve_chunk_vector(vector_store, query, top_k)
+    except Exception:
+        pass
     results += retrieve_bm25(store, query, top_k)
     return results

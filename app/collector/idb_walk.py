@@ -45,11 +45,39 @@ def _read_store_js(store: str) -> str:
     if store == "message":
         mapping = (
             "function(m) {"
-            " var idv = m.id;"
+            " var idv = m.id, mk = m.msgKey, ky = m.key;"
             " var idstr = typeof idv === 'string' ? idv : (idv && (idv.id || ''));"
+            " if (!idstr && mk) { idstr = typeof mk === 'string' ? mk : (mk && (mk.id || '')); }"
+            " if (!idstr && ky) { idstr = typeof ky === 'string' ? ky : (ky && (ky.id || '')); }"
             " var to = m.to && m.to._serialized ? m.to._serialized : (typeof m.to === 'string' ? m.to : null);"
             " var from = typeof m.from === 'string' ? m.from : (m.from && (m.from._serialized || m.from.user));"
-            " return {id: idstr, t: m.t, from: from, to: to, type: m.type, fromMe: m.fromMe === true}; }"
+            # fromMe 真实来源: 消息 id/msgKey/key 是序列化串 'true_<jid>_<hex>' / 'false_<jid>_<hex>',
+            # true_ 前缀即表示「我方发出」; 顶层 m.fromMe 与对象型 MsgKey 的 .fromMe 多为 undefined。
+            # 三个候选字段 (id/msgKey/key) 逐一检查: 顶层布尔 → 对象 .fromMe → 字符串前缀 true_
+            " function isTrueStr(x){ return typeof x === 'string' && x.indexOf('true_') === 0; }"
+            " function objMe(x){ return x && typeof x === 'object' && x.fromMe === true; }"
+            " var fromMe = m.fromMe === true || objMe(idv) || objMe(mk) || objMe(ky)"
+            "   || isTrueStr(idv) || isTrueStr(mk) || isTrueStr(ky);"
+            " var t = (m.t !== undefined && m.t !== null) ? m.t : (m.timestamp || 0);"
+            # chatJid: 权威会话 JID (私聊=对方, 群=群)。序列化串 'true_/false_<jid>_<hex>' 取首尾下划线之间的 <jid>;
+            # 对象形态取 .remote (Wid 或字符串)。这个字段不依赖「当前打开的是哪个会话」, 用于归因会话。
+            " function jidFromStr(s){"
+            "   if (typeof s !== 'string') return null;"
+            "   var a = s.indexOf('_'), b = s.lastIndexOf('_');"
+            "   if (a >= 0 && b > a) return s.slice(a + 1, b);"
+            "   return null;"
+            " }"
+            " function remoteFrom(x){"
+            "   if (!x || typeof x !== 'object') return null;"
+            "   var r = x.remote;"
+            "   if (typeof r === 'string') return r;"
+            "   if (r && r._serialized) return r._serialized;"
+            "   if (r && r.user) return r.user;"
+            "   return null;"
+            " }"
+            " var chatJid = jidFromStr(idv) || jidFromStr(mk) || jidFromStr(ky)"
+            "   || remoteFrom(idv) || remoteFrom(mk) || remoteFrom(ky) || null;"
+            " return {id: idstr, t: t, from: from, to: to, type: m.type, fromMe: fromMe, chatJid: chatJid}; }"
         )
     elif store == "chat":
         mapping = (

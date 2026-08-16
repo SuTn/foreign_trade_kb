@@ -52,6 +52,25 @@ def test_read_store_js_is_readonly():
     assert "delete" not in js and "put(" not in js and "add(" not in js
 
 
+def test_read_store_js_extracts_fromme_from_msgkey():
+    """fromMe 的真实来源是消息 id/msgKey 序列化串 'true_<jid>_<hex>' 前缀,
+    顶层 m.fromMe 与 m.id.fromMe (MsgKey 对象) 在多数消息里不存在。
+    漏取会导致自己发出的消息被误判为入站 (归属错误)。"""
+    js = idb_walk._read_store_js("message")
+    assert "idv.fromMe" in js          # 兼容 MsgKey 对象形态
+    assert "m.fromMe === true" in js   # 兼容旧格式顶层 fromMe
+    assert "indexOf('true_') === 0" in js  # 序列化串前缀 true_ (权威来源)
+
+
+def test_read_store_js_extracts_chatjid():
+    """chatJid: 会话 JID 从 id/msgKey/key 序列化串 'true_/false_<jid>_<hex>' 提取 <jid>,
+    或对象形态 .remote。这是消息归因会话的权威来源, 不依赖「当前打开哪个会话」。"""
+    js = idb_walk._read_store_js("message")
+    assert "chatJid" in js
+    assert "jidFromStr" in js     # 字符串形态解析
+    assert "remoteFrom" in js     # 对象形态 .remote 兜底
+
+
 async def test_walk_idb_reads_group_metadata(monkeypatch):
     monkeypatch.setattr(idb_walk.settings, "idb_stores",
                         ["message", "chat", "contact", "group-metadata"])

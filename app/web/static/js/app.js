@@ -91,19 +91,53 @@ function initWorkspacePoll() {
     });
     return max;
   }
+  function isNearBottom() {
+    return msgBox.scrollHeight - msgBox.scrollTop - msgBox.clientHeight < 80;
+  }
+  // 初次进入滚动到底部, 显示最新消息
+  msgBox.scrollTop = msgBox.scrollHeight;
   function poll() {
     var after = latestTs();
     var url = "/workspace/customer/" + customerId + "/chat/poll?after_ts=" + after + "&chat_id=" + encodeURIComponent(chatId);
+    // 请求前记录: 用户是否在底部 + 当前消息数; 只有「有新消息且用户本来在底部」才自动滚到底
+    var wasNearBottom = isNearBottom();
+    var beforeCount = msgBox.querySelectorAll(".chat-row[data-msg-id]").length;
     var done = false;
     function onSwap() {
       if (done) return;
       done = true;
       document.removeEventListener("htmx:afterSwap", onSwap);
-      // 新消息入场动画 + 滚动到底部
-      var rows = msgBox.querySelectorAll(".chat-row[data-ts]");
-      var last = rows[rows.length - 1];
-      if (last) {
-        last.classList.add("new-msg");
+      var rows = msgBox.querySelectorAll(".chat-row[data-msg-id]");
+      // 去重: slow_tick 校准 ts/from_me 后, 同一条消息会以更高 ts 被重新拉取,
+      // 若不处理会出现「同一条消息显示两边」。用新行(正确 ts/方向)替换旧行。
+      var oldById = {};
+      var n = Math.min(beforeCount, rows.length);
+      for (var i = 0; i < n; i++) {
+        var oid = rows[i].getAttribute("data-msg-id");
+        if (oid) oldById[oid] = rows[i];
+      }
+      var newRows = [];
+      for (var j = n; j < rows.length; j++) {
+        var nid = rows[j].getAttribute("data-msg-id");
+        if (nid && oldById[nid]) {
+          oldById[nid].remove();   // 替换过时的旧行 (ts/方向已校准)
+        } else {
+          newRows.push(rows[j]);
+        }
+      }
+      if (!newRows.length) return;  // 全是校准替换, 无真正新消息: 不滚动/不动 AI 上下文
+      newRows.forEach(function (r) { r.classList.add("new-msg"); });
+      // 有新客户消息时, 同步 AI 回复上下文为最新一条客户消息 (仅本次真正新增行)
+      var mi = document.getElementById("ws-reply-message");
+      newRows.forEach(function (r) {
+        if (r.classList.contains("theirs")) {
+          var txt = r.querySelector(".chat-text");
+          if (mi && txt && txt.textContent && txt.textContent !== "(无正文)") {
+            mi.value = txt.textContent;
+          }
+        }
+      });
+      if (wasNearBottom) {
         msgBox.scrollTop = msgBox.scrollHeight;
       }
     }
@@ -125,24 +159,34 @@ document.addEventListener("htmx:afterSwap", function (e) {
     if (row) row.classList.add("active");
   }
 });
-// workspace-reply-panel: 点击消息"回复"按钮 → 填充底部回复面板并显示 (事件委托)
-document.addEventListener("click", function (e) {
-  var btn = e.target.closest ? e.target.closest(".ws-reply-btn") : null;
-  if (!btn) return;
-  var msgId = btn.getAttribute("data-msg-id");
-  var row = msgId ? document.querySelector('.chat-row[data-msg-id="' + msgId + '"]') : null;
-  var textEl = row ? row.querySelector(".chat-text") : null;
-  var text = textEl ? textEl.textContent : "";
-  var panel = document.getElementById("ws-reply-panel");
-  if (!panel) return;
-  var msgInput = document.getElementById("ws-reply-message");
-  var targetText = document.getElementById("ws-reply-target-text");
-  if (msgInput) msgInput.value = text;
-  if (targetText) targetText.textContent = (text || "(无正文)").slice(0, 60) + (text.length > 60 ? "…" : "");
-  panel.hidden = false;
-  // 滚动到底部让回复面板可见
+// workspace-load-earlier: 加载更早消息时保持视口稳定 (内容前插不导致滚动跳动)
+var _loadEarlierAnchor = null;
+document.addEventListener("htmx:beforeSwap", function (e) {
+  var elt = e.detail && e.detail.elt;
+  if (elt && elt.id === "ws-load-earlier-wrap") {
+    var msgBox = document.getElementById("messages");
+    if (msgBox) _loadEarlierAnchor = msgBox.scrollHeight - msgBox.scrollTop;
+  }
+});
+document.addEventListener("htmx:afterSwap", function (e) {
+  if (_loadEarlierAnchor === null) return;
   var msgBox = document.getElementById("messages");
-  if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+  if (msgBox) msgBox.scrollTop = msgBox.scrollHeight - _loadEarlierAnchor;
+  _loadEarlierAnchor = null;
+});
+// workspace-reply-panel: 自行回复 / AI回复 模式切换 (事件委托)
+document.addEventListener("click", function (e) {
+  var modeBtn = e.target.closest ? e.target.closest(".ws-reply-mode") : null;
+  if (!modeBtn) return;
+  var panel = modeBtn.closest("#ws-reply-panel");
+  if (!panel) return;
+  var mode = modeBtn.getAttribute("data-mode");
+  panel.querySelectorAll(".ws-reply-mode").forEach(function (b) {
+    b.classList.toggle("active", b === modeBtn);
+  });
+  panel.querySelectorAll(".ws-reply-mode-pane").forEach(function (p) {
+    p.hidden = (p.getAttribute("data-pane") !== mode);
+  });
 });
 // customer-match-confirm: 展开/收起「重新匹配」下拉 (事件委托, 替代内联 onclick)
 document.addEventListener("click", function (e) {
@@ -152,6 +196,29 @@ document.addEventListener("click", function (e) {
   if (!block) return;
   var form = block.querySelector(".ws-remap-form");
   if (form) form.classList.toggle("hidden");
+});
+// profile-fields: 画像字段「编辑/完成」与「新增字段」切换 (事件委托)
+document.addEventListener("click", function (e) {
+  var editBtn = e.target.closest ? e.target.closest(".profile-fields-edit-btn") : null;
+  if (editBtn) {
+    var block = editBtn.closest(".profile-fields");
+    if (!block) return;
+    var view = block.querySelector(".profile-fields-view");
+    var grid = block.querySelector(".profile-fields-grid");
+    var editing = grid && !grid.classList.contains("hidden");
+    if (view) view.classList.toggle("hidden", editing);
+    if (grid) grid.classList.toggle("hidden", !editing);
+    editBtn.textContent = editing ? "编辑" : "完成";
+    return;
+  }
+  var addBtn = e.target.closest ? e.target.closest(".profile-fields-add-btn") : null;
+  if (addBtn) {
+    var b2 = addBtn.closest(".profile-fields");
+    if (b2) {
+      var form = b2.querySelector(".profile-fields-add");
+      if (form) form.classList.toggle("hidden");
+    }
+  }
 });
 // reply-workflow-optimization: 一键复制 (事件委托, 兼容 htmx 动态插入的 DOM)
 document.addEventListener("click", function (e) {
@@ -348,7 +415,15 @@ document.addEventListener("click", function (e) {
 })();
 // collector-settings-center: 设置读写 + 手动扫描触发 (模态确认)
 (function () {
-  function fmtValue(v) { return typeof v === "boolean" ? (v ? "true" : "false") : String(v); }
+  function fmtValue(v) { return typeof v === "boolean" ? (v ? "开启" : "关闭") : String(v); }
+  function setSwitchState(el) {
+    var label = el.closest(".switch");
+    if (!label) return;
+    var st = label.querySelector(".switch-state");
+    if (!st) return;
+    st.textContent = el.checked ? "开启" : "关闭";
+    st.classList.toggle("on", el.checked);
+  }
 
   function initSettings() {
     var form = document.getElementById("settings-form");
@@ -366,19 +441,22 @@ document.addEventListener("click", function (e) {
         inputs.forEach(function (el) {
           var key = el.getAttribute("data-key");
           var v = d.values[key];
-          if (el.getAttribute("data-type") === "checkbox") {
+          var isCheckbox = el.getAttribute("data-type") === "checkbox";
+          if (isCheckbox) {
             el.checked = v === true || v === "true";
+            setSwitchState(el);
           } else {
             el.value = v;
+            // 数值输入追加 "默认 xxx"; 开关已有实时状态, 不再追加
+            var def = el.parentNode.querySelector(".rt-default");
+            if (!def) {
+              def = document.createElement("span");
+              def.className = "rt-default muted";
+              def.style.cssText = "margin-left:6px;font-size:12px";
+              el.parentNode.appendChild(def);
+            }
+            def.textContent = "默认 " + fmtValue(d.defaults[key]);
           }
-          var def = el.parentNode.querySelector(".rt-default");
-          if (!def) {
-            def = document.createElement("span");
-            def.className = "rt-default muted";
-            def.style.cssText = "margin-left:6px;font-size:12px";
-            el.parentNode.appendChild(def);
-          }
-          def.textContent = "默认 " + fmtValue(d.defaults[key]);
         });
       });
     }
@@ -390,13 +468,16 @@ document.addEventListener("click", function (e) {
     }
     inputs.forEach(function (el) {
       var key = el.getAttribute("data-key");
+      // 开关切换时实时更新状态文字
+      if (el.getAttribute("data-type") === "checkbox") {
+        el.addEventListener("change", function () { setSwitchState(el); });
+      }
       var p = el.closest("p");
       if (p) {
         var btn = document.createElement("button");
         btn.type = "button";
         btn.className = "btn btn-sm btn-ghost";
         btn.textContent = "恢复默认";
-        btn.style.cssText = "margin-left:8px";
         btn.addEventListener("click", function () { resetKey(key); });
         p.appendChild(btn);
       }
@@ -467,10 +548,20 @@ document.addEventListener("click", function (e) {
 })();
 // whatsapp-bidirectional-chat: 发送 (输入框 + 建议卡片, 均带确认)
 (function () {
+  function switchReplyMode(mode) {
+    var panel = document.getElementById("ws-reply-panel");
+    if (!panel) return;
+    panel.querySelectorAll(".ws-reply-mode").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-mode") === mode);
+    });
+    panel.querySelectorAll(".ws-reply-mode-pane").forEach(function (p) {
+      p.hidden = (p.getAttribute("data-pane") !== mode);
+    });
+  }
   function doSend(chatId, text, statusEl, onDone) {
     if (!text) return;
     if (!window.confirm("发送给该客户：\n\n" + text)) return;
-    var box = statusEl || document.getElementById("ws-send-status");
+    var box = statusEl;
     if (box) box.innerHTML = '<div class="muted">发送中…</div>';
     fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: text }) })
@@ -490,20 +581,31 @@ document.addEventListener("click", function (e) {
       .catch(function () { if (box) box.innerHTML = '<p class="error">网络错误</p>'; if (onDone) onDone(false); });
   }
   document.addEventListener("click", function (e) {
-    var sendBtn = e.target.closest ? e.target.closest("#ws-send-btn") : null;
-    if (sendBtn) {
-      var ta = document.getElementById("ws-send-text");
-      var chatId = document.getElementById("messages").getAttribute("data-chat-id");
-      doSend(chatId, ta ? ta.value.trim() : "", null, function (ok) {
-        if (ok && ta) ta.value = "";  // 仅成功时清空, 失败保留文本便于重发
+    var manual = e.target.closest ? e.target.closest("#ws-reply-manual-send") : null;
+    if (manual) {
+      var mta = document.getElementById("ws-reply-manual-text");
+      var mchat = document.getElementById("ws-reply-chat-id");
+      var mstatus = document.getElementById("ws-reply-manual-status");
+      doSend(mchat ? mchat.value : "", mta ? mta.value.trim() : "", mstatus, function (ok) {
+        if (ok && mta) mta.value = "";
       });
       return;
     }
     var direct = e.target.closest ? e.target.closest("[data-send-text]") : null;
     if (direct) {
+      var card = direct.closest(".result-card");
+      var ta = card ? card.querySelector("#reply-text") : null;
+      // 以用户编辑后的文本框内容为准 (data-send-text 只是生成时的原始文本)
+      var text = ta ? ta.value.trim() : direct.getAttribute("data-send-text");
       var old = direct.textContent;
-      doSend(direct.getAttribute("data-send-chat"), direct.getAttribute("data-send-text"), null,
-             function (ok) { direct.textContent = ok ? "已发送" : old; });
+      doSend(direct.getAttribute("data-send-chat"), text, null, function (ok) {
+        if (ok) {
+          direct.textContent = "已发送";
+          switchReplyMode("manual");  // 发送成功后切回默认「自行回复」页
+        } else {
+          direct.textContent = old;
+        }
+      });
     }
   });
 })();

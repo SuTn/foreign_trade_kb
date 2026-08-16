@@ -31,56 +31,70 @@
   {% for m in messages %}
   <div class="chat-row {{ 'mine' if m.from_me else 'theirs' }}" data-ts="{{ m.ts }}" data-msg-id="{{ m.id }}">
     <div class="chat-bubble {{ 'mine' if m.from_me else 'theirs' }}">
-      <div class="chat-meta">{% if kind == 'group' %}{{ '我' if m.from_me else (m.sender_name or '未知') }} · {{ m.ts }}{% else %}{{ '我' if m.from_me else '客户' }} · {{ m.ts }}{% endif %}</div>
+      <div class="chat-meta">{% if kind == 'group' %}{{ '我' if m.from_me else (m.sender_name or '未知') }} · {{ m.ts|ws_time }}{% else %}{{ '我' if m.from_me else '客户' }} · {{ m.ts|ws_time }}{% endif %}</div>
       <div class="chat-text">{{ m.body or '(无正文)' }}</div>
-      <button class="btn btn-sm btn-ghost ws-reply-btn" data-msg-id="{{ m.id }}">回复</button>
     </div>
   </div>
   {% else %}
   <p class="empty">该客户暂无关联会话或消息</p>
   {% endfor %}
 </div>
-<!-- workspace-reply-panel: 底部固定回复面板 (点击消息的"回复"按钮后显示) -->
-<form class="ws-reply-panel" id="ws-reply-panel" hidden
-      hx-post="/api/reply" hx-target="#reply-result" hx-swap="innerHTML">
-  <input type="hidden" name="customer_id" value="{{ customer_id }}">
-  <input type="hidden" name="chat_id" value="{{ chat_id }}">
-  <input type="hidden" name="session_id" value="{{ session_id }}">
-  <input type="hidden" name="message" id="ws-reply-message">
-  <div class="ws-reply-target">回复给: <span id="ws-reply-target-text" class="muted"></span></div>
-  <div class="reply-controls">
-    <select name="language" class="input">
-      <option value="zh">中文</option>
-      <option value="en">English</option>
-      <option value="ru">Русский</option>
-    </select>
-    <select name="scenario" class="input">
-      <option value="auto">自动场景</option>
-      <option value="inquiry">询价</option>
-      <option value="bargain">砍价</option>
-      <option value="inspection">看车</option>
-      <option value="logistics">物流</option>
-      <option value="payment">付款</option>
-      <option value="after_sale">售后</option>
-    </select>
-    <select name="formality" class="input">
-      <option value="casual">口语</option>
-      <option value="formal">正式</option>
-    </select>
-    <button class="btn btn-sm" type="submit">生成回复</button>
+<!-- workspace-reply-panel: 底部固定回复面板 (始终可见; 支持 自行回复 / AI回复 两种模式) -->
+<div class="ws-reply-panel" id="ws-reply-panel">
+  <input type="hidden" id="ws-reply-chat-id" value="{{ chat_id }}">
+  <input type="hidden" id="ws-reply-customer-id" value="{{ customer_id }}">
+  <div class="ws-reply-modes" role="tablist">
+    <button type="button" class="ws-reply-mode active" data-mode="manual">自行回复</button>
+    <button type="button" class="ws-reply-mode" data-mode="ai">AI回复</button>
   </div>
-  <div id="reply-result"></div>
-</form>
+
+  <!-- 自行回复: 手动输入 + 直接发送 -->
+  <div class="ws-reply-mode-pane" data-pane="manual">
+    <textarea id="ws-reply-manual-text" class="input" rows="2" placeholder="输入回复内容…"></textarea>
+    <div class="btn-row">
+      {% if send_enabled %}
+      <button class="btn" id="ws-reply-manual-send" type="button">发送</button>
+      {% else %}
+      <span class="muted">发送功能未开启，请到「设置」→「启用发送功能」开启后再回复。</span>
+      {% endif %}
+      <span id="ws-reply-manual-status" class="muted"></span>
+    </div>
+  </div>
+
+  <!-- AI回复: 生成建议话术 -->
+  <form class="ws-reply-mode-pane" data-pane="ai" hidden
+        hx-post="/api/reply" hx-target="#reply-result" hx-swap="innerHTML">
+    <input type="hidden" name="customer_id" value="{{ customer_id }}">
+    <input type="hidden" name="chat_id" value="{{ chat_id }}">
+    <input type="hidden" name="session_id" value="{{ session_id }}">
+    <input type="hidden" name="message" id="ws-reply-message" value="{{ default_message }}">
+    <div class="reply-controls">
+      <select name="language" class="input">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+        <option value="ru">Русский</option>
+      </select>
+      <select name="scenario" class="input">
+        <option value="auto">自动场景</option>
+        <option value="inquiry">询价</option>
+        <option value="bargain">砍价</option>
+        <option value="inspection">看车</option>
+        <option value="logistics">物流</option>
+        <option value="payment">付款</option>
+        <option value="after_sale">售后</option>
+      </select>
+      <select name="formality" class="input">
+        <option value="casual">口语</option>
+        <option value="formal">正式</option>
+      </select>
+      <button class="btn btn-sm" type="submit">生成回复</button>
+    </div>
+    <div id="reply-result"></div>
+  </form>
+</div>
 <!-- workspace-live-refresh: 中栏增量轮询 (JS 驱动, 见 app.js) -->
 <div class="ws-chat-poll" data-chat-id="{{ chat_id }}" data-customer-id="{{ customer_id }}"></div>
 <!-- 中栏加载完成后自动加载右栏 (workspace-layout) -->
 <div hx-get="/workspace/customer/{{ customer_id }}/side?chat_id={{ chat_id }}"
      hx-target="#ws-right" hx-swap="innerHTML"
      hx-trigger="load" hidden></div>
-{% if send_enabled %}
-<div class="ws-send-bar">
-  <textarea id="ws-send-text" class="input" rows="2" placeholder="输入要发送的消息…"></textarea>
-  <button class="btn" id="ws-send-btn" type="button">发送</button>
-  <div id="ws-send-status"></div>
-</div>
-{% endif %}

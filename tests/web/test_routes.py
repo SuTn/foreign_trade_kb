@@ -722,6 +722,27 @@ def test_workspace_chat_loads_messages(tmp_data):
     assert "生成回复" in r.text
 
 
+def test_workspace_chat_reply_panel_two_modes(tmp_data):
+    """reply-two-modes: 回复面板含「自行回复 / AI回复」两种模式; 发送未开启时显示提示。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,?)",
+                       ("cust1", "Alice", "10086", None, None, 0, None))
+    store.conn.execute("INSERT INTO customer_chat_map VALUES(?,?,?,?,?,?)",
+                       ("a1", "c1", "cust1", 0.9, 0, 0))
+    store.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                       ("c1", "a1", "c1", "Alice", "single", 0))
+    store.conn.commit()
+    client = TestClient(create_app())
+    r = client.get("/workspace/customer/cust1/chat")
+    assert r.status_code == 200
+    assert "自行回复" in r.text
+    assert "AI回复" in r.text
+    # send_enabled 默认 False → 不渲染发送按钮, 显示开启提示
+    assert 'id="ws-reply-manual-send"' not in r.text
+    assert "发送功能未开启" in r.text
+
+
 def test_workspace_side_loads_profile_and_summary(tmp_data):
     """workspace-layout: /workspace/customer/{id}/side 加载右栏画像+摘要。"""
     from app.storage.sqlite_store import SqliteStore

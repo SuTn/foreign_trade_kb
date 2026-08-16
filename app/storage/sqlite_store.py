@@ -58,9 +58,13 @@ class SqliteStore(StructuredStore):
         self.conn.commit()
 
     def upsert_message(self, msg: Message):
+        # from_me 用 MAX 语义: 只升不降 (0→1 可, 1→0 不行)。
+        # 原因: fast_tick 走 DOM tail 启发式, 连续多条自己发的消息只有最后一条带 tail-out,
+        # 前面的会误判 from_me=0; slow_tick 用 IDB 的权威 fromMe 纠正为 1 后, 不应再被 DOM 覆盖回 0。
         self.conn.execute(
             "INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id,account_id) DO UPDATE SET "
-            "from_me=excluded.from_me, sender_jid=excluded.sender_jid, ts=excluded.ts, type=excluded.type, "
+            "from_me=MAX(excluded.from_me, messages.from_me), "
+            "sender_jid=excluded.sender_jid, ts=excluded.ts, type=excluded.type, "
             "body=COALESCE(excluded.body, body), body_present=excluded.body_present, "
             "sender_name=COALESCE(excluded.sender_name, sender_name)",
             (msg.id, msg.account_id, msg.chat_id, int(msg.from_me), msg.sender_jid,
@@ -286,6 +290,20 @@ class SqliteStore(StructuredStore):
             "WHERE status IN ('pending','running')", (int(time.time()),))
         self.conn.commit()
 
+    def mark_stuck_reply_tasks_failed(self, timeout_sec: int = 180) -> int:
+        """把超过 timeout_sec 仍处于 running 的任务标记为 failed (回复生成卡住兜底)。
+
+        仅处理 running (正在生成) 的任务: pending 可能只是排队等待, 不应误杀。
+        返回受影响行数。"""
+        cutoff = int(time.time()) - timeout_sec
+        cur = self.conn.execute(
+            "UPDATE reply_tasks SET status='failed', "
+            "error='生成超时，请重试', updated_at=? "
+            "WHERE status='running' AND updated_at < ?",
+            (int(time.time()), cutoff))
+        self.conn.commit()
+        return cur.rowcount
+
     # ---- reply-workflow-optimization: 多轮会话 (D4) ----
     def find_or_create_reply_session(self, customer_id, chat_id):
         r = self.conn.execute(
@@ -433,14 +451,31 @@ class SqliteStore(StructuredStore):
         return result
 
     def resolve_chat_ids_by_names(self, names: list[str]) -> dict[str, str]:
-        """按显示名反查 chat_id (chats + contacts)。返回 {name: chat_id}。
-        @lid 经 contacts.phone 归一为 @c.us, 保证与 customer_chat_map 的 chat_id 一致。"""
+        """按显示名反查 chat_id。返回 {name: chat_id}。
+
+        优先级 (高→低):
+        1. customers + customer_chat_map: 客户显示名来自画像/匹配, 比 chats 表可信。
+           chats 表可能被 IDB 串名污染 (如 Lucas 会话显示成「苏童」), 导致同名会话
+           映射到错误 chat_id —— 这正是「检测到未读却显示在别的客户」的根因。
+        2. chats 表: 补充尚未匹配客户的会话 (含群聊)。
+        3. contacts 表: 含 @lid → @c.us 归一, 兜底。
+        各层均优先 @c.us 形态; setdefault 保证同名取首个稳定命中。
+        """
         out = {}
         for r in self.conn.execute(
-                "SELECT id, display_name FROM chats WHERE display_name IS NOT NULL").fetchall():
+                "SELECT cu.display_name AS name, cm.chat_id AS cid FROM customers cu "
+                "JOIN customer_chat_map cm ON cm.customer_id = cu.id "
+                "WHERE cu.display_name IS NOT NULL AND cu.display_name != '' "
+                "ORDER BY (cm.chat_id LIKE '%@c.us') DESC, cm.match_confidence DESC").fetchall():
+            out.setdefault(r["name"], r["cid"])
+        for r in self.conn.execute(
+                "SELECT id, display_name FROM chats WHERE display_name IS NOT NULL AND display_name != '' "
+                "ORDER BY (id LIKE '%@c.us') DESC").fetchall():
             out.setdefault(r["display_name"], r["id"])
         for r in self.conn.execute(
-                "SELECT jid, display_name, phone FROM contacts WHERE display_name IS NOT NULL").fetchall():
+                "SELECT jid, display_name, phone FROM contacts "
+                "WHERE display_name IS NOT NULL AND display_name != '' "
+                "ORDER BY (jid LIKE '%@c.us') DESC").fetchall():
             jid = r["jid"]
             if jid and str(jid).endswith("@lid") and r["phone"]:
                 jid = f'{r["phone"]}@c.us'

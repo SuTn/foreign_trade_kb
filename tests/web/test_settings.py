@@ -86,3 +86,8 @@ def test_settings_page_renders(tmp_data):
     assert 'id="settings-form"' in html
     assert "fast_tick_sec" in html and "auto_scan_chats" in html
     assert 'href="/settings"' in html and "nav-ico" in html  # 导航含设置入口 (SVG 图标)
+    # settings-switches: boolean 配置用开关 (switch) 而非文字输入式 checkbox
+    assert 'class="switch"' in html
+    assert 'class="switch-slider"' in html
+    assert 'data-key="send_enabled"' in html
+    assert 'data-type="checkbox"' in html

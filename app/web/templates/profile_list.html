@@ -41,26 +41,39 @@
   </form>
 </div>
 
-<!-- 画像字段 -->
+<!-- 画像字段 (只读展示, 点击"编辑"切换为可编辑) -->
 <div class="profile-fields">
   <div class="profile-fields-head">
     <span class="profile-fields-label">画像字段</span>
-    <button class="btn btn-ghost btn-sm" type="button" onclick="this.closest('.profile-fields').querySelector('.profile-fields-add').classList.toggle('hidden')">新增字段</button>
+    <div class="profile-fields-actions">
+      <button class="btn btn-ghost btn-sm profile-fields-edit-btn" type="button">编辑</button>
+      <button class="btn btn-ghost btn-sm profile-fields-add-btn" type="button">新增字段</button>
+    </div>
   </div>
-  <div class="profile-fields-grid">
+  <div class="profile-fields-view">
     {% for p in profile %}
       {% if p.field not in ('intent_level', 'tags') %}
       <div class="profile-field">
         <span class="profile-field-name">{{ p.field }}</span>
-        <form class="profile-field-edit" hx-post="/customers/{{ p.customer_id }}/profile" hx-target="closest .profile-field" hx-swap="outerHTML">
+        <span class="profile-field-value">{{ p.value }}</span>
+      </div>
+      {% endif %}
+    {% else %}
+      <div class="muted">暂无画像字段</div>
+    {% endfor %}
+  </div>
+  <div class="profile-fields-grid hidden">
+    {% for p in profile %}
+      {% if p.field not in ('intent_level', 'tags') %}
+      <div class="profile-field">
+        <span class="profile-field-name">{{ p.field }}</span>
+        <form class="profile-field-edit" hx-post="/customers/{{ p.customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
           <input type="hidden" name="field" value="{{ p.field }}">
           <input type="text" name="value" value="{{ p.value }}" class="input profile-field-input">
           <button type="submit" class="btn btn-sm">保存</button>
         </form>
       </div>
       {% endif %}
-    {% else %}
-      <div class="muted">暂无画像字段</div>
     {% endfor %}
   </div>
   <form class="profile-fields-add hidden" hx-post="/customers/{{ customer_id }}/profile" hx-target="#profile" hx-swap="innerHTML">
