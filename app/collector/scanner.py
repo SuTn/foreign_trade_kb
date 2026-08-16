@@ -443,6 +443,9 @@ class Scanner:
                         pass  # 扫描失败不阻塞主循环
                     self.last_scan = time.time()
                 await self._drain_scan_requests()
+                await self._drain_send_requests()
+                await self._sync_follow()
+                await self._sync_chat_previews()
                 await self._drain_backfill_requests()
                 await self._drain_profile_updates()
                 await self._drain_vectors()
@@ -609,6 +612,87 @@ class Scanner:
         finally:
             self._manual_scan_active = False
             self._scan_runtime = None
+
+    def _chat_lookup_query(self, chat_id: str) -> str | None:
+        """发送/跟随时用于搜索框的查询串: 显示名, 回退手机号。"""
+        from app.profile.matcher import phone_from_jid
+        try:
+            r = self.store.conn.execute(
+                "SELECT display_name FROM chats WHERE id=?", (chat_id,)).fetchone()
+            if r and r["display_name"]:
+                return r["display_name"]
+        except Exception:
+            pass
+        return phone_from_jid(chat_id)
+
+    async def _drain_send_requests(self):
+        """消费发送任务 (纯文字)。send_enabled 关闭时直接 failed (防绕过)。"""
+        if self.page is None:
+            return
+        enabled = (self._rt.get_typed("send_enabled", False)
+                   if self._rt is not None else False)
+        req = self.store.next_pending_send_request()
+        if not req:
+            return
+        if not enabled:
+            self.store.mark_send_request_failed(req["id"], "发送功能未开启 (send_enabled=false)")
+            return
+        self.store.mark_send_request_running(req["id"])
+        try:
+            from app.collector.sender import open_chat, send_text
+            query = self._chat_lookup_query(req["chat_id"])
+            if query:
+                await open_chat(self.page, query)
+            await send_text(self.page, req["text"])
+            self.store.mark_send_request_done(req["id"])
+        except Exception as e:
+            self.store.bump_send_request_attempts(req["id"], str(e)[:300])
+
+    async def _sync_follow(self):
+        """读取 Web 设置的 follow_chat, 与当前会话不同则切换过去。"""
+        if self.page is None or self._rt is None:
+            return
+        follow = self._rt.get("collector_follow_chat")
+        if not follow or follow == self._current_chat_id:
+            return
+        query = self._chat_lookup_query(follow)
+        if not query:
+            return
+        from app.collector.sender import open_chat
+        try:
+            await open_chat(self.page, query)
+            self._current_chat_id = follow
+        except Exception:
+            pass  # 切换失败下轮重试
+
+    async def _sync_chat_previews(self):
+        """读左栏会话列表 → 映射 chat_id → 写 chat_previews。失败静默。"""
+        if self.cdp is None:
+            return
+        try:
+            from app.collector.chat_list import read_chat_list
+            rows = await read_chat_list(self.cdp)
+        except Exception:
+            return
+        if not rows:
+            return
+        try:
+            name_to_id = self.store.resolve_chat_ids_by_names(
+                [r.get("name") for r in rows if r.get("name")])
+        except Exception:
+            return
+        previews = []
+        for r in rows:
+            cid = name_to_id.get(r.get("name"))
+            if not cid:
+                continue
+            previews.append({"chat_id": cid, "unread_count": r.get("unread") or 0,
+                             "preview": r.get("preview")})
+        if previews:
+            try:
+                self.store.upsert_chat_previews(previews)
+            except Exception:
+                pass
 
 def parse_dom_snapshot_safe(snap, chat_id=None):
     from app.collector.dom_snapshot import parse_dom_snapshot
