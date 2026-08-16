@@ -14,6 +14,7 @@ class RuntimeSettings:
         "auto_scan_max_chats": settings.auto_scan_max_chats,
         "auto_scan_settle_sec": settings.auto_scan_settle_sec,
         "auto_scan_chats": settings.auto_scan_chats,
+        "send_enabled": False,
     }
 
     def __init__(self, store):

@@ -175,6 +175,7 @@ SETTING_VALIDATORS = {
     "auto_scan_max_chats":  {"kind": "int", "min": 1, "max": 1000},
     "auto_scan_settle_sec": {"kind": "float", "min": 0.1, "max": 30},
     "auto_scan_chats":      {"kind": "bool"},
+    "send_enabled":         {"kind": "bool"},
 }
 
 
