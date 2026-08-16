@@ -102,3 +102,21 @@ CREATE TABLE IF NOT EXISTS summary_tasks(
   created_at INTEGER,
   updated_at INTEGER);
 CREATE INDEX IF NOT EXISTS idx_summary_tasks_status ON summary_tasks(status, created_at);
+-- 双向收发 (whatsapp-bidirectional-chat): 发送任务表 (镜像 scan_requests 语义)
+CREATE TABLE IF NOT EXISTS send_requests(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id TEXT,
+  text TEXT,
+  status TEXT DEFAULT 'pending',   -- pending | running | done | failed
+  attempts INTEGER DEFAULT 0,
+  error TEXT,
+  done INTEGER DEFAULT 0,
+  requested_at INTEGER,
+  updated_at INTEGER);
+CREATE INDEX IF NOT EXISTS idx_send_requests_status ON send_requests(status, requested_at);
+-- 双向收发: 会话列表实时预览 (未读红点 + 最后一句, 不打开会话)
+CREATE TABLE IF NOT EXISTS chat_previews(
+  chat_id TEXT PRIMARY KEY,
+  unread_count INTEGER DEFAULT 0,
+  preview TEXT,
+  updated_at INTEGER);
