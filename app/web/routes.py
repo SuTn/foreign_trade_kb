@@ -496,6 +496,12 @@ async def workspace_chat(customer_id: str, request: Request):
         row = store.conn.execute("SELECT kind FROM chats WHERE id=?", (chat_id,)).fetchone()
         kind = row["kind"] if row else None
     session_id = store.find_or_create_reply_session(customer_id, chat_id) if chat_id else None
+    # whatsapp-bidirectional-chat: 记录 Web 正在查看的会话, 采集器跟随切换
+    if chat_id:
+        try:
+            RuntimeSettings(store).set("collector_follow_chat", chat_id)
+        except Exception:
+            pass
     # workspace-live-refresh: 打开聊天视为已读, 记录最后查看时间
     if chat_id:
         store.set_last_seen(customer_id, int(time.time()))
@@ -504,7 +510,8 @@ async def workspace_chat(customer_id: str, request: Request):
         {"customer_id": customer_id, "chat_id": chat_id, "messages": msgs, "kind": kind,
          "session_id": session_id, "chats": chat_list,
          "has_more": has_more, "oldest_ts": oldest_ts,
-         "customer": dict(customer) if customer else None})
+         "customer": dict(customer) if customer else None,
+         "send_enabled": bool(RuntimeSettings(store).get_typed("send_enabled", False))})
 
 
 @router.get("/workspace/customer/{customer_id}/chat/earlier")
@@ -858,7 +865,8 @@ def _render_reply_result(request: Request, customer_id: str, chat_id: str,
          "language_label": _REPLY_LANGUAGE_LABELS.get(language, language),
          "scenario_label": _REPLY_SCENARIO_LABELS.get(scenario, scenario),
          "formality": result.get("formality", ""),
-         "session_id": session_id, "error": result.get("error")},
+         "session_id": session_id, "error": result.get("error"),
+         "send_enabled": bool(RuntimeSettings(_store(request)).get_typed("send_enabled", False))},
     )
 
 
@@ -1001,6 +1009,41 @@ async def collector_scan(request: Request):
         return JSONResponse({"busy": True, "error": "已有扫描进行中"}, status_code=409)
     store.create_scan_request()
     return {"accepted": True}
+
+
+@router.post("/api/send")
+async def send_message(request: Request):
+    """whatsapp-bidirectional-chat: 创建发送任务。body: {chat_id, text}。
+    send_enabled=false 时拒绝。"""
+    body = await _parse_body(request)
+    chat_id = (body.get("chat_id") or "").strip()
+    text = (body.get("text") or "").strip()
+    store = _store(request)
+    rt = RuntimeSettings(store)
+    if not rt.get_typed("send_enabled", False):
+        return JSONResponse({"error": "发送功能未开启"}, status_code=403)
+    if not chat_id:
+        return JSONResponse({"error": "缺少 chat_id"}, status_code=400)
+    if not text:
+        return JSONResponse({"error": "消息为空"}, status_code=400)
+    task_id = store.create_send_request(chat_id, text)
+    return request.app.state.templates.TemplateResponse(
+        request, "send_polling.html", {"task_id": task_id})
+
+
+@router.get("/api/send/status/{task_id}")
+async def send_status(task_id: str, request: Request):
+    """whatsapp-bidirectional-chat: 发送任务轮询。pending/running → 发送中; done → 已发送; failed → 错误。"""
+    store = _store(request)
+    task = store.get_send_request(int(task_id)) if task_id.isdigit() else None
+    if task is None:
+        return HTMLResponse('<p class="muted">任务不存在或已过期</p>')
+    if task["status"] in ("pending", "running"):
+        return request.app.state.templates.TemplateResponse(
+            request, "send_polling.html", {"task_id": task["id"]})
+    if task["status"] == "failed":
+        return HTMLResponse(f'<p class="error">发送失败: {task["error"] or "未知错误"}</p>')
+    return HTMLResponse('<p class="ok">已发送</p>')
 
 
 @router.post("/api/knowledge/export-vault")

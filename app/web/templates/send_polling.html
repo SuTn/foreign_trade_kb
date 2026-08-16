@@ -1,0 +1,6 @@
+<div id="send-task-{{ task_id }}"
+     hx-get="/api/send/status/{{ task_id }}"
+     hx-trigger="every 1s"
+     hx-swap="outerHTML">
+  <p class="muted">发送中…</p>
+</div>
