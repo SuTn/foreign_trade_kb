@@ -175,6 +175,7 @@ class Scanner:
         self.llm = llm  # 可选 LLM: 自动画像抽取 (None=跳过, 供测试/无 key 环境)
         self._last_dom_hash = None
         self._matched_chats: set[str] = set()
+        self._chat_name_cache: dict[str, str] = {}  # chat_id → 权威显示名 (Part C 防串名污染)
         self._profile_pending: set[tuple[str, str]] = set()  # (customer_id, chat_id) 待抽取画像
         self._vector_pending: list[tuple[str, str, dict]] = []  # (key, text, metadata) 待向量化 (C1: 后台线程非阻塞)
         self._current_chat_id: str | None = None  # 由 slow_tick 推导的当前会话 JID
@@ -427,7 +428,9 @@ class Scanner:
         now = int(time.time())
         # kind 由会话 JID 判定: @g.us → 群聊 (display_name=群名), 其余保持 single
         kind = "group" if str(chat_id).endswith("@g.us") else "single"
-        self.store.upsert_chat(Chat(chat_id, self.account_id, chat_id, m.get("name"), kind, now))
+        # Part C: 单聊显示名优先取 customers 画像名, 防 chats 表被 IDB 串名污染
+        name = self._authoritative_chat_name(chat_id, m.get("name"))
+        self.store.upsert_chat(Chat(chat_id, self.account_id, chat_id, name, kind, now))
         msg = Message(m["id"], self.account_id, chat_id, m.get("fromMe", False),
                       m.get("from"), m.get("timestamp", 0), m.get("type"),
                       m.get("body"), m.get("body_present", False), now,
@@ -437,7 +440,7 @@ class Scanner:
         if chat_id not in self._matched_chats:
             try:
                 from app.profile.matcher import match_customer
-                match_customer(self.store, self.account_id, chat_id, m.get("name"), chat_id)
+                match_customer(self.store, self.account_id, chat_id, name, chat_id)
                 # 自动画像抽取 (每客户一次; LLM 在 run 循环 executor 中跑, 不阻塞本 tick)
                 if self.llm is not None:
                     row = self.store.conn.execute(
@@ -550,6 +553,12 @@ class Scanner:
         last_slow = 0.0
         self.last_scan = -1e9  # 启动即扫描全部会话 (首次知识构建)
         backoff = 1.0
+        # Part C: 启动时清一次脏显示名 (按 customers 画像名回填), 之后靠 _upsert_one 防再次污染
+        try:
+            if hasattr(self.store, "reconcile_chat_names_from_customers"):
+                self.store.reconcile_chat_names_from_customers()
+        except Exception:
+            pass
         while True:
             if self._rt is not None:
                 try:
@@ -774,6 +783,62 @@ class Scanner:
                 pass
         return phone_from_jid(chat_id)
 
+    def _authoritative_chat_name(self, chat_id: str, fallback_name: str | None) -> str | None:
+        """单聊 (@c.us) 显示名优先取 customers 画像名 (按手机号), 防 chats 表被 IDB 串名污染。
+        群聊/无客户映射/查询失败回退 fallback_name; 结果按 chat_id 缓存 (每会话只查一次)。"""
+        if chat_id in self._chat_name_cache:
+            return self._chat_name_cache[chat_id]
+        name = fallback_name
+        if chat_id and str(chat_id).endswith("@c.us") and hasattr(self.store, "conn"):
+            digits = str(chat_id).rsplit("@", 1)[0]
+            if digits.isdigit():
+                try:
+                    r = self.store.conn.execute(
+                        "SELECT display_name FROM customers WHERE phone=? "
+                        "AND display_name IS NOT NULL AND display_name != ''",
+                        (digits,)).fetchone()
+                    if r and r["display_name"]:
+                        name = r["display_name"]
+                except Exception:
+                    pass
+        self._chat_name_cache[chat_id] = name
+        return name
+
+    def _normalize_send_target(self, chat_id: str) -> str:
+        """把发送目标 chat_id 归一为 @c.us 形态 (与 msgKey chatJid 归一一致), 供发送前 JID 校验。"""
+        if not chat_id:
+            return ""
+        if str(chat_id).endswith("@lid") and hasattr(self.store, "conn"):
+            try:
+                r = self.store.conn.execute(
+                    "SELECT phone FROM contacts WHERE jid=?", (chat_id,)).fetchone()
+                if r and r["phone"]:
+                    return f'{r["phone"]}@c.us'
+            except Exception:
+                pass
+        return chat_id
+
+    async def _current_chat_authoritative_jid(self) -> str | None:
+        """返回当前打开会话的权威 JID (来自 msgKey 的 chatJid, 而非名字/current_chat_id 推断)。
+        无法确定时返回 None (发送前用它做 fail-closed 校验, 防发错人)。"""
+        from app.collector.idb_walk import walk_idb
+        try:
+            data = await walk_idb(self.cdp, self.account_id)
+            idb_by_hex, _ = _build_idb_index(data)
+            dom_msgs = parse_dom_snapshot_safe(await self.cdp.capture_snapshot(), self._current_chat_id)
+            phone_by_lid = data.get("phone_by_lid", {})
+            lids = data.get("lid_to_phone", {})
+            for dom in dom_msgs:
+                rec = idb_by_hex.get(dom.get("id"))
+                if not rec or not rec.get("chatJid"):
+                    continue
+                jid = self._resolve_authoritative_chat(rec, phone_by_lid, lids)
+                if jid:
+                    return jid
+            return None
+        except Exception:
+            return None
+
     async def _drain_send_requests(self):
         """消费发送任务 (纯文字)。send_enabled 关闭时直接 failed (防绕过)。"""
         if self.page is None:
@@ -797,6 +862,13 @@ class Scanner:
             if not opened:
                 # 打不开目标会话就绝不发送, 防止发到当前打开的其他会话
                 self.store.mark_send_request_failed(req["id"], "无法打开目标会话 (搜索结果为空)")
+                return
+            # Part B: 发送前核对打开会话的权威 JID (msgKey chatJid), 防止重名/脏名导致发错人
+            actual = await self._current_chat_authoritative_jid()
+            expected = self._normalize_send_target(req["chat_id"])
+            if not actual or actual != expected:
+                self.store.mark_send_request_failed(
+                    req["id"], f"会话校验失败, 已中止发送 (目标={expected}, 实际={actual})")
                 return
             await send_text(self.page, req["text"])
             self.store.mark_send_request_done(req["id"])

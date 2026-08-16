@@ -291,3 +291,23 @@ def test_resolve_chat_ids_by_names_prefers_customer_over_corrupted_chats(tmp_dat
     s.conn.commit()
     m = s.resolve_chat_ids_by_names(["苏童"])
     assert m["苏童"] == "8615071290277@c.us"  # 应解析到正确苏童, 而非损坏的 Lucas 会话
+
+
+def test_reconcile_chat_names_from_customers_fixes_dirty_name(tmp_data):
+    """Part C: 按 customers 画像名 (手机号) 纠正 chats 表被串名污染的显示名。"""
+    s = SqliteStore()
+    s.conn.execute("INSERT INTO customers VALUES(?,?,?,NULL,NULL,?,NULL)",
+                   ("lucas", "Lucas", "8618963126542", 0))
+    # chats 表损坏: Lucas 的会话被写成了「苏童」
+    s.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                   ("8618963126542@c.us", "me", "8618963126542@c.us", "苏童", "single", 0))
+    # 无客户映射的会话不动
+    s.conn.execute("INSERT INTO chats VALUES(?,?,?,?,?,?)",
+                   ("1234567890@c.us", "me", "1234567890@c.us", "某人", "single", 0))
+    s.conn.commit()
+    n = s.reconcile_chat_names_from_customers()
+    assert n == 1
+    assert s.conn.execute(
+        "SELECT display_name FROM chats WHERE id='8618963126542@c.us'").fetchone()[0] == "Lucas"
+    assert s.conn.execute(
+        "SELECT display_name FROM chats WHERE id='1234567890@c.us'").fetchone()[0] == "某人"

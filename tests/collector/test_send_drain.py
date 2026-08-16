@@ -76,12 +76,63 @@ def test_drain_send_when_enabled(tmp_data, monkeypatch):
     async def fake_send(page, text):
         sc.page.sent.append(text)
         return True
+    async def fake_jid():
+        return "c1"  # 打开会话的权威 JID == 目标
+    sc._current_chat_authoritative_jid = fake_jid
     monkeypatch.setattr("app.collector.sender.open_chat", fake_open)
     monkeypatch.setattr("app.collector.sender.send_text", fake_send)
     asyncio.run(sc._drain_send_requests())
     assert ("done", 1) in store.calls
     assert sc.page.opened == ["Alice"]
     assert sc.page.sent == ["hi"]
+
+
+def test_drain_send_jid_mismatch_marks_failed_no_send(tmp_data, monkeypatch):
+    """Part B: 打开会话的权威 JID 与目标不一致时中止发送 (防重名/脏名发错人)。"""
+    store = Store()
+    store._pending = {"id": 1, "chat_id": "c1", "text": "hi"}
+    sc = Scanner(None, store, None)
+    sc._rt = FakeRt()
+    sc.page = FakePage()
+    sc._chat_lookup_query = lambda chat_id: "Alice"
+    async def fake_open(page, query):
+        return True
+    async def fake_send(page, text):
+        sc.page.sent.append(text)
+        return True
+    async def fake_jid():
+        return "c2"  # 实际打开的是别的会话
+    sc._current_chat_authoritative_jid = fake_jid
+    monkeypatch.setattr("app.collector.sender.open_chat", fake_open)
+    monkeypatch.setattr("app.collector.sender.send_text", fake_send)
+    asyncio.run(sc._drain_send_requests())
+    assert any(c[0] == "failed" for c in store.calls)
+    assert sc.page.sent == []  # 未发送
+    assert ("done", 1) not in store.calls
+
+
+def test_drain_send_jid_undetermined_marks_failed(tmp_data, monkeypatch):
+    """Part B: 无法确定打开会话的 JID 时 fail-closed, 不发送。"""
+    store = Store()
+    store._pending = {"id": 1, "chat_id": "c1", "text": "hi"}
+    sc = Scanner(None, store, None)
+    sc._rt = FakeRt()
+    sc.page = FakePage()
+    sc._chat_lookup_query = lambda chat_id: "Alice"
+    async def fake_open(page, query):
+        return True
+    async def fake_send(page, text):
+        sc.page.sent.append(text)
+        return True
+    async def fake_jid():
+        return None  # 读不到权威 JID
+    sc._current_chat_authoritative_jid = fake_jid
+    monkeypatch.setattr("app.collector.sender.open_chat", fake_open)
+    monkeypatch.setattr("app.collector.sender.send_text", fake_send)
+    asyncio.run(sc._drain_send_requests())
+    assert any(c[0] == "failed" for c in store.calls)
+    assert sc.page.sent == []
+    assert ("done", 1) not in store.calls
 
 
 def test_drain_send_skipped_when_disabled(tmp_data):

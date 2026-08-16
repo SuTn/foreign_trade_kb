@@ -482,6 +482,42 @@ class SqliteStore(StructuredStore):
             out.setdefault(r["display_name"], jid)
         return out
 
+    def reconcile_chat_names_from_customers(self) -> int:
+        """把单聊 chats.display_name 按手机号回填为 customers 画像名 (Part C: 清脏名)。
+
+        chats 表可能被 IDB 串名污染 (如 Lucas 会话显示成「苏童」), 而 customers 表的
+        display_name 只在为空时补齐、不会被覆盖, 更可信。此处对每个 @c.us 会话, 若存在
+        手机号一致的客户且画像名与 chats 名不同, 用画像名纠正。群聊/无客户映射的会话不动。
+        返回纠正条数。
+        """
+        changed = 0
+        try:
+            rows = self.conn.execute("SELECT id FROM chats WHERE id LIKE '%@c.us'").fetchall()
+        except Exception:
+            return 0
+        for r in rows:
+            chat_id = r["id"]
+            digits = str(chat_id).rsplit("@", 1)[0]
+            if not digits.isdigit():
+                continue
+            cust = self.conn.execute(
+                "SELECT display_name FROM customers WHERE phone=? "
+                "AND display_name IS NOT NULL AND display_name != ''",
+                (digits,)).fetchone()
+            if not cust:
+                continue
+            new_name = cust["display_name"]
+            cur = self.conn.execute(
+                "SELECT display_name FROM chats WHERE id=?", (chat_id,)).fetchone()
+            if cur and (cur["display_name"] or "") == new_name:
+                continue
+            self.conn.execute(
+                "UPDATE chats SET display_name=? WHERE id=?", (new_name, chat_id))
+            changed += 1
+        if changed:
+            self.conn.commit()
+        return changed
+
     # ---- customer-intent-tiering: 分层历史 + 分层任务 ----
     def add_tier_history(self, customer_id, intent_level, tags, source):
         self.conn.execute(

@@ -52,6 +52,23 @@ def test_aggregate_chat_previews_max_unread_and_keeps_preview():
     assert out == [{"chat_id": "8615071290277@c.us", "unread_count": 1, "preview": "我要一台"}]
 
 
+def test_authoritative_chat_name_prefers_customer(tmp_data):
+    """Part C: 单聊显示名优先取 customers 画像名, 防 chats 表被串名污染。"""
+    from app.storage.sqlite_store import SqliteStore
+    store = SqliteStore()
+    store.conn.execute("INSERT INTO customers VALUES(?,?,?,NULL,NULL,?,NULL)",
+                       ("lucas", "Lucas", "8618963126542", 0))
+    store.conn.commit()
+    sc = Scanner(None, store, None)
+    # 有客户映射的单聊 → 用画像名覆盖传入的脏名
+    assert sc._authoritative_chat_name("8618963126542@c.us", "苏童") == "Lucas"
+    # 无客户映射 → 回退传入名
+    assert sc._authoritative_chat_name("999@c.us", "某人") == "某人"
+    # 群聊 → 不回退改名
+    assert sc._authoritative_chat_name("g@g.us", "群名") == "群名"
+    store.conn.close()
+
+
 class BackfillCDP:
     """模拟滚动回溯: 每次滚动后产出新消息, 第 3 次起无新消息 (到顶)。
     消息用合并后结构 (id/chatId), 经 parse_dom_snapshot_safe 透传。"""
