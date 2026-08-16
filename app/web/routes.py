@@ -2,6 +2,7 @@
 import time, uuid, tempfile
 import sqlite3
 import json
+import asyncio
 import threading
 from pathlib import Path
 
@@ -61,6 +62,16 @@ def _build_store() -> SqliteStore:
     conn.row_factory = sqlite3.Row
     store.conn = conn
     return store
+
+
+def _run_in_thread(fn, *args):
+    """在独立线程打开新 SQLite 连接执行 fn(store, *args) (阻塞的 LLM 调用等),
+    返回结果并关闭连接。供 asyncio.to_thread 把耗时同步工作移出事件循环。"""
+    worker = _build_store()
+    try:
+        return fn(worker, *args)
+    finally:
+        worker.conn.close()
 
 
 _thread_local = threading.local()
@@ -179,14 +190,23 @@ def _validate_setting(key, raw) -> tuple:
         if s in ("false", "0"):
             return True, False
         return False, "必须是布尔值 (true/false)"
-    try:
-        val = float(raw) if spec["kind"] == "float" else int(raw)
-    except (TypeError, ValueError):
-        return False, "必须为数值"
-    if spec["kind"] == "float" and (val != val or val in (float("inf"), float("-inf"))):
-        return False, "必须为有限数值"  # NaN / ±Infinity 视为非法 (与 get_typed 一致)
-    if spec["kind"] == "int" and float(raw) != val:
-        return False, "必须为整数"
+    if spec["kind"] == "int":
+        try:
+            val = int(raw)
+        except (TypeError, ValueError):
+            return False, "必须为整数"
+        try:
+            if float(raw) != val:
+                return False, "必须为整数"
+        except (TypeError, ValueError):
+            return False, "必须为整数"
+    else:
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            return False, "必须为数值"
+        if val != val or val in (float("inf"), float("-inf")):
+            return False, "必须为有限数值"  # NaN / ±Infinity 视为非法 (与 get_typed 一致)
     if val <= spec.get("min", 1e-9) or val > spec.get("max", float("inf")):
         rng = f"须在 {spec.get('min')}~{spec.get('max')}" if "max" in spec else "须大于 0"
         return False, rng
@@ -632,11 +652,12 @@ async def summary_status(task_id: str, request: Request):
 
 @router.post("/customers/{customer_id}/analyze")
 async def customer_analyze(customer_id: str, request: Request):
-    """6.4: 生成客户分析 (兴趣点/活跃度/跟进建议)。仅生成不写入画像。"""
-    store = _store(request)
+    """6.4: 生成客户分析 (兴趣点/活跃度/跟进建议)。仅生成不写入画像。
+    LLM 调用在独立线程执行 (to_thread), 不阻塞事件循环。"""
     from app.profile.service import analyze_customer_full
     try:
-        analysis = analyze_customer_full(store, CloudLLM(), customer_id)
+        analysis = await asyncio.to_thread(
+            _run_in_thread, analyze_customer_full, CloudLLM(), customer_id)
     except Exception as e:
         analysis = {"interests": "", "activity": "", "followup": "",
                     "summary": f"分析失败: {e}"}
@@ -647,11 +668,12 @@ async def customer_analyze(customer_id: str, request: Request):
 
 @router.post("/customers/{customer_id}/followup")
 async def customer_followup(customer_id: str, request: Request):
-    """workspace-reply-profile: 生成结构化跟进建议 (优先级/下一步/话术/时机/依据)。"""
-    store = _store(request)
+    """workspace-reply-profile: 生成结构化跟进建议 (优先级/下一步/话术/时机/依据)。
+    LLM 调用在独立线程执行, 不阻塞事件循环。"""
     from app.profile.followup import generate_followup
     try:
-        followup = generate_followup(store, CloudLLM(), customer_id)
+        followup = await asyncio.to_thread(
+            _run_in_thread, generate_followup, CloudLLM(), customer_id)
     except Exception as e:
         followup = {"priority": "medium", "next_action": f"生成失败: {e}",
                     "suggested_message": "", "best_time": "", "reason": ""}
@@ -662,14 +684,15 @@ async def customer_followup(customer_id: str, request: Request):
 
 @router.post("/customers/{customer_id}/refresh-profile")
 async def customer_refresh_profile(customer_id: str, request: Request):
-    """6.2: 手动重新抽取画像 (auto 来源, 不覆盖 manual)。"""
-    store = _store(request)
+    """6.2: 手动重新抽取画像 (auto 来源, 不覆盖 manual)。
+    LLM 调用在独立线程执行, 不阻塞事件循环。"""
     from app.profile.service import refresh_customer_profile
     try:
-        refresh_customer_profile(store, CloudLLM(), customer_id)
+        await asyncio.to_thread(
+            _run_in_thread, refresh_customer_profile, CloudLLM(), customer_id)
     except Exception:
         pass  # 抽取失败展示旧画像
-    profile = store.get_profile(customer_id)
+    profile = _store(request).get_profile(customer_id)
     return request.app.state.templates.TemplateResponse(
         request, "profile_list.html", {"profile": profile, "customer_id": customer_id},
     )
@@ -897,7 +920,12 @@ async def reply_status(request: Request, task_id: str):
                                     {"reply": "", "sources": [], "style": task["style"],
                                      "error": task["error"]},
                                     session_id=task["session_id"])
-    result = json.loads(task["result"] or "{}")
+    try:
+        result = json.loads(task["result"] or "{}")
+    except (TypeError, ValueError):
+        result = {}
+    if not isinstance(result, dict):
+        result = {}
     return _render_reply_result(request, task["customer_id"], task["chat_id"],
                                 task["message"], result, session_id=task["session_id"])
 
@@ -954,10 +982,7 @@ async def collector_backfill(request: Request, body: dict):
     chat_id = body.get("chat_id")
     max_scrolls = int(body.get("max_scrolls", 10))
     store = _store(request)
-    store.conn.execute(
-        "CREATE TABLE IF NOT EXISTS backfill_requests "
-        "(id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, max_scrolls INTEGER, requested_at INTEGER, done INTEGER DEFAULT 0)"
-    )
+    # backfill_requests 表由 schema.sql 建全 (含 attempts 列), 无需在此内联建表
     store.conn.execute(
         "INSERT INTO backfill_requests (chat_id, max_scrolls, requested_at) VALUES (?,?,?)",
         (chat_id, max_scrolls, int(time.time())),

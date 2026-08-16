@@ -422,12 +422,6 @@ class Scanner:
                 slow_sec = (self._rt.get_typed("slow_tick_sec", settings.slow_tick_sec)
                             if self._rt is not None else settings.slow_tick_sec)
                 if time.time() - last_slow >= slow_sec:
-                    if not getattr(self, "_vectors_cleared", False):
-                        try:
-                            self.vector_store.clear_message_vectors()
-                        except Exception:
-                            pass  # 清理失败不阻塞主循环, 下次重试
-                        self._vectors_cleared = True
                     try:
                         await self.slow_tick()
                     except Exception:

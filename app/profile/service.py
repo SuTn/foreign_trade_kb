@@ -56,6 +56,6 @@ def refresh_customer_profile(store: StructuredStore, llm: LLM, customer_id: str,
         return {}
     return extract_profile(store, llm, customer_id, summary)
 
-def analyze_customer_full(store: StructuredStore, llm: LLM, customer_id: str) -> str:
+def analyze_customer_full(store: StructuredStore, llm: LLM, customer_id: str) -> dict:
     """基于该客户画像 + 全部会话摘要生成客户分析 (兴趣点/活跃度/跟进建议)。"""
     return analyze_customer(store, llm, customer_id, build_customer_summary(store, customer_id))

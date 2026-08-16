@@ -1,6 +1,9 @@
 # app/collector/readonly_cdp.py
-"""ReadOnlyCDP 门面: 架构级保证采集器只做只读 CDP 操作。
-仅暴露只读方法, 禁止采集器直接持有裸 CDP session。所有方法均为 async
+"""ReadOnlyCDP 门面: 把采集器可用的 CDP 操作收敛为只读查询 (DOM 快照 / IndexedDB 读取 / 只读 evaluate)。
+
+"只读" 的含义是: 不发送 WhatsApp 消息、不向输入框写入文字。采集器仍会打开会话
+(点击聊天列表, 会把未读消息标记为已读) 与抓取头像 (GET 请求), 这些副作用在
+docs/RISK.md 已披露。本门面不暴露裸 CDP session, 所有方法均为 async
 (Playwright CDPSession.send 是协程, 必须 await)。"""
 from typing import Any
 

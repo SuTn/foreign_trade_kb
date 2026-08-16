@@ -70,6 +70,15 @@ class CloudLLM(LLM):
             )
             return resp.choices[0].message.content
 
+    @staticmethod
+    def _is_transient(e: Exception) -> bool:
+        """瞬时错误判定: 无状态码 (网络/连接类) 或 429/5xx 视为可重试;
+        其余 4xx (认证/参数错误) 不重试, 立即失败。"""
+        code = getattr(e, "status_code", None)
+        if code is None:
+            return True
+        return code == 429 or code >= 500
+
     def generate(self, system, user, max_tokens=1024):
         client = self._get_client()
         last_err = None
@@ -78,6 +87,8 @@ class CloudLLM(LLM):
                 return self._call_once(client, system, user, max_tokens)
             except Exception as e:
                 last_err = e
+                if not self._is_transient(e):
+                    break  # 非瞬时错误不再重试
                 if attempt < self.max_retries - 1:
                     time.sleep(2 ** attempt)  # 指数退避: 0s, 2s, 4s
         raise last_err

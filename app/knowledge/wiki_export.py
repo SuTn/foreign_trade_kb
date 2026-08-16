@@ -4,6 +4,24 @@ import json, re
 from pathlib import Path
 from app.storage.interfaces import StructuredStore
 
+
+def _yaml_scalar(v) -> str:
+    """把 frontmatter 值序列化为合法 YAML 标量/流式序列。
+    列表 → [a, b]; None → 空串; bool → true/false; 字符串含特殊字符时加引号。"""
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(_yaml_scalar(x) for x in v) + "]"
+    if v is None:
+        return '""'
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return str(v)
+    s = str(v)
+    if s and (s[0] in " \t-#&*!|>%@`" or any(c in s for c in ":#\n") or s != s.strip()):
+        return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return s
+
+
 def export_vault(store: StructuredStore, out_dir: Path) -> int:
     """导出所有 wiki_pages 为 .md 文件, 页面正文按标题互链为 [[wikilinks]]。返回导出数量。"""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -16,7 +34,7 @@ def export_vault(store: StructuredStore, out_dir: Path) -> int:
     for p in pages:
         others = {t: s for t, s in titles.items() if s != p["slug"]}  # 不自链
         body = _linkify(p["body_md"], others)
-        fm_lines = "\n".join(f"{k}: {v}" for k, v in p["frontmatter"].items())
+        fm_lines = "\n".join(f"{k}: {_yaml_scalar(v)}" for k, v in p["frontmatter"].items())
         content = f"---\n{fm_lines}\n---\n\n{body}\n"
         (out_dir / f"{p['slug']}.md").write_text(content, encoding="utf-8")
     _write_obsidian_config(out_dir)

@@ -209,7 +209,12 @@ class SqliteStore(StructuredStore):
         self.conn.execute("INSERT INTO doc_chunks_fts(doc_chunks_fts) VALUES('rebuild')")
         # 从 wiki 页面来源中移除该 doc
         for r in self.conn.execute("SELECT id, source_doc_ids FROM wiki_pages").fetchall():
-            docs = json.loads(r["source_doc_ids"])
+            try:
+                docs = json.loads(r["source_doc_ids"])
+            except (TypeError, ValueError):
+                continue  # 脏 JSON 跳过, 不中断删除
+            if not isinstance(docs, list):
+                continue
             if doc_id in docs:
                 docs.remove(doc_id)
                 if docs:

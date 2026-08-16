@@ -5,7 +5,8 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -13,6 +14,38 @@ from app.config import settings
 from app.web import routes
 from app.web.routes import router, _build_store
 from app.web.worker import start_worker
+
+
+_LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def _is_local_url(raw: str) -> bool:
+    """判断 Origin/Referer 是否指向本机 (127.0.0.1 / localhost / ::1)。"""
+    if not raw:
+        return False
+    try:
+        from urllib.parse import urlparse
+        host = (urlparse(raw).hostname or "").lower()
+    except Exception:
+        return False
+    return host in _LOCAL_HOSTS
+
+
+async def _csrf_guard(request: Request, call_next):
+    """CSRF 防护: 非只读请求若来自跨站 Origin/Referer 则拒绝。
+
+    浏览器发起的跨站请求会带指向外部站点的 Origin 或 Referer (以及 Sec-Fetch-Site:
+    cross-site); 本机 UI 的同源请求带本机 Origin。无这些头的客户端 (curl/脚本/测试)
+    放行。服务仅绑定 127.0.0.1, 所有合法来源均为本机。
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return await call_next(request)
+    if request.headers.get("sec-fetch-site", "").lower() == "cross-site":
+        return JSONResponse({"error": "跨站请求被拒绝"}, status_code=403)
+    for hdr in (request.headers.get("origin"), request.headers.get("referer")):
+        if hdr and not _is_local_url(hdr):
+            return JSONResponse({"error": "跨站请求被拒绝"}, status_code=403)
+    return await call_next(request)
 
 
 def _hf_model_cached(model_name: str) -> bool:
@@ -94,6 +127,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="外贸客户知识库", lifespan=lifespan)
+    app.middleware("http")(_csrf_guard)
     base = Path(__file__).parent
     app.mount("/static", StaticFiles(directory=str(base/"static")), name="static")
     settings.avatars_dir.mkdir(parents=True, exist_ok=True)

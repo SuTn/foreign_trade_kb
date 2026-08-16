@@ -216,8 +216,9 @@ def test_clear_message_vectors_only_msg_col(tmp_data):
     assert vs.chunk_col.count() == 1
 
 
-def test_run_clears_message_vectors_once(tmp_data, monkeypatch):
-    """run() 首次慢 tick 前一次性清理 message_vectors, 幂等不重复执行。"""
+def test_run_does_not_clear_message_vectors(tmp_data, monkeypatch):
+    """审计修复: 采集器重启不再清空 message_vectors。向量按 chat_id:msg_id 幂等 upsert,
+    重启时保留历史向量, 新消息增量追加, 避免重启后语义召回大面积缺失。"""
     from app.collector.scanner import Scanner
     clears = [0]
 
@@ -243,8 +244,7 @@ def test_run_clears_message_vectors_once(tmp_data, monkeypatch):
         asyncio.run(sc.run())
     except _StopLoop:
         pass
-    assert clears[0] == 1
-    assert sc._vectors_cleared
+    assert clears[0] == 0
 
 
 def test_is_cdp_fatal_matches_disconnect_keywords():
