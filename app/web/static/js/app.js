@@ -103,8 +103,12 @@ function initWorkspacePoll() {
     var wasNearBottom = isNearBottom();
     var beforeCount = msgBox.querySelectorAll(".chat-row[data-msg-id]").length;
     var done = false;
-    function onSwap() {
+    function onSwap(e) {
       if (done) return;
+      // 只响应 #messages 自身的 swap; 左栏 3s 刷新 / 右栏 load 等其他 htmx swap
+      // 也会冒泡到 document 触发本监听, 若不过滤会抢先消费 onSwap 导致去重逻辑被跳过,
+      // slow_tick 校准 ts 后重复拉取的消息未被去重 → 同一条消息显示两遍。
+      if (!e || !e.target || e.target.id !== "messages") return;
       done = true;
       document.removeEventListener("htmx:afterSwap", onSwap);
       var rows = msgBox.querySelectorAll(".chat-row[data-msg-id]");
