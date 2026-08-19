@@ -40,7 +40,7 @@ def test_ollama_reranker_parses_results(monkeypatch):
 
 
 def test_ollama_reranker_network_failure_returns_original(monkeypatch):
-    """4.3: OllamaReranker 网络失败回退原序候选, 不抛异常。"""
+    """OllamaReranker 网络失败回退原序候选, 不抛异常。"""
     import httpx
     from app.rag.reranker import OllamaReranker
 
@@ -54,43 +54,70 @@ def test_ollama_reranker_network_failure_returns_original(monkeypatch):
     assert [c["text"] for c in ranked] == ["a", "b"]
 
 
-def test_bge_reranker_manual_score_no_prepare_for_model(monkeypatch):
-    """BgeReranker 用手动 tokenizer+model 打分, 不依赖 FlagEmbedding compute_score
-    (其内部调用 prepare_for_model, transformers>=5 已移除)。"""
-    import torch
-    from app.rag.reranker import BgeReranker
+def test_cloud_reranker_aliyun_parses_results(monkeypatch):
+    """CloudReranker (aliyun) 解析 qwen3-rerank 响应, 按 index 映射回候选。"""
+    import httpx
+    from app.rag.rerank_cloud import CloudReranker
 
-    class FakeTokenizer:
-        def __call__(self, pairs, **kw):
-            n = len(pairs)
+    calls = {}
+
+    class FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
             return {
-                "input_ids": torch.zeros((n, 4), dtype=torch.long),
-                "attention_mask": torch.ones((n, 4)),
-                "token_type_ids": torch.zeros((n, 4), dtype=torch.long),
+                "object": "list",
+                "results": [
+                    {"index": 0, "relevance_score": 0.9334521178273196},
+                    {"index": 2, "relevance_score": 0.34100082626411193},
+                ],
+                "model": "qwen3-rerank",
+                "id": "test-id",
+                "usage": {"total_tokens": 79},
             }
 
-    class FakeLogits:
-        def __init__(self, vals): self._v = torch.tensor(vals)
-        @property
-        def logits(self): return self._v
+    def fake_post(url, headers, json, timeout):
+        calls["url"] = url
+        calls["headers"] = headers
+        calls["json"] = json
+        return FakeResp()
 
-    class FakeModel:
-        def __init__(self): self.called = False
-        def __call__(self, **enc):
-            self.called = True
-            return FakeLogits([[3.0], [1.0], [2.0]])
-
-    class FakeFlagModel:
-        def __init__(self):
-            self.tokenizer = FakeTokenizer()
-            self.model = FakeModel()
-            self.max_length = 128
-            self.target_devices = ["cpu"]
-
-    r = BgeReranker()
-    r._model = FakeFlagModel()
+    monkeypatch.setattr(httpx, "post", fake_post)
+    r = CloudReranker(provider="aliyun", model="qwen3-rerank",
+                      api_base="https://example.maas.aliyuncs.com", api_key="sk-test")
     cands = [{"text": "a"}, {"text": "b"}, {"text": "c"}]
     ranked = r.rerank("q", cands, top_k=2)
-    assert [c["text"] for c in ranked] == ["a", "c"]  # score 3,2 最高
-    assert abs(ranked[0]["score"] - 3.0) < 1e-6
-    assert FakeFlagModel().model.called is False or r._model.model.called is True
+    assert calls["url"] == "https://example.maas.aliyuncs.com/compatible-api/v1/reranks"
+    assert calls["headers"]["Authorization"] == "Bearer sk-test"
+    assert calls["json"]["model"] == "qwen3-rerank"
+    assert calls["json"]["documents"] == ["a", "b", "c"]
+    assert calls["json"]["query"] == "q"
+    assert calls["json"]["top_n"] == 2
+    assert ranked[0]["text"] == "a"
+    assert ranked[0]["score"] == 0.9334521178273196
+    assert ranked[1]["text"] == "c"
+
+
+def test_cloud_reranker_aliyun_network_failure_returns_original(monkeypatch):
+    """CloudReranker 网络失败回退原序候选, 不抛异常。"""
+    import httpx
+    from app.rag.rerank_cloud import CloudReranker
+
+    def boom_post(url, headers, json, timeout):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(httpx, "post", boom_post)
+    r = CloudReranker(provider="aliyun", model="qwen3-rerank",
+                      api_base="https://xxx.maas.aliyuncs.com", api_key="sk-test")
+    cands = [{"text": "a"}, {"text": "b"}]
+    ranked = r.rerank("q", cands, top_k=2)
+    assert [c["text"] for c in ranked] == ["a", "b"]
+
+
+def test_cloud_reranker_empty_candidates_returns_empty():
+    """空候选直接返回空列表, 不发请求。"""
+    from app.rag.rerank_cloud import CloudReranker
+    r = CloudReranker(provider="aliyun", model="x",
+                      api_base="https://xxx.maas.aliyuncs.com", api_key="sk-test")
+    assert r.rerank("q", [], top_k=2) == []

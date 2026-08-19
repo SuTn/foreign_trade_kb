@@ -1,34 +1,10 @@
 # app/llm/bge_embedding.py
-from typing import Any
+"""嵌入实现: OpenAI 兼容接口 (阿里云 qwen3.7-text-embedding 等)。
+
+本地模型 (BgeEmbedding) 已移除, 全切在线。
+"""
 from app.llm.interfaces import Embedding
 from app.config import settings
-from app.llm.device_utils import use_fp16
-
-
-class BgeEmbedding(Embedding):
-    """本地 bge-m3 嵌入 (默认)。模型按 model 名全局复用, 避免每次实例化重载。"""
-
-    _model_cache: dict[str, Any] = {}
-
-    def __init__(self, model=None):
-        self._model = None
-        self._model_name = model or settings.embedding_model
-
-    def _ensure(self):
-        if self._model is None:
-            key = self._model_name
-            if key not in BgeEmbedding._model_cache:
-                from FlagEmbedding import BGEM3FlagModel
-                BgeEmbedding._model_cache[key] = BGEM3FlagModel(key, use_fp16=use_fp16())
-            self._model = BgeEmbedding._model_cache[key]
-
-    def embed(self, text: str) -> list[float]:
-        self._ensure()
-        out = self._model.encode([text], batch_size=1, return_dense=True)["dense_vecs"][0]
-        return out.tolist()
-
-    def dim(self) -> int:
-        return settings.embedding_dim
 
 
 class OpenAIEmbedding(Embedding):
@@ -45,7 +21,8 @@ class OpenAIEmbedding(Embedding):
         return openai.OpenAI(api_key=key, base_url=self.api_base)
 
     def embed(self, text: str) -> list[float]:
-        resp = self._client().embeddings.create(model=self._model_name, input=text)
+        resp = self._client().embeddings.create(
+            model=self._model_name, input=text, dimensions=self.dim())
         return resp.data[0].embedding
 
     def dim(self) -> int:
@@ -53,7 +30,5 @@ class OpenAIEmbedding(Embedding):
 
 
 def get_embedding() -> Embedding:
-    """按 settings.embedding_provider 返回嵌入实现 (local | openai)。"""
-    if settings.embedding_provider == "openai":
-        return OpenAIEmbedding()
-    return BgeEmbedding()
+    """返回在线嵌入实现 (OpenAI 兼容接口)。本地模型已移除。"""
+    return OpenAIEmbedding()

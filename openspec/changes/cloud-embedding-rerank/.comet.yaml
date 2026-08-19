@@ -1,0 +1,20 @@
+workflow: full
+phase: verify
+build_mode: direct
+build_pause: null
+isolation: branch
+verify_mode: full
+base_ref: null
+design_doc: docs/superpowers/specs/2026-08-15-cloud-embedding-rerank-design.md
+plan: null
+verify_result: passed
+verification_report: "通过代理 http://10.251.172.62:880 实测阿里云 embedding(qwen3.7-text-embedding, 1024维) 与 rerank(qwen3-rerank) 均返回 200, 参数与解析逻辑一致; py_compile 通过; grep 无本地模型残留引用"
+branch_status: handled
+created_at: 2026-08-15
+verified_at: 2026-08-15
+archived: false
+handoff_context: null
+handoff_hash: null
+subagent_dispatch: null
+tdd_mode: direct
+review_mode: off

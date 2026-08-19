@@ -41,14 +41,15 @@ class Settings(BaseSettings):
     llm_api_base: str | None = None  # OpenAI 兼容接口 base URL; None=官方端点
     llm_api_key: str | None = None   # None 时回退 OPENAI_API_KEY / ANTHROPIC_API_KEY
     llm_max_tokens: int = 2048  # 回复生成最大 token 数 (长回复不被截断; 短任务单独传更小值)
-    embedding_provider: str = "local"  # local (bge-m3 本地) | openai (OpenAI 兼容接口)
-    embedding_model: str = "BAAI/bge-m3"
+    embedding_provider: str = "openai"  # openai (OpenAI 兼容接口, 阿里云等)
+    embedding_model: str = "qwen3.7-text-embedding"
     embedding_api_base: str | None = None  # 嵌入接口 base URL, 可与 LLM 分开配置
     embedding_api_key: str | None = None   # None 时回退 OPENAI_API_KEY
-    embedding_dim: int = 1024  # 嵌入维度 (bge-m3=1024; openai text-embedding-3-small=1536 等)
-    reranker_provider: str = "local"  # local (FlagEmbedding 本地) | ollama (OpenAI 兼容接口)
-    reranker_api_base: str | None = None  # ollama provider 生效, 如 http://localhost:11434/v1
-    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    embedding_dim: int = 1024  # 嵌入维度 (qwen3.7-text-embedding 支持 2560/2048/1536/1024/768/512/256)
+    reranker_provider: str = "aliyun"  # aliyun (阿里云 qwen3-rerank) | ollama (OpenAI 兼容接口)
+    reranker_api_base: str | None = None  # 重排接口 base URL, 如 https://xxx.maas.aliyuncs.com
+    reranker_api_key: str | None = None   # 重排 API Key (阿里云 DashScope Key)
+    reranker_model: str = "qwen3-rerank"
 
     # 客户画像/分析
     profile_summary_messages: int = 30  # 画像抽取/客户分析所用的近期消息数
