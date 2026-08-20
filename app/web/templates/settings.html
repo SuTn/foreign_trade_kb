@@ -61,4 +61,70 @@
     <span class="muted" id="settings-saved" hidden>已保存</span>
   </div>
 </form>
+
+<h1 class="page-title" style="margin-top:2rem">模型配置</h1>
+<p class="page-sub">配置 AI 模型（LLM / 向量化 / 重排）。保存后立即生效，无需重启。API Key 仅保存在本机 .env 文件。</p>
+<form id="model-settings-form" class="result-card">
+  <div id="model-settings-error" class="form-error" hidden></div>
+
+  <section class="settings-group">
+    <h2>LLM（生成回复）</h2>
+    <p class="settings-item">
+      <label>服务商
+        <select class="input" data-mkey="llm_provider">
+          <option value="openai">OpenAI 兼容接口（DeepSeek / 阿里云等）</option>
+          <option value="anthropic">Anthropic</option>
+        </select>
+      </label>
+    </p>
+    <p class="settings-item">
+      <label>模型 <input class="input" data-mkey="llm_model" placeholder="如 deepseek-chat"></label>
+    </p>
+    <p class="settings-item">
+      <label>API Base <input class="input" data-mkey="llm_api_base" placeholder="如 https://api.deepseek.com/v1"></label>
+      <span class="muted settings-hint">OpenAI 兼容接口的 base URL；留空用官方端点。</span>
+    </p>
+    <p class="settings-item">
+      <label>API Key <input class="input" data-mkey="llm_api_key" type="password" placeholder="sk-..."></label>
+      <button type="button" class="btn btn-sm btn-ghost" data-test="llm">测试连接</button>
+      <span class="muted" data-test-result="llm"></span>
+    </p>
+  </section>
+
+  <section class="settings-group">
+    <h2>Embedding（向量化）</h2>
+    <p class="settings-item">
+      <label>模型 <input class="input" data-mkey="embedding_model" placeholder="如 qwen3.7-text-embedding"></label>
+    </p>
+    <p class="settings-item">
+      <label>API Base <input class="input" data-mkey="embedding_api_base" placeholder="如 https://xxx.maas.aliyuncs.com/compatible-mode/v1"></label>
+    </p>
+    <p class="settings-item">
+      <label>API Key <input class="input" data-mkey="embedding_api_key" type="password" placeholder="sk-..."></label>
+      <button type="button" class="btn btn-sm btn-ghost" data-test="embedding">测试连接</button>
+      <span class="muted" data-test-result="embedding"></span>
+    </p>
+  </section>
+
+  <section class="settings-group">
+    <h2>Reranker（重排）</h2>
+    <p class="settings-item">
+      <label>模型 <input class="input" data-mkey="reranker_model" placeholder="如 qwen3-rerank"></label>
+    </p>
+    <p class="settings-item">
+      <label>API Base <input class="input" data-mkey="reranker_api_base" placeholder="如 https://api.maas.aliyuncs.com"></label>
+      <span class="muted settings-hint">阿里云 base URL（不含 /compatible-api，适配器自动拼接）。</span>
+    </p>
+    <p class="settings-item">
+      <label>API Key <input class="input" data-mkey="reranker_api_key" type="password" placeholder="sk-..."></label>
+      <button type="button" class="btn btn-sm btn-ghost" data-test="reranker">测试连接</button>
+      <span class="muted" data-test-result="reranker"></span>
+    </p>
+  </section>
+
+  <div class="toolbar">
+    <button class="btn" type="submit">保存模型配置</button>
+    <span class="muted" id="model-settings-saved" hidden>已保存</span>
+  </div>
+</form>
 {% endblock %}

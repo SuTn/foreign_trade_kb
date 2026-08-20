@@ -613,3 +613,93 @@ document.addEventListener("click", function (e) {
     }
   });
 })();
+
+// model-settings: 模型配置读写 + 测试连接
+(function () {
+  function initModelSettings() {
+    var form = document.getElementById("model-settings-form");
+    if (!form) return;
+    var inputs = form.querySelectorAll("[data-mkey]");
+    var errBox = document.getElementById("model-settings-error");
+    var saved = document.getElementById("model-settings-saved");
+    function showErr(msg) {
+      if (!errBox) return;
+      errBox.textContent = msg;
+      errBox.hidden = !msg;
+    }
+    function load() {
+      fetch("/api/model-settings").then(function (r) { return r.json(); }).then(function (d) {
+        inputs.forEach(function (el) {
+          var key = el.getAttribute("data-mkey");
+          var v = d.values[key];
+          if (el.tagName === "SELECT") {
+            el.value = v || "";
+          } else {
+            el.value = v || "";
+          }
+        });
+      });
+    }
+    // 测试连接
+    form.querySelectorAll("[data-test]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var provider = btn.getAttribute("data-test");
+        var resultEl = form.querySelector('[data-test-result="' + provider + '"]');
+        var keyInput = form.querySelector('[data-mkey="' + provider + '_api_key"]');
+        var baseInput = form.querySelector('[data-mkey="' + provider + '_api_base"]');
+        var modelInput = form.querySelector('[data-mkey="' + provider + '_model"]');
+        var apiKey = keyInput ? keyInput.value.trim() : "";
+        var apiBase = baseInput ? baseInput.value.trim() : "";
+        var model = modelInput ? modelInput.value.trim() : "";
+        if (!apiKey) {
+          if (resultEl) resultEl.textContent = "请先填写 API Key";
+          return;
+        }
+        btn.disabled = true;
+        if (resultEl) resultEl.textContent = "测试中...";
+        fetch("/api/model-settings/test", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider: provider, api_key: apiKey, api_base: apiBase, model: model })
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          btn.disabled = false;
+          if (resultEl) {
+            resultEl.textContent = j.ok ? ("✓ " + j.message) : ("✗ " + (j.error || j.message || "失败"));
+            resultEl.style.color = j.ok ? "#080" : "#c00";
+          }
+        }).catch(function () {
+          btn.disabled = false;
+          if (resultEl) { resultEl.textContent = "网络错误"; resultEl.style.color = "#c00"; }
+        });
+      });
+    });
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var values = {};
+      inputs.forEach(function (el) {
+        var key = el.getAttribute("data-mkey");
+        values[key] = el.value.trim();
+      });
+      fetch("/api/model-settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values: values })
+      }).then(function (r) {
+        return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+      }).then(function (res) {
+        if (!res.ok) {
+          showErr(res.j.error || "保存失败");
+          if (saved) saved.hidden = true;
+          return;
+        }
+        showErr("");
+        if (saved) { saved.hidden = false; setTimeout(function () { saved.hidden = true; }, 2000); }
+        load();
+      }).catch(function () { showErr("网络错误"); });
+    });
+    load();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initModelSettings);
+  } else {
+    initModelSettings();
+  }
+})();

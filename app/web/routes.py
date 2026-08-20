@@ -263,6 +263,51 @@ async def settings_reset(request: Request):
     return {"defaults": {key: RuntimeSettings.DEFAULTS[key]}}
 
 
+# ---- 模型配置 (LLM/Embedding/Reranker) ----
+
+@router.get("/api/model-settings")
+async def model_settings_get(request: Request):
+    """返回当前模型配置 (敏感字段打码)。"""
+    from app.web import model_settings
+    return {"values": model_settings.get_model_config()}
+
+
+@router.post("/api/model-settings")
+async def model_settings_post(request: Request):
+    """保存模型配置: 写 .env + 更新 settings + 清缓存。"""
+    from app.web import model_settings
+    body = await request.json()
+    values = (body or {}).get("values") or {}
+    if not isinstance(values, dict):
+        return JSONResponse({"error": "body.values 必须为对象"}, status_code=400)
+    # 只接受已知字段
+    valid = {k: v for k, v in values.items() if k in model_settings.MODEL_FIELDS}
+    if not valid:
+        return JSONResponse({"error": "没有可保存的模型配置字段"}, status_code=400)
+    try:
+        result = model_settings.save_model_config(valid)
+    except Exception as e:
+        return JSONResponse({"error": f"保存失败: {e}"}, status_code=500)
+    # 清除进程级缓存, 让新配置即时生效
+    model_settings.clear_cached_instances(request.app)
+    return {**result, "values": model_settings.get_model_config()}
+
+
+@router.post("/api/model-settings/test")
+async def model_settings_test(request: Request):
+    """测试模型连接 (不保存)。"""
+    from app.web import model_settings
+    body = await request.json() or {}
+    provider = body.get("provider", "llm")
+    api_key = body.get("api_key", "")
+    api_base = body.get("api_base", "")
+    model = body.get("model", "")
+    if not api_key:
+        return JSONResponse({"error": "请填写 API Key"}, status_code=400)
+    ok, msg = model_settings.test_connection(provider, api_key, api_base, model)
+    return {"ok": ok, "message": msg}
+
+
 def _search_messages(store, query, limit=20):
     """D1: 消息 FTS join 回 messages 取 chat_id/body/ts。
     FTS5 外部内容表 rowid 对应 messages rowid, 直接 JOIN 取字段, 避免逐条 N+1 查询。"""
