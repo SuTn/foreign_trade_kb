@@ -703,3 +703,26 @@ document.addEventListener("click", function (e) {
     initModelSettings();
   }
 })();
+
+// model-config-banner: 未配置模型时显示引导横幅
+(function () {
+  function initModelConfigBanner() {
+    var banner = document.getElementById("model-config-banner");
+    if (!banner) return;
+    fetch("/api/model-settings").then(function (r) { return r.json(); }).then(function (d) {
+      var v = d.values || {};
+      // 三个 Key 都未配置 (打码后为空) 才提示
+      var llmKey = v.llm_api_key || "";
+      var embKey = v.embedding_api_key || "";
+      var rerKey = v.reranker_api_key || "";
+      if (!llmKey && !embKey && !rerKey) {
+        banner.hidden = false;
+      }
+    }).catch(function () { /* 忽略网络错误 */ });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initModelConfigBanner);
+  } else {
+    initModelConfigBanner();
+  }
+})();

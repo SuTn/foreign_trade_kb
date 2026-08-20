@@ -43,18 +43,16 @@ def _setup_logging():
 
 
 def _ensure_env() -> bool:
-    """确保 .env 存在; 不存在则运行配置向导。返回是否可继续。"""
+    """确保 .env 存在; 不存在则直接启动 (业务员在 Web 页面配置模型)。
+
+    不再强制弹 tkinter 向导 —— 模型配置已迁移到 Web 设置页「模型配置」区块。
+    无 .env 时仍正常启动, 页面会提示去配置。
+    """
     env_path = os.path.join(paths.base_dir(), ".env")
     if os.path.exists(env_path):
         return True
-    # 无 .env: 运行首次配置向导
-    try:
-        from launcher.first_run_wizard import run_wizard
-        return run_wizard(env_path)
-    except Exception as e:
-        log.error("配置向导失败: %s", e)
-        # 向导失败时, 若已有 .env 则继续, 否则退出
-        return os.path.exists(env_path)
+    log.info("未检测到 .env, 业务员将在 Web 设置页配置模型")
+    return True  # 不拦截, 直接进 Web
 
 
 def _delayed_open_browser(url: str, delay: float = 3.0):
@@ -77,10 +75,8 @@ def main():
     for w in env_check.run_checks():
         log.warning("自检: %s", w)
 
-    # 首次配置
-    if not _ensure_env():
-        log.error("未完成配置, 退出")
-        sys.exit(1)
+    # 确保 .env 存在 (无则直接进 Web, 业务员在页面配置)
+    _ensure_env()
 
     # 端口检测
     port = env_check.find_free_port(DEFAULT_PORT)
