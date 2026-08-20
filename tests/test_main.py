@@ -116,6 +116,9 @@ def test_main_kills_collector_tree_on_keyboard_interrupt(monkeypatch):
             stopped.append(True)
 
     monkeypatch.setattr(cr, "start_collector", lambda: FakeHandle())
+    # 模拟已配置模型 Key, 使采集器启动
+    import launcher.__main__ as lm
+    monkeypatch.setattr(lm, "_has_model_key", lambda: True)
     import uvicorn
     monkeypatch.setattr(uvicorn, "run", lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt()))
     m.main()

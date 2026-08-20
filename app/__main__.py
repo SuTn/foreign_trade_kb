@@ -13,9 +13,15 @@ log = logging.getLogger(__name__)
 
 def main():
     # 采集器在同进程线程内启动 (崩溃自动重启, 见 launcher.collector_runner)
+    # 未配置模型 Key 时不启动, 避免打开 WhatsApp (配置后重启启用)
+    collector = None
     try:
         from launcher.collector_runner import start_collector
-        collector = start_collector()
+        from launcher.__main__ import _has_model_key
+        if _has_model_key():
+            collector = start_collector()
+        else:
+            log.info("未配置模型 Key, 暂不启动采集器")
     except Exception as e:
         log.error("采集器启动失败: %s", e)
         collector = None
