@@ -37,7 +37,9 @@ def _run(cmd, cwd=None):
 def _create_venv():
     if BUILD_VENV.exists():
         shutil.rmtree(BUILD_VENV)
-    _run([sys.executable, "-m", "venv", str(BUILD_VENV)])
+    # 用 Python 3.11 创建构建 venv (chromadb 0.4.x 不兼容 3.13)
+    base_py = PYTHON_311 if os.path.exists(PYTHON_311) else sys.executable
+    _run([base_py, "-m", "venv", str(BUILD_VENV)])
     return BUILD_VENV / "Scripts" / "python.exe"
 
 

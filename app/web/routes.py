@@ -286,6 +286,8 @@ async def model_settings_post(request: Request):
         return JSONResponse({"error": "没有可保存的模型配置字段"}, status_code=400)
     try:
         result = model_settings.save_model_config(valid)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     except Exception as e:
         return JSONResponse({"error": f"保存失败: {e}"}, status_code=500)
     # 清除进程级缓存, 让新配置即时生效

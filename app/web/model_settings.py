@@ -71,7 +71,20 @@ def get_model_config() -> dict:
 
 
 def save_model_config(values: dict) -> dict:
-    """保存模型配置: 写 .env + 更新 settings。values 为 {attr: value}。"""
+    """保存模型配置: 写 .env + 更新 settings。values 为 {attr: value}。
+
+    校验: embedding_dim 必须为合法整数 (1~4096); 其余字段按字符串保存。
+    """
+    # 0. 校验数值字段
+    if "embedding_dim" in values:
+        try:
+            dim = int(values["embedding_dim"])
+        except (TypeError, ValueError):
+            raise ValueError("embedding_dim 必须为整数")
+        if not 1 <= dim <= 4096:
+            raise ValueError("embedding_dim 须在 1~4096 之间")
+        values["embedding_dim"] = str(dim)
+
     # 1. 读取现有 .env
     path = env_path()
     lines = []
@@ -100,9 +113,11 @@ def save_model_config(values: dict) -> dict:
         env_name, _ = MODEL_FIELDS[attr]
         new_lines.append(f"{env_name}={value}")
 
-    # 3. 写回 .env
+    # 3. 原子写回 .env (先写临时文件再替换, 避免写入中断损坏)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    tmp = path.with_suffix(".env.tmp")
+    tmp.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    tmp.replace(path)
 
     # 4. 更新 settings 对象 (即时生效)
     for attr, value in values.items():
@@ -120,14 +135,15 @@ def save_model_config(values: dict) -> dict:
 
 
 def clear_cached_instances(app) -> None:
-    """清除进程级模型缓存, 让下次调用用新配置重建。"""
+    """清除进程级模型缓存, 让下次调用用新配置重建。
+
+    注意: 不重置 embedding_ready 标记 —— 该标记表示"预热是否完成",
+    与实例缓存无关; 重置为未 set 会导致 _get_chroma_store 等待 30s 超时。
+    实例清除后, _embedding()/_get_chroma_store() 会惰性重建。
+    """
     for attr in ("llm", "embedding", "reranker", "chroma_store"):
         if hasattr(app.state, attr):
             setattr(app.state, attr, None)
-    # 重置预热标记, 触发重新预热
-    if hasattr(app.state, "embedding_ready"):
-        import threading
-        app.state.embedding_ready = threading.Event()
 
 
 def test_connection(provider: str, api_key: str, api_base: str, model: str) -> tuple[bool, str]:

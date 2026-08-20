@@ -25,14 +25,6 @@ def _create_icon_image():
         return None
 
 
-def _on_open(icon, item):
-    webbrowser.open("http://127.0.0.1:8000")
-
-
-def _on_quit(icon, item):
-    icon.stop()
-
-
 def start_tray(url: str = "http://127.0.0.1:8000"):
     """在后台线程启动系统托盘。失败时静默降级 (不阻塞主流程)。"""
     global _icon, _icon_thread
