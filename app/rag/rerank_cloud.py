@@ -18,7 +18,8 @@ class CloudReranker(Reranker):
     def __init__(self, provider="aliyun", model=None, api_base=None, api_key=None):
         self.provider = provider
         self._name = model or settings.reranker_model
-        self.api_base = (api_base or settings.reranker_api_base).rstrip("/")
+        base = api_base or settings.reranker_api_base
+        self.api_base = base.rstrip("/") if base else None
         self.api_key = api_key or settings.reranker_api_key
 
     def rerank(self, query, candidates, top_k=8):

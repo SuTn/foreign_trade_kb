@@ -1,53 +1,34 @@
 # app/__main__.py
-"""启动脚本: supervisor 守护采集器子进程 (非 0 退出等 3s 重启), 主进程跑 Web。"""
-import subprocess, sys, time, threading, os, signal
+"""启动脚本: 主进程跑 Web, 采集器在同进程线程内运行 (P0 改造)。
 
-_active = None
-_started = threading.Event()
+原实现用 subprocess.Popen([sys.executable, "-m", "app.collector"]) 启动采集器,
+PyInstaller 打包后 sys.executable 指向 exe、-m 模块机制不存在, 故改为同进程线程方案。
+开发环境 `python -m app` 与打包 exe 均走此路径。
+"""
+import threading
+import logging
 
-def _supervise():
-    """守护采集器: rc==0 正常退出不重启; 非 0 等 3s 重启。"""
-    global _active
-    while True:
-        proc = subprocess.Popen([sys.executable, "-m", "app.collector"])
-        _active = proc
-        _started.set()
-        rc = proc.wait()
-        if rc == 0:
-            break
-        print(f"[supervisor] collector exited rc={rc}, restarting in 3s...", flush=True)
-        time.sleep(3)
+log = logging.getLogger(__name__)
 
-def _terminate_process_group(proc):
-    """终止采集器进程树: Windows 用 taskkill /T, POSIX 用 killpg。"""
-    if proc is None or proc.poll() is not None:
-        return
-    try:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-    except Exception:
-        try:
-            proc.terminate()
-        except Exception:
-            pass
-    try:
-        proc.wait()
-    except Exception:
-        pass
 
 def main():
-    threading.Thread(target=_supervise, daemon=True).start()
-    _started.wait(10)  # 采集器启动后再进 uvicorn (阻塞入口)
+    # 采集器在同进程线程内启动 (崩溃自动重启, 见 launcher.collector_runner)
+    try:
+        from launcher.collector_runner import start_collector
+        collector = start_collector()
+    except Exception as e:
+        log.error("采集器启动失败: %s", e)
+        collector = None
+
     try:
         import uvicorn
         uvicorn.run("app.web.app:create_app", factory=True, host="127.0.0.1", port=8000)
     except KeyboardInterrupt:
         pass
     finally:
-        _terminate_process_group(_active)
+        if collector:
+            collector.stop()
+
 
 if __name__ == "__main__":
     main()

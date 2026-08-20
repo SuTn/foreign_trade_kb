@@ -1,13 +1,17 @@
 [project]
 name = "foreign-trade-kb"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "jinja2>=3.1",
     "playwright>=1.42",
-    "chromadb>=0.4.22",
+    # chromadb 1.5.x 的 Rust 绑定在 Windows 上 upsert 崩溃, 固定 0.4.x (纯 Python + hnswlib)
+    "chromadb>=0.4.22,<0.5",
+    "chroma-hnswlib==0.7.3",
+    "onnxruntime>=1.20,<1.29",
+    "numpy>=1.22,<2",
     "langchain>=0.1.10",
     "langchain-community>=0.0.25",
     "anthropic>=0.21",
@@ -21,6 +25,8 @@ dependencies = [
     "pydantic-settings>=2.2",
     "python-multipart>=0.0.9",
     "httpx>=0.27",
+    "pystray>=0.19",
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]

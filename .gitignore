@@ -26,3 +26,9 @@ user-data-dir/
 # IDE
 .vscode/
 .idea/
+
+.pytest_tmp/
+.venv311-test/
+.uv-cache/
+dist/
+build/

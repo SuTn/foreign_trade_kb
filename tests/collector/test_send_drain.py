@@ -146,7 +146,7 @@ def test_drain_send_skipped_when_disabled(tmp_data):
     sc._rt = DisabledRt()
     sc.page = FakePage()
     asyncio.run(sc._drain_send_requests())
-    assert ("failed", 1, "发送功能未开启") in store.calls
+    assert ("failed", 1, "发送功能未开启 (send_enabled=false)") in store.calls
 
 
 def test_drain_send_open_chat_failure_marks_failed_no_send(tmp_data, monkeypatch):

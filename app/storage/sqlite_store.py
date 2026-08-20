@@ -1,10 +1,14 @@
 # app/storage/sqlite_store.py
-import sqlite3, time, json, uuid
+import sqlite3, time, json, uuid, sys
 from pathlib import Path
 from app.storage.interfaces import (StructuredStore, Chat, Message, ProfileField, WikiPage)
 from app.config import settings
 
-SCHEMA_PATH = Path(__file__).parent / "schema.sql"
+# schema.sql 资源路径: 打包后为 sys._MEIPASS, 开发为 __file__ 所在目录
+if getattr(sys, "frozen", False):
+    SCHEMA_PATH = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "schema.sql"
+else:
+    SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 # 版本化迁移 (S1): 每个 (user_version, [sql]) 表示一次 schema 变更。
 # schema.sql 是"当前完整 schema" (新库直接建全表); 旧库经此列表升级到当前版本。

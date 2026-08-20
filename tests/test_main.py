@@ -79,59 +79,44 @@ def test_collector_passes_pw_context_to_scanner(monkeypatch):
 
 
 def test_supervise_restarts_on_nonzero_then_breaks_on_zero(monkeypatch):
-    """supervisor: 非 0 退出等 3s 重启, rc==0 正常退出不重启。"""
-    import app.__main__ as m
+    """supervisor: 非 0 退出等 3s 重启, rc==0 正常退出不重启。
 
-    codes = iter([1, 1, 0])
-    pops = []
+    P0 改造后: 采集器改为同进程线程 (launcher.collector_runner.CollectorHandle),
+    不再用 subprocess。此测试验证新 supervisor 逻辑: 异常退出后重启, stop 后停止。
+    """
+    from launcher.collector_runner import CollectorHandle
+    import launcher.collector_runner as cr
 
-    class FakeProc:
-        pid = 100
+    calls = {"n": 0}
 
-        def wait(self):
-            return next(codes)
+    def fake_run():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("boom")
+        # 第 3 次正常返回 (模拟正常退出)
 
-        def poll(self):
-            return None
-
-        def terminate(self):
-            pass
-
-    def fake_popen(*a, **k):
-        p = FakeProc()
-        pops.append(p)
-        return p
-
-    monkeypatch.setattr(m.subprocess, "Popen", fake_popen)
-    sleeps = []
-    monkeypatch.setattr(m.time, "sleep", lambda s: sleeps.append(s))
-    m._supervise()
-    assert len(pops) == 3
-    assert sleeps == [3, 3]
+    monkeypatch.setattr(cr, "_run_collector_coro", fake_run)
+    handle = CollectorHandle()
+    # 用短 sleep 加速测试
+    monkeypatch.setattr(handle, "_stop", type("E", (), {"is_set": lambda self: calls["n"] >= 3,
+                                                        "wait": lambda self, s: None})())
+    handle._supervise()
+    assert calls["n"] == 3
 
 
 def test_main_kills_collector_tree_on_keyboard_interrupt(monkeypatch):
-    """KeyboardInterrupt → 终止采集器进程组 (taskkill /T)。"""
+    """KeyboardInterrupt → 停止采集器线程 (CollectorHandle.stop)。"""
     import app.__main__ as m
+    import launcher.collector_runner as cr
 
-    class FakeProc:
-        pid = 1234
+    stopped = []
 
-        def poll(self):
-            return None
+    class FakeHandle:
+        def stop(self):
+            stopped.append(True)
 
-        def wait(self):
-            return 0
-
-        def terminate(self):
-            pass
-
-    proc = FakeProc()
-    monkeypatch.setattr(m.subprocess, "Popen", lambda *a, **k: proc)
-    killed = []
-    monkeypatch.setattr(m.subprocess, "run", lambda args, **k: killed.append(args))
-    monkeypatch.setattr(m.os, "name", "nt")
+    monkeypatch.setattr(cr, "start_collector", lambda: FakeHandle())
     import uvicorn
     monkeypatch.setattr(uvicorn, "run", lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt()))
     m.main()
-    assert killed and killed[0][0] == "taskkill" and "1234" in killed[0]
+    assert stopped == [True]

@@ -57,7 +57,7 @@ def test_read_store_js_extracts_fromme_from_msgkey():
     顶层 m.fromMe 与 m.id.fromMe (MsgKey 对象) 在多数消息里不存在。
     漏取会导致自己发出的消息被误判为入站 (归属错误)。"""
     js = idb_walk._read_store_js("message")
-    assert "idv.fromMe" in js          # 兼容 MsgKey 对象形态
+    assert "objMe(idv)" in js        # 兼容 MsgKey 对象形态 (x.fromMe === true)
     assert "m.fromMe === true" in js   # 兼容旧格式顶层 fromMe
     assert "indexOf('true_') === 0" in js  # 序列化串前缀 true_ (权威来源)
 
