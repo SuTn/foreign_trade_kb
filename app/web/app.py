@@ -116,10 +116,10 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="外贸客户知识库", lifespan=lifespan)
     app.middleware("http")(_csrf_guard)
-    # 资源目录: 打包后为 sys._MEIPASS, 开发为 __file__ 所在目录
+    # 资源目录: 打包后为 sys._MEIPASS/app/web, 开发为 __file__ 所在目录
     import sys as _sys
     if getattr(_sys, "frozen", False):
-        base = Path(getattr(_sys, "_MEIPASS", Path(__file__).parent))
+        base = Path(getattr(_sys, "_MEIPASS", Path(__file__).parent)) / "app" / "web"
     else:
         base = Path(__file__).parent
     app.mount("/static", StaticFiles(directory=str(base/"static")), name="static")

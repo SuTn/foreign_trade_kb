@@ -4,9 +4,9 @@ from pathlib import Path
 from app.storage.interfaces import (StructuredStore, Chat, Message, ProfileField, WikiPage)
 from app.config import settings
 
-# schema.sql 资源路径: 打包后为 sys._MEIPASS, 开发为 __file__ 所在目录
+# schema.sql 资源路径: 打包后为 sys._MEIPASS/app/storage, 开发为 __file__ 所在目录
 if getattr(sys, "frozen", False):
-    SCHEMA_PATH = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "schema.sql"
+    SCHEMA_PATH = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "app" / "storage" / "schema.sql"
 else:
     SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 

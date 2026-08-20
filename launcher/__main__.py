@@ -29,6 +29,12 @@ DEFAULT_PORT = 8000
 
 
 def _setup_logging():
+    # 强制 UTF-8 输出, 避免 Windows 控制台 cp950 编码中文路径报错
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
