@@ -35,19 +35,17 @@ SENSITIVE = {"llm_api_key", "embedding_api_key", "reranker_api_key"}
 
 
 def env_path() -> Path:
-    """定位 .env 文件: 优先当前工作目录 (launcher 已 chdir 到 base), 否则项目根。"""
-    cwd = Path.cwd() / ".env"
-    if cwd.exists():
-        return cwd
-    # 尝试 launcher base_dir
+    """定位 .env 文件: 统一用 launcher base_dir (打包后=exe 目录, 开发=项目根)。
+
+    与 launcher/__main__.py 的 .env 检测逻辑保持一致 (都基于 paths.base_dir()),
+    避免从非 base 目录启动 (如快捷方式) 时 cwd 与 base 不一致导致写错位置。
+    """
     try:
         from launcher import paths
-        p = paths.base_dir() / ".env"
-        if p.exists():
-            return p
+        return paths.base_dir() / ".env"
     except Exception:
-        pass
-    return cwd
+        # launcher 不可用 (纯 app 环境) 时回退项目根
+        return Path(__file__).resolve().parent.parent.parent / ".env"
 
 
 def _mask(value: str) -> str:
@@ -146,8 +144,13 @@ def clear_cached_instances(app) -> None:
             setattr(app.state, attr, None)
 
 
-def test_connection(provider: str, api_key: str, api_base: str, model: str) -> tuple[bool, str]:
-    """测试模型连接。provider: llm | embedding | reranker。"""
+def test_connection(provider: str, api_key: str, api_base: str, model: str,
+                    dim: int | None = None) -> tuple[bool, str]:
+    """测试模型连接。provider: llm | embedding | reranker。
+
+    dim: embedding 测试用的维度; 缺省用当前 settings.embedding_dim (避免硬编码 1024
+    导致非 1024 维模型测试失败)。
+    """
     try:
         if provider == "llm":
             import openai
@@ -159,7 +162,8 @@ def test_connection(provider: str, api_key: str, api_base: str, model: str) -> t
         elif provider == "embedding":
             import openai
             client = openai.OpenAI(api_key=api_key, base_url=api_base or None)
-            resp = client.embeddings.create(model=model, input="测试", dimensions=1024)
+            dim = dim or settings.embedding_dim
+            resp = client.embeddings.create(model=model, input="测试", dimensions=dim)
             return bool(resp.data and resp.data[0].embedding), "连接成功"
         elif provider == "reranker":
             import httpx

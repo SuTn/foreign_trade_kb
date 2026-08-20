@@ -657,9 +657,16 @@ document.addEventListener("click", function (e) {
         }
         btn.disabled = true;
         if (resultEl) resultEl.textContent = "测试中...";
+        var payload = { provider: provider, api_key: apiKey, api_base: apiBase, model: model };
+        // embedding 测试带上当前配置的向量维度 (避免硬编码 1024 导致非 1024 维模型测试失败)
+        if (provider === "embedding") {
+          var dimInput = form.querySelector('[data-mkey="embedding_dim"]');
+          var dim = dimInput ? dimInput.value.trim() : "";
+          if (dim) payload.dim = parseInt(dim, 10);
+        }
         fetch("/api/model-settings/test", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ provider: provider, api_key: apiKey, api_base: apiBase, model: model })
+          body: JSON.stringify(payload)
         }).then(function (r) { return r.json(); }).then(function (j) {
           btn.disabled = false;
           if (resultEl) {
@@ -705,17 +712,16 @@ document.addEventListener("click", function (e) {
 })();
 
 // model-config-banner: 未配置模型时显示引导横幅
+// 采集器以 embedding Key 为启动门槛 (无 embedding 无法向量化), 故仅当 embedding Key
+// 未配置 (打码后为空) 时提示; LLM/Reranker 未配不影响采集器启动, 不提示。
 (function () {
   function initModelConfigBanner() {
     var banner = document.getElementById("model-config-banner");
     if (!banner) return;
     fetch("/api/model-settings").then(function (r) { return r.json(); }).then(function (d) {
       var v = d.values || {};
-      // 三个 Key 都未配置 (打码后为空) 才提示
-      var llmKey = v.llm_api_key || "";
       var embKey = v.embedding_api_key || "";
-      var rerKey = v.reranker_api_key || "";
-      if (!llmKey && !embKey && !rerKey) {
+      if (!embKey) {
         banner.hidden = false;
       }
     }).catch(function () { /* 忽略网络错误 */ });

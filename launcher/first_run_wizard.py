@@ -1,6 +1,10 @@
 # launcher/first_run_wizard.py
 """首次配置向导 (tkinter, 标准库无额外依赖)。
 
+⚠️ 已废弃 (DEPRECATED): 自 5988080 起, 启动流程改为「无 .env 直接进 Web」,
+业务员在 Web 设置页「模型配置」区块配置模型, 不再弹 tkinter 向导。
+本文件保留仅供参考/回滚, 不再被 launcher/__main__.py 调用。
+
 业务员首次启动时填写 API Key, 生成 .env。
 阿里云 DashScope Key 同时用于 embedding + reranker (已验证);
 LLM 可选 DeepSeek (默认) 或复用阿里云。

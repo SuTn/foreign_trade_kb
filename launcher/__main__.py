@@ -63,6 +63,29 @@ def _delayed_open_browser(url: str, delay: float = 3.0):
     threading.Thread(target=_open, daemon=True).start()
 
 
+def run_web_and_collector(port: int = DEFAULT_PORT):
+    """启动采集器 (同进程线程, 未配置模型 Key 时不启动) + 阻塞运行 uvicorn Web。
+
+    供 launcher/__main__.main() 与 app/__main__.main() (开发入口) 复用,
+    避免两处启动逻辑重复。退出时停止采集器。
+    """
+    collector = None
+    if _has_model_key():
+        collector = start_collector()
+        log.info("采集器已启动")
+    else:
+        log.info("未配置模型 Key, 暂不启动采集器 (配置后 Web 页面自动启动)")
+    try:
+        import uvicorn
+        uvicorn.run("app.web.app:create_app", factory=True,
+                    host="127.0.0.1", port=port)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if collector:
+            collector.stop()
+
+
 def main():
     _setup_logging()
     base = paths.setup_environment()
@@ -82,14 +105,6 @@ def main():
         log.warning("端口 %d 被占用, 改用 %d", DEFAULT_PORT, port)
     url = f"http://127.0.0.1:{port}"
 
-    # 启动采集器 (同进程线程); 未配置模型 Key 时不启动, 避免打开 WhatsApp
-    collector = None
-    if _has_model_key():
-        collector = start_collector()
-        log.info("采集器已启动")
-    else:
-        log.info("未配置模型 Key, 暂不启动采集器 (配置后 Web 页面自动启动)")
-
     # 启动系统托盘
     try:
         from launcher import tray
@@ -100,21 +115,15 @@ def main():
     # 延迟打开浏览器
     _delayed_open_browser(url)
 
-    # 启动 uvicorn (阻塞)
+    # 启动采集器 + Web (阻塞)
+    run_web_and_collector(port=port)
+
+    # 退出时停止托盘
     try:
-        import uvicorn
-        uvicorn.run("app.web.app:create_app", factory=True,
-                    host="127.0.0.1", port=port)
-    except KeyboardInterrupt:
+        from launcher import tray
+        tray.stop_tray()
+    except Exception:
         pass
-    finally:
-        if collector:
-            collector.stop()
-        try:
-            from launcher import tray
-            tray.stop_tray()
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":

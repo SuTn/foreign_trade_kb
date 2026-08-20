@@ -93,7 +93,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # 关闭 UPX 压缩: UPX 壳是杀毒误报常见来源, 业务员需加白名单, 降低误报
     console=True,  # 保留控制台便于看日志 (后续可改 False)
     disable_windowed_traceback=False,
     icon=str(ROOT / "runtime" / "icon.ico") if (ROOT / "runtime" / "icon.ico").exists() else None,
@@ -105,7 +105,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,  # 关闭 UPX 压缩 (降低杀毒误报)
     upx_exclude=[],
     name="外贸客户知识库",
 )

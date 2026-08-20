@@ -1,7 +1,9 @@
 # app/collector/scanner.py
-import asyncio, json, random, time, hashlib
+import asyncio, json, logging, random, time, hashlib
 from pathlib import Path
 from app.config import settings
+
+log = logging.getLogger(__name__)
 
 def write_status(path: Path, status: dict):
     status["last_heartbeat"] = time.time()
@@ -166,13 +168,15 @@ def _resolve_sender_name(rec, from_me, sender_jid, contacts, groups, chat, dom,
 
 
 class Scanner:
-    def __init__(self, cdp, store, vector_store, account_id="me", page=None, llm=None, pw=None, context=None):
+    def __init__(self, cdp, store, vector_store, account_id="me", page=None, llm=None, pw=None, context=None,
+                 stop_event=None):
         self.cdp = cdp
         self.store = store
         self.vector_store = vector_store
         self.account_id = account_id
         self.page = page  # 可选 Playwright page (自动扫描全部会话时用于打开会话)
         self.llm = llm  # 可选 LLM: 自动画像抽取 (None=跳过, 供测试/无 key 环境)
+        self._stop_event = stop_event  # 可选 asyncio.Event: 置位后主循环尽快退出 (供 stop() 真正停止)
         self._last_dom_hash = None
         self._matched_chats: set[str] = set()
         self._chat_name_cache: dict[str, str] = {}  # chat_id → 权威显示名 (Part C 防串名污染)
@@ -560,6 +564,9 @@ class Scanner:
         except Exception:
             pass
         while True:
+            if self._stop_event is not None and self._stop_event.is_set():
+                log.info("[collector] 收到停止信号, 退出主循环")
+                break
             if self._rt is not None:
                 try:
                     self._rt.refresh()  # 每轮刷新 (即时生效, 设计 §5.1)
@@ -897,6 +904,14 @@ class Scanner:
             self._record_follow(msg)
             return
         if opened:
+            # 打开后核对权威 JID, 防止重名/脏名导致切到错误会话 (与发送前校验一致)
+            actual = await self._current_chat_authoritative_jid()
+            expected = self._normalize_send_target(follow)
+            if actual and expected and actual != expected:
+                msg = f"会话校验失败, 未切换 (目标={expected}, 实际={actual})"
+                print(f"[follow] {msg}", flush=True)
+                self._record_follow(msg)
+                return
             self._current_chat_id = follow  # 仅切换成功才更新, 避免消息归属错位
             msg = f"已切换到 {follow} (query={query})"
             await self._sync_open_chat_now()  # 打开后立即抓取, 不等下一轮 fast_tick

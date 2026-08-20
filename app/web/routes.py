@@ -265,8 +265,11 @@ async def settings_reset(request: Request):
 
 # ---- 模型配置 (LLM/Embedding/Reranker) ----
 
-def _maybe_start_collector() -> bool:
+def _maybe_start_collector(prev_embedding_key: str | None = None) -> bool:
     """若已配置 embedding Key 且采集器未运行, 则自动启动采集器。
+
+    若采集器已在运行但 embedding Key 发生变化 (prev_embedding_key != 当前),
+    则重启采集器, 使其用新 Key 重建向量实例 (否则旧 Key 缓存不生效)。
 
     返回是否已启动 (或已在运行)。未配置 Key 时不启动。
     """
@@ -274,8 +277,13 @@ def _maybe_start_collector() -> bool:
         from app.config import settings
         if not settings.embedding_api_key:
             return False
-        from launcher.collector_runner import is_collector_running, start_collector
+        from launcher.collector_runner import (is_collector_running, start_collector,
+                                               stop_collector)
         if is_collector_running():
+            # 已在运行: 若 embedding Key 变了, 重启以应用新 Key
+            if prev_embedding_key is not None and prev_embedding_key != settings.embedding_api_key:
+                stop_collector()
+                start_collector()
             return True
         start_collector()
         return True
@@ -304,6 +312,8 @@ async def model_settings_post(request: Request):
     valid = {k: v for k, v in values.items() if k in model_settings.MODEL_FIELDS}
     if not valid:
         return JSONResponse({"error": "没有可保存的模型配置字段"}, status_code=400)
+    # 记录保存前的 embedding Key (用于判断是否需重启采集器)
+    prev_embedding_key = settings.embedding_api_key
     try:
         result = model_settings.save_model_config(valid)
     except ValueError as e:
@@ -312,8 +322,8 @@ async def model_settings_post(request: Request):
         return JSONResponse({"error": f"保存失败: {e}"}, status_code=500)
     # 清除进程级缓存, 让新配置即时生效
     model_settings.clear_cached_instances(request.app)
-    # 若已配置 embedding Key, 自动启动采集器 (幂等; 未配置则不启动)
-    _maybe_start_collector()
+    # 若已配置 embedding Key, 自动启动采集器 (幂等; 未配置则不启动; Key 变化则重启)
+    _maybe_start_collector(prev_embedding_key)
     return {**result, "values": model_settings.get_model_config()}
 
 
@@ -326,9 +336,10 @@ async def model_settings_test(request: Request):
     api_key = body.get("api_key", "")
     api_base = body.get("api_base", "")
     model = body.get("model", "")
+    dim = body.get("dim")
     if not api_key:
         return JSONResponse({"error": "请填写 API Key"}, status_code=400)
-    ok, msg = model_settings.test_connection(provider, api_key, api_base, model)
+    ok, msg = model_settings.test_connection(provider, api_key, api_base, model, dim=dim)
     return {"ok": ok, "message": msg}
 
 

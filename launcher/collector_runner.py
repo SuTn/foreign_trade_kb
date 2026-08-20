@@ -14,7 +14,6 @@ PyInstaller 打包后 sys.executable 指向 exe, -m 模块机制不存在, 故�
 import asyncio
 import logging
 import threading
-import time
 
 log = logging.getLogger(__name__)
 
@@ -23,40 +22,27 @@ _handle: "CollectorHandle | None" = None
 _handle_lock = threading.Lock()
 
 
-def _run_collector_coro():
-    """在独立事件循环里运行采集器主协程 (等价于 app/collector/__main__.py 的 _run)。"""
-    from app.collector.browser import launch_browser, wait_for_login
-    from app.collector.scanner import Scanner, write_status
-    from app.storage.sqlite_store import SqliteStore
-    from app.storage.chroma_store import ChromaStore
-    from app.llm.bge_embedding import get_embedding
-    from app.llm.cloud_llm import CloudLLM
-    from app.config import settings
+async def _run_collector_coro(stop_event: asyncio.Event | None = None):
+    """运行采集器主协程 (在调用方的事件循环上执行)。
 
-    async def _run():
-        write_status(settings.status_path, {"state": "starting"})
-        pw, context, page, cdp = await launch_browser()
-        logged_in = await wait_for_login(page)
-        write_status(settings.status_path,
-                     {"state": "logged_in" if logged_in else "awaiting_login"})
-        if not logged_in:
-            log.info("请在浏览器扫码登录 WhatsApp")
-            await wait_for_login(page)
-        store = SqliteStore()
-        vector = ChromaStore(embedding_fn=get_embedding().embed)
-        scanner = Scanner(cdp, store, vector, page=page, llm=CloudLLM(),
-                          pw=pw, context=context)
-        await scanner.run()
-
-    asyncio.run(_run())
+    复用 app/collector/__main__.py 的 _run (单一实现来源), 避免两处重复。
+    stop_event: 可选 asyncio.Event, 置位后采集器主循环尽快退出 (供 stop() 真正停止线程)。
+    """
+    from app.collector.__main__ import _run
+    await _run(stop_event=stop_event)
 
 
 class CollectorHandle:
-    """采集器线程句柄: 启动/停止/重启。"""
+    """采集器线程句柄: 启动/停止/重启。
+
+    stop() 通过 asyncio.Event 通知采集器主循环尽快退出 (而非仅依赖 daemon 线程随进程退出)。
+    """
 
     def __init__(self):
         self._thread = None
         self._stop = threading.Event()
+        self._stop_event = None  # 当前线程事件循环里的 asyncio.Event (stop 时置位)
+        self._loop = None          # 当前线程的事件循环 (stop 时 call_soon_threadsafe)
         self._proc = None  # 兼容: 记录底层浏览器进程 (由 Playwright 管理, 无需手动杀)
 
     def is_running(self) -> bool:
@@ -74,10 +60,23 @@ class CollectorHandle:
     def _supervise(self):
         """守护采集器: 非正常退出等 3s 重启 (保留原 supervisor 语义)。"""
         while not self._stop.is_set():
+            # 每个采集器运行周期创建独立事件循环 + 停止信号
+            loop = asyncio.new_event_loop()
+            self._loop = loop
+            stop_event = asyncio.Event()
+            self._stop_event = stop_event
             try:
-                _run_collector_coro()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(_run_collector_coro(stop_event))
             except Exception as e:
                 log.error("[collector] fatal: %s", e)
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+                self._loop = None
+                self._stop_event = None
             if self._stop.is_set():
                 break
             log.info("[collector] exited, restarting in 3s...")
@@ -86,9 +85,14 @@ class CollectorHandle:
 
     def stop(self):
         self._stop.set()
-        # 无法强制中断 asyncio 线程, 依赖 daemon 线程随进程退出
+        # 通知当前事件循环尽快退出 (若采集器主循环在跑)
+        if self._loop is not None and self._stop_event is not None:
+            try:
+                self._loop.call_soon_threadsafe(self._stop_event.set)
+            except Exception:
+                pass
         if self._thread:
-            self._thread.join(timeout=2)
+            self._thread.join(timeout=5)
 
 
 def get_collector() -> CollectorHandle:

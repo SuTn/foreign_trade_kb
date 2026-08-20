@@ -100,6 +100,10 @@
       <label>API Base <input class="input" data-mkey="embedding_api_base" placeholder="如 https://xxx.maas.aliyuncs.com/compatible-mode/v1"></label>
     </p>
     <p class="settings-item">
+      <label>向量维度 <input class="input" data-mkey="embedding_dim" type="number" min="1" max="4096" placeholder="如 1024"></label>
+      <span class="muted settings-hint">嵌入向量维度，须与模型支持一致（qwen3.7-text-embedding 支持 2560/2048/1536/1024/768/512/256）。</span>
+    </p>
+    <p class="settings-item">
       <label>API Key <input class="input" data-mkey="embedding_api_key" type="password" placeholder="sk-..."></label>
       <button type="button" class="btn btn-sm btn-ghost" data-test="embedding">测试连接</button>
       <span class="muted" data-test-result="embedding"></span>

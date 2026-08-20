@@ -24,7 +24,37 @@ ROOT = Path(__file__).resolve().parent
 BUILD_VENV = ROOT / ".build-venv"
 DIST_DIR = ROOT / "dist"
 APP_NAME = "外贸客户知识库"
-PYTHON_311 = r"C:\Users\S6819489\AppData\Roaming\uv\python\cpython-3.11.11-windows-x86_64-none\python.exe"
+# 构建用 Python 3.11 (chromadb 0.4.x 不兼容 3.13)。优先用本机已装的 3.11,
+# 否则回退到当前解释器 (需 >=3.11,<3.13, 见 pyproject.toml requires-python)。
+# 可覆盖: 设置环境变量 KB_BUILD_PYTHON 指向 3.11 解释器路径。
+PYTHON_311 = os.environ.get(
+    "KB_BUILD_PYTHON",
+    r"C:\Users\S6819489\AppData\Roaming\uv\python\cpython-3.11.11-windows-x86_64-none\python.exe",
+)
+
+
+def _find_python311() -> str:
+    """探测可用的 Python 3.11 解释器: 优先 KB_BUILD_PYTHON, 其次常见路径, 最后 sys.executable。"""
+    candidates = [PYTHON_311]
+    # 常见 uv 管理路径
+    uv_dir = Path.home() / "AppData" / "Local" / "uv" / "python"
+    if uv_dir.exists():
+        for p in sorted(uv_dir.glob("cpython-3.11*/python.exe"), reverse=True):
+            candidates.append(str(p))
+    # 系统 PATH 里的 python3.11
+    candidates.append("python3.11")
+    for c in candidates:
+        if not c:
+            continue
+        try:
+            r = subprocess.run([c, "-c", "import sys; print(sys.version_info[:2])"],
+                               capture_output=True, text=True, timeout=10)
+            if r.returncode == 0 and r.stdout.strip().startswith("(3, 11"):
+                return c
+        except Exception:
+            continue
+    # 回退 sys.executable (需 >=3.11)
+    return sys.executable
 
 
 def _run(cmd, cwd=None):
@@ -38,7 +68,8 @@ def _create_venv():
     if BUILD_VENV.exists():
         shutil.rmtree(BUILD_VENV)
     # 用 Python 3.11 创建构建 venv (chromadb 0.4.x 不兼容 3.13)
-    base_py = PYTHON_311 if os.path.exists(PYTHON_311) else sys.executable
+    base_py = _find_python311()
+    print(f"使用 Python: {base_py}")
     _run([base_py, "-m", "venv", str(BUILD_VENV)])
     return BUILD_VENV / "Scripts" / "python.exe"
 

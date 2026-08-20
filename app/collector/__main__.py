@@ -8,7 +8,7 @@ from app.llm.bge_embedding import get_embedding
 from app.llm.cloud_llm import CloudLLM
 from app.config import settings
 
-async def _run():
+async def _run(stop_event=None):
     write_status(settings.status_path, {"state": "starting"})
     pw, context, page, cdp = await launch_browser()
     logged_in = await wait_for_login(page)
@@ -18,7 +18,8 @@ async def _run():
         await wait_for_login(page)
     store = SqliteStore()
     vector = ChromaStore(embedding_fn=get_embedding().embed)
-    scanner = Scanner(cdp, store, vector, page=page, llm=CloudLLM(), pw=pw, context=context)
+    scanner = Scanner(cdp, store, vector, page=page, llm=CloudLLM(), pw=pw, context=context,
+                      stop_event=stop_event)
     await scanner.run()
 
 async def main():

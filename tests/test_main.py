@@ -89,7 +89,7 @@ def test_supervise_restarts_on_nonzero_then_breaks_on_zero(monkeypatch):
 
     calls = {"n": 0}
 
-    def fake_run():
+    async def fake_run(stop_event=None):
         calls["n"] += 1
         if calls["n"] < 3:
             raise RuntimeError("boom")
@@ -104,10 +104,49 @@ def test_supervise_restarts_on_nonzero_then_breaks_on_zero(monkeypatch):
     assert calls["n"] == 3
 
 
+def test_collector_stop_signals_event_loop(monkeypatch):
+    """stop() 通过 call_soon_threadsafe 置位 asyncio.Event, 让采集器主循环尽快退出。
+
+    验证: stop() 不再仅依赖 daemon 线程, 而是真正通知事件循环停止。
+    """
+    from launcher.collector_runner import CollectorHandle
+    import launcher.collector_runner as cr
+
+    handle = CollectorHandle()
+    # 模拟一个正在运行的事件循环 + 停止信号
+    loop = type("L", (), {"call_soon_threadsafe": lambda self, fn: fn()})()
+    stop_event = asyncio.Event()
+    handle._loop = loop
+    handle._stop_event = stop_event
+    # 模拟线程已结束 (避免 join 阻塞)
+    handle._thread = type("T", (), {"is_alive": lambda self: False,
+                                    "join": lambda self, timeout=None: None})()
+    handle.stop()
+    assert stop_event.is_set()  # 停止信号已置位
+
+
+def test_scanner_breaks_on_stop_event(monkeypatch):
+    """Scanner.run 主循环检测到 stop_event 置位后退出 (不再无限循环)。"""
+    import asyncio
+    from app.collector.scanner import Scanner
+
+    stop_event = asyncio.Event()
+    sc = Scanner(None, None, None, stop_event=stop_event)
+    # 置位停止信号: run() 第一轮检查即 break, 不会调用任何 tick
+    stop_event.set()
+    # 若 stop_event 未生效, run() 会进入 while True 并调用 fast_tick (此处抛异常暴露)
+    async def boom(*a, **k):
+        raise AssertionError("stop_event 未生效, 主循环未退出")
+    monkeypatch.setattr(Scanner, "fast_tick", boom)
+    monkeypatch.setattr(Scanner, "slow_tick", boom)
+    # run() 应因 stop_event 置位立即返回
+    asyncio.run(sc.run())
+
+
 def test_main_kills_collector_tree_on_keyboard_interrupt(monkeypatch):
     """KeyboardInterrupt → 停止采集器线程 (CollectorHandle.stop)。"""
     import app.__main__ as m
-    import launcher.collector_runner as cr
+    import launcher.__main__ as lm
 
     stopped = []
 
@@ -115,9 +154,8 @@ def test_main_kills_collector_tree_on_keyboard_interrupt(monkeypatch):
         def stop(self):
             stopped.append(True)
 
-    monkeypatch.setattr(cr, "start_collector", lambda: FakeHandle())
-    # 模拟已配置模型 Key, 使采集器启动
-    import launcher.__main__ as lm
+    # run_web_and_collector 在 launcher.__main__ 命名空间引用 start_collector / _has_model_key
+    monkeypatch.setattr(lm, "start_collector", lambda: FakeHandle())
     monkeypatch.setattr(lm, "_has_model_key", lambda: True)
     import uvicorn
     monkeypatch.setattr(uvicorn, "run", lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt()))
