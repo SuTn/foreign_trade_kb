@@ -28,6 +28,7 @@ user-data-dir/
 .idea/
 
 .pytest_tmp/
+*.pytest_tmp/
 .venv311-test/
 .uv-cache/
 dist/
