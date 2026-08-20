@@ -265,6 +265,26 @@ async def settings_reset(request: Request):
 
 # ---- 模型配置 (LLM/Embedding/Reranker) ----
 
+def _maybe_start_collector() -> bool:
+    """若已配置 embedding Key 且采集器未运行, 则自动启动采集器。
+
+    返回是否已启动 (或已在运行)。未配置 Key 时不启动。
+    """
+    try:
+        from app.config import settings
+        if not settings.embedding_api_key:
+            return False
+        from launcher.collector_runner import is_collector_running, start_collector
+        if is_collector_running():
+            return True
+        start_collector()
+        return True
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("自动启动采集器失败: %s", e)
+        return False
+
+
 @router.get("/api/model-settings")
 async def model_settings_get(request: Request):
     """返回当前模型配置 (敏感字段打码)。"""
@@ -292,6 +312,8 @@ async def model_settings_post(request: Request):
         return JSONResponse({"error": f"保存失败: {e}"}, status_code=500)
     # 清除进程级缓存, 让新配置即时生效
     model_settings.clear_cached_instances(request.app)
+    # 若已配置 embedding Key, 自动启动采集器 (幂等; 未配置则不启动)
+    _maybe_start_collector()
     return {**result, "values": model_settings.get_model_config()}
 
 

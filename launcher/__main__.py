@@ -88,7 +88,7 @@ def main():
         collector = start_collector()
         log.info("采集器已启动")
     else:
-        log.info("未配置模型 Key, 暂不启动采集器 (配置后重启应用启用)")
+        log.info("未配置模型 Key, 暂不启动采集器 (配置后 Web 页面自动启动)")
 
     # 启动系统托盘
     try:

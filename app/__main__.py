@@ -21,7 +21,7 @@ def main():
         if _has_model_key():
             collector = start_collector()
         else:
-            log.info("未配置模型 Key, 暂不启动采集器")
+            log.info("未配置模型 Key, 暂不启动采集器 (配置后 Web 页面自动启动)")
     except Exception as e:
         log.error("采集器启动失败: %s", e)
         collector = None

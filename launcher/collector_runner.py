@@ -6,8 +6,10 @@ PyInstaller 打包后 sys.executable 指向 exe, -m 模块机制不存在, 故�
   在独立线程内跑一个 asyncio 事件循环, 运行采集器协程; 崩溃时自动重启 (保留 supervisor 语义)。
 
 对外接口:
-  start_collector() -> CollectorHandle  启动采集器线程
-  CollectorHandle.stop()                停止 (终止进程树/取消协程)
+  start_collector() -> CollectorHandle  启动采集器线程 (幂等, 全局单例)
+  stop_collector()                      停止采集器
+  get_collector() -> CollectorHandle    获取全局采集器句柄
+  is_collector_running() -> bool        采集器是否在运行
 """
 import asyncio
 import logging
@@ -15,6 +17,10 @@ import threading
 import time
 
 log = logging.getLogger(__name__)
+
+# 全局采集器单例 (Web 路由与 launcher 共享, 同进程)
+_handle: "CollectorHandle | None" = None
+_handle_lock = threading.Lock()
 
 
 def _run_collector_coro():
@@ -53,8 +59,12 @@ class CollectorHandle:
         self._stop = threading.Event()
         self._proc = None  # 兼容: 记录底层浏览器进程 (由 Playwright 管理, 无需手动杀)
 
+    def is_running(self) -> bool:
+        """采集器线程是否在运行。"""
+        return bool(self._thread and self._thread.is_alive())
+
     def start(self):
-        if self._thread and self._thread.is_alive():
+        if self.is_running():
             return
         self._stop.clear()
         self._thread = threading.Thread(target=self._supervise, daemon=True,
@@ -81,7 +91,31 @@ class CollectorHandle:
             self._thread.join(timeout=2)
 
 
+def get_collector() -> CollectorHandle:
+    """返回全局采集器单例 (惰性创建)。"""
+    global _handle
+    with _handle_lock:
+        if _handle is None:
+            _handle = CollectorHandle()
+        return _handle
+
+
 def start_collector() -> CollectorHandle:
-    handle = CollectorHandle()
+    """启动采集器 (幂等: 已在运行则不重复启动)。"""
+    handle = get_collector()
     handle.start()
     return handle
+
+
+def stop_collector() -> None:
+    """停止采集器。"""
+    global _handle
+    with _handle_lock:
+        if _handle:
+            _handle.stop()
+
+
+def is_collector_running() -> bool:
+    """采集器是否在运行。"""
+    with _handle_lock:
+        return bool(_handle and _handle.is_running())
