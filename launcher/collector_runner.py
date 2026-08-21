@@ -63,21 +63,23 @@ class CollectorHandle:
         return bool(self._thread and self._thread.is_alive())
 
     def start(self):
-        """启动采集器。若旧线程仍在退出, 先等待其真正结束 (避免新旧并发写库),
-        再递增代数启动新线程。幂等: 已在运行且代数未变则不重复启动。"""
+        """启动采集器。
+
+        幂等: 若采集器正常运行中 (_stop 未置位) 则直接返回, 不重复启动。
+        若旧线程处于"停止中"状态 (_stop 已置位但线程未退出, 如 stop() 超时), 先等待其
+        真正结束再启动新线程, 避免新旧采集器并发写库 (审计 #12)。
+        """
         with self._lock:
-            # 若旧线程仍在运行 (如 stop 后未及时退出), 等待其结束
-            if self._thread is not None and self._thread.is_alive():
-                self._stop.set()
-                if self._loop is not None and self._stop_event is not None:
-                    try:
-                        self._loop.call_soon_threadsafe(self._stop_event.set)
-                    except Exception:
-                        pass
+            # 旧线程仍在运行且处于停止中 (_stop 已置位): 等待其真正结束
+            if (self._thread is not None and self._thread.is_alive()
+                    and self._stop.is_set()):
                 self._thread.join(timeout=STOP_TIMEOUT_SEC)
                 if self._thread.is_alive():
                     log.warning("[collector] 旧线程 %s 秒内未退出, 仍将启动新采集器 "
                                 "(旧线程为 daemon, 进程退出时被强杀)", STOP_TIMEOUT_SEC)
+            # 采集器正常运行中 (_stop 未置位) → 幂等返回
+            if self._thread is not None and self._thread.is_alive():
+                return
             self._generation += 1
             gen = self._generation
             self._stop.clear()

@@ -147,7 +147,7 @@ def test_supervise_stale_generation_does_not_restart(monkeypatch):
 
 
 def test_start_waits_for_old_thread_before_new(monkeypatch):
-    """start() 在旧线程未退出时先等待其结束, 再启动新线程 (避免并发写库)。"""
+    """start() 在旧线程处于停止中 (_stop 已置位) 未退出时先等待其结束, 再启动新线程 (避免并发写库)。"""
     from launcher.collector_runner import CollectorHandle
     import launcher.collector_runner as cr
 
@@ -171,13 +171,47 @@ def test_start_waits_for_old_thread_before_new(monkeypatch):
 
     monkeypatch.setattr(cr.threading, "Thread", FakeThread)
     handle = CollectorHandle()
-    # 预置一个"仍在运行"的旧线程
+    # 预置一个"停止中"的旧线程 (_stop 已置位, 线程未退出)
     handle._thread = FakeThread(None, ())
+    handle._stop.set()
     handle._stop_event = None
     handle._loop = None
     handle.start()
     assert joined  # 等待了旧线程
     assert handle._generation == 1  # 代数已递增
+
+
+def test_start_idempotent_when_running(monkeypatch):
+    """start() 在采集器正常运行中 (_stop 未置位) 是幂等的, 不重复启动 (不重启运行中的采集器)。"""
+    from launcher.collector_runner import CollectorHandle
+    import launcher.collector_runner as cr
+
+    started = []
+
+    class FakeThread:
+        def __init__(self, target, args=(), daemon=False, name=""):
+            self._target = target
+            self._args = args
+            self._alive = True
+
+        def is_alive(self):
+            return self._alive
+
+        def join(self, timeout=None):
+            self._alive = False
+
+        def start(self):
+            started.append(1)
+
+    monkeypatch.setattr(cr.threading, "Thread", FakeThread)
+    handle = CollectorHandle()
+    # 预置一个正常运行中的旧线程 (_stop 未置位)
+    handle._thread = FakeThread(None, ())
+    handle._stop_event = None
+    handle._loop = None
+    handle.start()
+    assert not started  # 未启动新线程 (幂等)
+    assert handle._generation == 0  # 代数未变
 
 
 def test_scanner_breaks_on_stop_event(monkeypatch):

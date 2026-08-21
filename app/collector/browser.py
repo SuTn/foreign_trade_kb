@@ -27,7 +27,8 @@ async def wait_for_login(page, stop_event=None) -> bool:
     except Exception:
         pass
     # 登录后会出现聊天列表; 分片轮询, 每 2s 检查一次 stop_event, 置位则提前返回
-    deadline = asyncio.get_event_loop().time() + 120
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 120
     while True:
         if stop_event is not None and stop_event.is_set():
             return False
@@ -36,5 +37,5 @@ async def wait_for_login(page, stop_event=None) -> bool:
             return True
         except Exception:
             pass
-        if asyncio.get_event_loop().time() >= deadline:
+        if loop.time() >= deadline:
             return False
