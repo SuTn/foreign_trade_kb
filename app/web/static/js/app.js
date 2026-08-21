@@ -67,7 +67,7 @@ function initWorkspaceFilter() {
   input.addEventListener("input", apply);
   if (tier) tier.addEventListener("change", apply);
 }
-// workspace-live-refresh: 中栏聊天增量轮询 (JS setInterval + htmx.ajax, 5s)
+// workspace-live-refresh: 中栏聊天增量轮询 (JS setInterval + htmx.ajax, 1s)
 // 注意: .ws-chat-poll 是点击客户后由 htmx 动态插入的, 需在每次 #ws-center 更新后重新初始化。
 var _wsPollTimer = null;
 var _activeCustomerId = null;
@@ -408,7 +408,8 @@ document.addEventListener("click", function (e) {
   }
   function start() {
     if (document.getElementById("collector-banner") || document.getElementById("collector-status")) {
-      var timer = setTimeout(check, 0);
+      // 复用外层 timer (check 自调度), 不用 var 遮蔽 (审计 #21: 消除死代码)
+      timer = setTimeout(check, 0);
     }
   }
   if (document.readyState === "loading") {

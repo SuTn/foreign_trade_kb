@@ -311,3 +311,33 @@ def test_reconcile_chat_names_from_customers_fixes_dirty_name(tmp_data):
         "SELECT display_name FROM chats WHERE id='8618963126542@c.us'").fetchone()[0] == "Lucas"
     assert s.conn.execute(
         "SELECT display_name FROM chats WHERE id='1234567890@c.us'").fetchone()[0] == "某人"
+
+
+def test_sync_customer_column_auto_does_not_overwrite(tmp_data):
+    """auto 抽取 (force=False) 只填空列, 不覆盖已有非空 company/country (保守)。"""
+    s = SqliteStore()
+    s.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,NULL)",
+                   ("c1", "客户A", "86123", "已有公司", "已有国家", 0))
+    s.conn.commit()
+    s.sync_customer_column("c1", "company", "新公司")
+    s.sync_customer_column("c1", "country", "新国家")
+    row = s.conn.execute("SELECT company, country FROM customers WHERE id='c1'").fetchone()
+    assert row["company"] == "已有公司"  # 不覆盖
+    assert row["country"] == "已有国家"
+
+
+def test_sync_customer_column_manual_overwrites(tmp_data):
+    """manual 编辑 (force=True) 直接覆盖 company/country 列, 使 search_customers 命中 (审计 #4)。"""
+    s = SqliteStore()
+    s.conn.execute("INSERT INTO customers VALUES(?,?,?,?,?,?,NULL)",
+                   ("c1", "客户A", "861380000", "旧公司", "旧国家", 0))
+    s.conn.commit()
+    s.sync_customer_column("c1", "company", "新公司", force=True)
+    s.sync_customer_column("c1", "country", "新国家", force=True)
+    row = s.conn.execute("SELECT company, country FROM customers WHERE id='c1'").fetchone()
+    assert row["company"] == "新公司"
+    assert row["country"] == "新国家"
+    # 空值不覆盖 (force 也跳过空值)
+    s.sync_customer_column("c1", "company", "", force=True)
+    row = s.conn.execute("SELECT company FROM customers WHERE id='c1'").fetchone()
+    assert row["company"] == "新公司"

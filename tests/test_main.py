@@ -63,7 +63,7 @@ def test_collector_passes_pw_context_to_scanner(monkeypatch):
     async def fake_launch():
         return ("PW", "CTX", "PAGE", "CDP")
 
-    async def fake_wait_login(page):
+    async def fake_wait_login(page, stop_event=None):
         return True
 
     monkeypatch.setattr(cm, "Scanner", FakeScanner)
@@ -123,6 +123,61 @@ def test_collector_stop_signals_event_loop(monkeypatch):
                                     "join": lambda self, timeout=None: None})()
     handle.stop()
     assert stop_event.is_set()  # 停止信号已置位
+
+
+def test_supervise_stale_generation_does_not_restart(monkeypatch):
+    """重启竞态防护 (#12): 旧线程被新 start() 取代后 (代数不匹配), 即使 _stop 被清除
+    也不应复活重启采集器, 避免新旧采集器并发写库。"""
+    from launcher.collector_runner import CollectorHandle
+    import launcher.collector_runner as cr
+
+    calls = {"n": 0}
+
+    async def fake_run(stop_event=None):
+        calls["n"] += 1
+        # 正常返回 (模拟采集器主循环退出)
+
+    monkeypatch.setattr(cr, "_run_collector_coro", fake_run)
+    handle = CollectorHandle()
+    # 模拟: 旧线程代数=1, 但当前代数已被 start() 推进到 2 (被取代)
+    handle._generation = 2
+    # _stop 未置位 (模拟 start() 已 clear), 但代数不匹配 → 直接退出, 不运行采集器
+    handle._supervise(gen=1)
+    assert calls["n"] == 0  # 代数不匹配, 旧线程不复活运行采集器
+
+
+def test_start_waits_for_old_thread_before_new(monkeypatch):
+    """start() 在旧线程未退出时先等待其结束, 再启动新线程 (避免并发写库)。"""
+    from launcher.collector_runner import CollectorHandle
+    import launcher.collector_runner as cr
+
+    joined = []
+
+    class FakeThread:
+        def __init__(self, target, args=(), daemon=False, name=""):
+            self._target = target
+            self._args = args
+            self._alive = True
+
+        def is_alive(self):
+            return self._alive
+
+        def join(self, timeout=None):
+            joined.append(timeout)
+            self._alive = False  # 模拟线程结束
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(cr.threading, "Thread", FakeThread)
+    handle = CollectorHandle()
+    # 预置一个"仍在运行"的旧线程
+    handle._thread = FakeThread(None, ())
+    handle._stop_event = None
+    handle._loop = None
+    handle.start()
+    assert joined  # 等待了旧线程
+    assert handle._generation == 1  # 代数已递增
 
 
 def test_scanner_breaks_on_stop_event(monkeypatch):

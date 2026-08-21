@@ -15,15 +15,26 @@ async def launch_browser():
     cdp = ReadOnlyCDP(await context.new_cdp_session(page))
     return pw, context, page, cdp
 
-async def wait_for_login(page) -> bool:
-    """等待 WhatsApp Web 登录完成 (canvas/登录二维码消失)。"""
+async def wait_for_login(page, stop_event=None) -> bool:
+    """等待 WhatsApp Web 登录完成 (canvas/登录二维码消失)。
+
+    stop_event: 可选 asyncio.Event, 置位后尽快返回 False (供 stop() 在登录阶段也能中断,
+    避免 stop() 卡在最长 120s 的登录等待)。
+    """
+    import asyncio
     try:
         await page.wait_for_selector('canvas[aria-label="Scan me!"]', timeout=3000, state="detached")
     except Exception:
         pass
-    # 登录后会出现聊天列表
-    try:
-        await page.wait_for_selector("[data-testid='chat-list']", timeout=120000)
-        return True
-    except Exception:
-        return False
+    # 登录后会出现聊天列表; 分片轮询, 每 2s 检查一次 stop_event, 置位则提前返回
+    deadline = asyncio.get_event_loop().time() + 120
+    while True:
+        if stop_event is not None and stop_event.is_set():
+            return False
+        try:
+            await page.wait_for_selector("[data-testid='chat-list']", timeout=2000)
+            return True
+        except Exception:
+            pass
+        if asyncio.get_event_loop().time() >= deadline:
+            return False

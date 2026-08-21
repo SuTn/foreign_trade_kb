@@ -809,6 +809,10 @@ async def customer_profile_save(customer_id: str, request: Request):
     store = _store(request)
     if field and (value or field in ("intent_level", "tags")):
         store.upsert_profile_field(customer_id, field, value, source="manual")
+        # 人工编辑 company/country 同步到 customers 固定列 (force=True 覆盖, 即时生效),
+        # 使 search_customers (查固定列) 能命中 (审计 #4: 消除 EAV 与固定列双轨不一致)
+        if field in ("company", "country"):
+            store.sync_customer_column(customer_id, field, value, force=True)
         if field in ("intent_level", "tags"):
             # 单字段观察: 另一字段取当前画像值
             current = {p.field: p.value for p in store.get_profile(customer_id)}

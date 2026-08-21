@@ -11,11 +11,15 @@ from app.config import settings
 async def _run(stop_event=None):
     write_status(settings.status_path, {"state": "starting"})
     pw, context, page, cdp = await launch_browser()
-    logged_in = await wait_for_login(page)
+    if stop_event is not None and stop_event.is_set():
+        return  # 启动浏览器期间收到停止信号, 直接退出
+    logged_in = await wait_for_login(page, stop_event=stop_event)
     write_status(settings.status_path, {"state": "logged_in" if logged_in else "awaiting_login"})
     if not logged_in:
+        if stop_event is not None and stop_event.is_set():
+            return
         print("请在浏览器扫码登录 WhatsApp")
-        await wait_for_login(page)
+        await wait_for_login(page, stop_event=stop_event)
     store = SqliteStore()
     vector = ChromaStore(embedding_fn=get_embedding().embed)
     scanner = Scanner(cdp, store, vector, page=page, llm=CloudLLM(), pw=pw, context=context,

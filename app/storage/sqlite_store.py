@@ -96,21 +96,31 @@ class SqliteStore(StructuredStore):
         rows = self.conn.execute("SELECT * FROM profiles WHERE customer_id=?", (customer_id,)).fetchall()
         return [ProfileField(r["customer_id"], r["field"], r["value"], r["source"], r["updated_at"]) for r in rows]
 
-    def sync_customer_column(self, customer_id, field, value):
+    def sync_customer_column(self, customer_id, field, value, force=False):
         """把画像字段同步到 customers 固定列 (G: 消除 EAV 与固定列双轨)。
         目前 company/country 同时存在于 profiles EAV 与 customers 列, 抽取时同步到列,
-        使 search_customers (查固定列) 能命中。仅覆盖非空值, 不覆盖已有非空列。"""
+        使 search_customers (查固定列) 能命中。
+        force=False (auto 抽取): 仅覆盖非空值, 不覆盖已有非空列 (保守, 防 auto 覆盖人工值)。
+        force=True (manual 编辑): 直接覆盖列值 (用户显式设置, 应即时生效)。"""
         if not value:
             return
         # 显式白名单映射, 避免 f-string 拼列名 (A4)
         if field == "company":
-            self.conn.execute(
-                "UPDATE customers SET company=COALESCE(NULLIF(company,''), ?) WHERE id=?",
-                (value, customer_id))
+            if force:
+                self.conn.execute(
+                    "UPDATE customers SET company=? WHERE id=?", (value, customer_id))
+            else:
+                self.conn.execute(
+                    "UPDATE customers SET company=COALESCE(NULLIF(company,''), ?) WHERE id=?",
+                    (value, customer_id))
         elif field == "country":
-            self.conn.execute(
-                "UPDATE customers SET country=COALESCE(NULLIF(country,''), ?) WHERE id=?",
-                (value, customer_id))
+            if force:
+                self.conn.execute(
+                    "UPDATE customers SET country=? WHERE id=?", (value, customer_id))
+            else:
+                self.conn.execute(
+                    "UPDATE customers SET country=COALESCE(NULLIF(country,''), ?) WHERE id=?",
+                    (value, customer_id))
         else:
             return
         self.conn.commit()
