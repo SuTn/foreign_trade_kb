@@ -8,11 +8,16 @@
 - **客户画像**: 自动抽取/匹配客户身份字段, 支持人工编辑 (manual 不被 auto 覆盖)
 - **客户分析**: 基于画像 + 聊天摘要, LLM 生成兴趣点/活跃度/跟进建议
 - **对话摘要**: 按客户聚合聊天, LLM 结构化输出意向车型/预算/目标国家/核心顾虑/待跟进事项, 客户详情页展示; 增量更新 (只处理新消息 + 旧摘要合并), 异步 worker 生成不阻塞页面
-- **辅助回复**: RAG 召回 (画像 + 历史聊天 + 产品知识) + LLM 生成建议回复, 仅生成不自动发送
+- **客户意向分层**: 按聊天摘要 LLM 判定 A/B/C/D 意向等级 + 业务标签, 支持批量分层与历史追溯
+- **辅助回复**: RAG 召回 (画像 + 历史聊天 + 产品知识) + LLM 生成建议回复, 仅生成不自动发送; 支持多语种 (中/英/俄) / 业务场景 / 语气风格
+- **双向收发**: 在 Web 工作台直接向客户发送 WhatsApp 消息 (默认关闭, 需手动开启; 发送前校验目标会话防发错人)
 - **知识库导入**: 上传 PDF / Word / Excel / CSV / HTML / Markdown / 纯文本, 自动解析切分
 - **RAG 索引**: 多路召回 (FTS5 + 向量) + 云重排 (阿里云 qwen3-rerank) + 父子块展开
 - **Wiki 索引**: 两阶段实体抽取与全局去重 (嵌入聚类初筛 + LLM 精判), 生成 Markdown 页面
 - **Obsidian Vault 导出**: 将 Wiki 页面导出为 Obsidian vault (frontmatter + wikilinks)
+- **全局搜索**: 客户 / 消息 / 知识库 / 画像 四源聚合检索
+- **数据清理**: 按会话或按天数清理聊天消息 (含向量), 保留画像与知识库
+- **模型配置页面**: Web 设置页直接配置 LLM / Embedding / Reranker, 测试连接后即时生效
 - **本地优先**: SQLite (WAL + FTS5) + ChromaDB, 全部数据落在 `data/` 目录
 - **一键启动包**: `build.py` 产出可分发的 zip, 业务员解压 → 双击 exe → 页面填 Key → 扫码登录 WhatsApp → 用
 
@@ -115,11 +120,19 @@ KB_RERANKER_API_KEY=sk-...
 | `KB_VAULT_EXPORT_DIR` | `data/vault` | Obsidian vault 导出目录 |
 | `KB_FAST_TICK_SEC` | `2.0` | DOM 增量轮询间隔 |
 | `KB_SLOW_TICK_SEC` | `30.0` | IDB 全量校准间隔 |
-| `KB_AUTO_SCAN_CHATS` | `true` | 自动逐会话打开扫描全部聊天正文（会把未读消息标记为已读） |
+| `KB_AUTO_SCAN_CHATS` | `false` | 自动逐会话打开扫描全部聊天正文（会把未读消息标记为已读）；默认关闭，改为「未读列表监控 + 点谁同步谁」 |
 | `KB_AUTO_SCAN_INTERVAL_SEC` | `600.0` | 全量扫描周期 |
 | `KB_AUTO_SCAN_MAX_CHATS` | `100` | 单次最多扫描的会话数 |
 | `KB_AUTO_SCAN_SETTLE_SEC` | `1.5` | 打开每个会话后的等待秒数 |
 | `KB_LLM_MAX_TOKENS` | `2048` | 回复生成最大 token 数（长回复不被截断；分层/同义判断等短任务自动用更小值） |
+| `KB_PROFILE_SUMMARY_MESSAGES` | `30` | 画像抽取/客户分析所用近期消息数 |
+| `KB_TIERING_ACTIVE_DAYS` | `30` | 分层: 近期活跃客户默认天数 |
+| `KB_TIERING_MAX_CUSTOMERS` | `50` | 分层: 单次任务客户数上限 |
+| `KB_CHUNK_SIZE` | `512` | RAG 切分大小 |
+| `KB_CHUNK_OVERLAP` | `64` | RAG 切分重叠 |
+| `KB_RERANK_TOP_K` | `8` | 重排后保留条数 |
+| `KB_CONTEXT_TOKEN_LIMIT` | `4000` | 上下文截断 token 上限 |
+| `KB_WIKI_DEDUP_THRESHOLD` | `0.85` | Wiki 实体去重余弦阈值 |
 
 ## 启动
 
@@ -149,15 +162,22 @@ python -m app
 
 1. 浏览器访问 `http://127.0.0.1:8000`。
 2. 首页为仪表盘, 概览采集器状态、客户与知识库统计、近期活跃会话, 并提供「快速开始」引导; `/api/collector/status` 返回 JSON 状态。
-3. `/workspace` 为三栏工作台: 左栏客户列表 (搜索 + 意向等级筛选 + 批量分层), 中栏聊天窗口 (实时刷新 + 加载更早消息 + 生成回复), 右栏画像/摘要/AI 建议。客户列表含 WhatsApp 自动抓取的头像 (无头像时为首字母占位)。
-4. 在聊天窗口对某条消息点「回复」, 系统通过 RAG 召回画像/历史/产品知识后生成建议回复 (仅生成, 不自动发送, 业务员复制后手动发送)。
+3. `/workspace` 为三栏工作台: 左栏客户列表 (搜索 + 意向等级筛选 + 批量分层), 中栏聊天窗口 (实时刷新 + 加载更早消息 + 生成回复 + 直接发送), 右栏画像/摘要/AI 建议。客户列表含 WhatsApp 自动抓取的头像 (无头像时为首字母占位)。
+4. 在聊天窗口对某条消息点「回复」, 系统通过 RAG 召回画像/历史/产品知识后生成建议回复 (仅生成, 不自动发送, 业务员复制后手动发送); 支持切换语种/场景/语气重新生成。
 5. 右栏可一键生成「对话摘要」「跟进建议」「客户分析」, 结构化展示意向车型/预算/目标国家/核心顾虑/待跟进事项, 便于快速复盘。
+6. 左栏「批量分层」按钮可对近期活跃客户批量判定意向等级 (A/B/C/D), 结果在客户列表与画像中展示。
 
 ### 知识库
 
 1. 访问 `/knowledge`。
 2. 上传文档 (支持 pdf / docx / doc / xlsx / xls / csv / html / md / txt), 系统自动解析、切分, 同时建立 RAG 向量索引与 Wiki 实体索引。
 3. 点击「导出 Vault」将 Wiki 页面导出为 Obsidian vault (位于 `data/vault/`), 可用 Obsidian 打开浏览。
+
+### 搜索与清理
+
+1. 访问 `/search` 进行全局搜索 (客户 / 消息 / 知识库 / 画像 四源聚合)。
+2. 访问 `/cleanup` 按会话或按天数清理聊天消息 (含对应向量), 保留画像与知识库。
+3. 访问 `/settings` 配置采集器参数 (轮询间隔 / 自动扫描 / 发送开关) 与模型 (LLM / Embedding / Reranker)。
 
 ## 项目结构
 
@@ -168,18 +188,20 @@ app/
 ├── collector/           # WhatsApp 采集器 (CDP 只读, DOM+IDB 同步)
 │   ├── readonly_cdp.py  # ReadOnlyCDP 门面 (架构级只读保证)
 │   ├── browser.py       # Playwright 启动持久化 Chrome
-│   ├── scanner.py       # fast/slow tick 轮询
+│   ├── scanner.py       # fast/slow tick 轮询 + 发送/扫描/回溯任务消费
 │   ├── dom_snapshot.py  # DOM 快照解析
 │   ├── idb_walk.py      # IndexedDB 遍历
+│   ├── chat_list.py     # 左栏会话列表只读读取
+│   ├── sender.py        # 发送文字 + 打开会话 (页面 DOM 操作)
 │   └── merger.py        # DOM/IDB 消息合并
-├── storage/             # SQLite (WAL+FTS5) + ChromaDB
+├── storage/             # SQLite (WAL+FTS5, 版本化迁移) + ChromaDB (SegmentAPI)
 ├── llm/                 # CloudLLM (anthropic/openai 兼容接口) + OpenAI 兼容嵌入
 ├── rag/                 # RAG 管线: 多路召回 + 云重排 + 父子块展开
 ├── knowledge/           # 文档解析 / RAG 索引 / Wiki 索引 / Vault 导出
-├── profile/             # 客户匹配 / 字段抽取 / 分析
-├── reply/               # 辅助回复生成 (仅生成不发送)
-└── web/                 # FastAPI 应用 + 模板 + 路由
-launcher/                # 一键启动包: 入口 / 路径 / 采集器同进程启动 / 托盘
+├── profile/             # 客户匹配 / 字段抽取 / 分析 / 分层 / 对话摘要
+├── reply/               # 辅助回复生成 (仅生成不发送, 多语种/场景/语气)
+└── web/                 # FastAPI 应用 + 模板 + 路由 + worker 线程
+launcher/                # 一键启动包: 入口 / 路径 / 采集器守护 / 托盘
 vendor/docreader/        # WeKnora docreader (MIT, 功能性回退实现)
 data/                    # 本地数据 (gitignored): kb.db, chroma/, user-data-dir/, vault/, status.json
 ```
@@ -188,8 +210,8 @@ data/                    # 本地数据 (gitignored): kb.db, chroma/, user-data-
 
 单进程架构: 采集器与 Web 在同一进程内运行 (采集器在独立线程 + 事件循环, 崩溃自动重启)。两者共享同一份 SQLite (`data/kb.db`) 与 ChromaDB (`data/chroma/`)。
 
-- **采集器**: 通过 Playwright 启动可见 Chrome 访问 WhatsApp Web, 经 `ReadOnlyCDP` 门面只读调用 CDP (DOMSnapshot / IndexedDB / Runtime.evaluate), 抓取消息后写入 SQLite + 向量库。架构上禁止采集器发送任何 WhatsApp 消息 (发送功能默认关闭, 需手动开启)。
-- **Web**: FastAPI + Jinja2 + HTMX, 提供客户列表/画像/聊天/回复/知识管理界面, 监听 127.0.0.1:8000。
+- **采集器**: 通过 Playwright 启动可见 Chrome 访问 WhatsApp Web, 经 `ReadOnlyCDP` 门面只读调用 CDP (DOMSnapshot / IndexedDB / Runtime.evaluate), 抓取消息后写入 SQLite + 向量库。架构上禁止采集器发送任何 WhatsApp 消息 (发送功能默认关闭, 需手动开启)。采集器由 `CollectorHandle` 守护 (崩溃自动重启, 支持停止/重启, 重启时等待旧线程退出避免并发写库)。
+- **Web**: FastAPI + Jinja2 + HTMX, 提供客户列表/画像/聊天/回复/知识管理界面, 监听 127.0.0.1:8000。异步任务 (回复生成 / 客户分层 / 对话摘要) 由常驻 worker 线程消费, 回复线程最高优先级不阻塞, 看门狗兜底卡死任务。
 - **一键启动包**: `launcher/` 编排启动流程 (路径处理 / 环境自检 / 采集器同进程启动 / 系统托盘 / 延迟打开浏览器), PyInstaller 打包为 exe。
 
 ## 第三方
