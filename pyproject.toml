@@ -7,8 +7,10 @@ dependencies = [
     "uvicorn[standard]>=0.27",
     "jinja2>=3.1",
     "playwright>=1.42",
-    # chromadb 1.5.x 的 Rust 绑定在 Windows 上 upsert 崩溃, 固定 0.4.x (纯 Python + hnswlib)
-    "chromadb>=0.4.22,<0.5",
+    # chromadb 1.5.x 的 Rust 绑定在 Windows 上 upsert 段错误崩溃 (chroma-core/chroma#6052),
+    # 项目用 SegmentAPI (Python 实现) 绕过, 见 app/storage/chroma_store.py。
+    # SegmentAPI 依赖 hnswlib, 故保留 chroma-hnswlib==0.7.3 (0.7.6 在非 AVX512 CPU 崩溃)。
+    "chromadb>=1.5.9,<2",
     "chroma-hnswlib==0.7.3",
     "onnxruntime>=1.20,<1.29",
     "numpy>=1.22,<2",

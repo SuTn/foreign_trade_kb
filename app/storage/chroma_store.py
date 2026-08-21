@@ -1,12 +1,24 @@
 # app/storage/chroma_store.py
 import chromadb
+from chromadb.config import Settings as ChromaSettings
 from app.storage.interfaces import VectorStore
 from app.config import settings
+
+# chromadb 1.5.x 的 Rust 绑定 (chromadb_rust_bindings.pyd) 在 Windows 上 upsert 会段错误崩溃
+# (见 chroma-core/chroma#6052, #5937)。改用 Python 实现的 SegmentAPI 绕过 Rust 绑定。
+# SegmentAPI 依赖 hnswlib (chroma-hnswlib==0.7.3), 需在 pyproject.toml 保留。
+_CHROMA_SETTINGS = ChromaSettings(
+    anonymized_telemetry=False,
+    chroma_api_impl="chromadb.api.segment.SegmentAPI",
+)
 
 class ChromaStore(VectorStore):
     def __init__(self, embedding_fn, path=None):
         self.embedding_fn = embedding_fn  # callable(text)->list[float]
-        self.client = chromadb.PersistentClient(path=str(path or settings.chroma_dir))
+        self.client = chromadb.PersistentClient(
+            path=str(path or settings.chroma_dir),
+            settings=_CHROMA_SETTINGS,
+        )
         self.msg_col = self.client.get_or_create_collection("message_vectors")
         self.chunk_col = self.client.get_or_create_collection("knowledge_chunks")
 

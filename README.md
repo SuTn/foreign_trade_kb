@@ -18,7 +18,7 @@
 
 ## 环境要求
 
-- Python ≥ 3.11,<3.13 (chromadb 0.4.x 不兼容 3.13)
+- Python ≥ 3.11,<3.13 (chromadb 1.5.x 要求 ≥3.9; 项目锁 3.11/3.12 以兼容 onnxruntime 1.20-1.28)
 - 无需 Docker, 纯本地运行
 - 首次运行需可见的 Chrome (Playwright 拉起, 用于扫码登录 WhatsApp Web)
 - **AI 全在线**: LLM / Embedding / Reranker 均走云端 API (阿里云 DashScope 等), 无需本地模型

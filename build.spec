@@ -59,6 +59,23 @@ hiddenimports += collect_submodules("launcher")
 # ---- ChromaDB migrations (SQL 数据文件) ----
 datas += collect_data_files("chromadb", includes=["migrations/**/*.sql"])
 
+# ---- ChromaDB SegmentAPI 动态加载模块 (PyInstaller 静态分析找不到) ----
+# 项目用 SegmentAPI (Python 实现) 绕过 Rust 绑定在 Windows 的 upsert 崩溃 (见 chroma_store.py)。
+# SegmentAPI 通过 importlib.import_module 动态加载实现类, 需显式收集。
+hiddenimports += [
+    "chromadb.api.segment",
+    "chromadb.segment.impl.manager.local",
+    "chromadb.segment.impl.vector.local_hnsw",
+    "chromadb.segment.impl.vector.local_persistent_hnsw",
+    "chromadb.segment.impl.metadata.sqlite",
+    "chromadb.db.impl.sqlite",
+    "chromadb.execution.executor.local",
+    "chromadb.ingest.impl.simple_policy",
+    "chromadb.quota.simple_quota_enforcer",
+    "chromadb.rate_limit.simple_rate_limit",
+    "chromadb.telemetry.product.posthog",
+]
+
 # ---- 排除不需要的包 (瘦身) ----
 excludes = [
     "matplotlib", "scipy", "torch", "torchvision", "torchaudio",
